@@ -1,17 +1,13 @@
-version: "3.9"
-
 services:
   app:
-    build:
-      context: ..
-      dockerfile: ../Dockerfile
-    container_name: dev-env
+    image: node:20-alpine
+    working_dir: /workspaces/NOBEDevOps/nobedevops
     volumes:
-      - ..:/app
-    working_dir: /app
-    tty: true
-    stdin_open: true
-    environment:
-      - ENV=development
+      - ..:/workspaces/NOBEDevOps:cached
+      - nobedevops_node_modules:/workspaces/NOBEDevOps/nobedevops/node_modules
+    command: sleep infinity
     ports:
       - "3000:3000"
+
+volumes:
+  nobedevops_node_modules:
