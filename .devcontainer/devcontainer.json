@@ -1,0 +1,8 @@
+{
+  "name": "NOBEDevOps Dev",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspaces/NOBEDevOps/nobedevops",
+  "forwardPorts": [3000],
+  "postCreateCommand": "sh -lc 'if [ -f package-lock.json ]; then npm ci; else npm install; fi'"
+}
