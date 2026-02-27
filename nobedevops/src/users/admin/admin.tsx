@@ -1,4 +1,10 @@
 import { useEffect, useState } from "react";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY!
+);
 
 export default function AdminUI() {
     //Setting default values for original display dropdowns
@@ -42,27 +48,40 @@ export default function AdminUI() {
         }));
     }
     //Runs when admin submits an event, e=event
-    function handleSubmit(e: any) {
+    async function handleSubmit(e: any) {
         //Prevents losing React state and prevents browser reloading the page
         e.preventDefault();
-        //Prints our data to the browser developer console, temporary line for debugging, replace with supabase
-        console.log("Form submitted:", form);
+        //Create payload to send to backend, convert points to number, is_mandatory to boolean, date to ISO string
+        const payload = {
+            name: form.name,
+            event_type: form.event_type,
+            points: Number(form.points),
+            is_mandatory: Boolean(form.is_mandatory),
+            date: new Date(form.date).toISOString(),
+            committee_id: form.committee_id || null,
+            project_id: form.event_type === "PROJECT_MEETING" ? form.project_id || null : null,
+        };
+        const { error } = await supabase.from("events").insert(payload);
+        if (error) {
+            setMessage(`${error.message}`);
+            return;
+        }
         //Updates message state, shows if event was created successfully
         setMessage("Event created!");
     }
     //What appears in our display
     return (
         <div>
-            //Header for the website
+            {/*Header for the website*/}
             <h2>Create Event</h2>
-            //Goes to submit function when submit button is pressed
+            {/*Goes to submit function when submit button is pressed*/}
             <form onSubmit={handleSubmit}>
-                //Name input field
+                {/*Name input field*/}
                 <div>
                     <label>Name:</label><br />
                     <input name="name" value={form.name} onChange={change} />
                 </div>
-                //Event type dropdown
+                {/*Event type dropdown*/}
                 <div>
                     <label>Event Type:</label><br />
                     <select name="event_type" value={form.event_type} onChange={change}>
@@ -75,7 +94,7 @@ export default function AdminUI() {
                         <option value="OTHER_MANDATORY">OTHER_MANDATORY</option>
                     </select>
                 </div>
-                //Points input field
+                {/*Points input field*/}
                 <div>
                     <label>Points:</label><br />
                     <input
@@ -85,7 +104,7 @@ export default function AdminUI() {
                         onChange={change}
                     />
                 </div>
-                //Mandatory or not checkbox
+                {/*Mandatory or not checkbox*/}
                 <div>
                     <label>Mandatory:</label>
                     <input
@@ -95,7 +114,7 @@ export default function AdminUI() {
                         onChange={change}
                     />
                 </div>
-                //Date input field
+                {/*Date input field*/}
                 <div>
                     <label>Date:</label><br />
                     <input
@@ -105,7 +124,7 @@ export default function AdminUI() {
                         onChange={change}
                     />
                 </div>
-                //Committee ID input field
+                {/*Committee ID input field*/}
                 <div>
                     <label>Committee ID:</label><br />
                     <input
@@ -114,7 +133,7 @@ export default function AdminUI() {
                         onChange={change}
                     />
                 </div>
-                //Project ID input field
+                {/*Project ID input field*/}
                 <div>
                     <label>Project ID:</label><br />
                     <input
@@ -123,7 +142,7 @@ export default function AdminUI() {
                         onChange={change}
                     />
                 </div>
-                //Shows time event was created
+                {/*Shows time event was created*/}
                 <div>
                     <label>Created At:</label><br />
                     <input
