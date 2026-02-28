@@ -53,11 +53,15 @@ export default function AdminPage() {
             name="event_type"
             required
             style={{ width: "100%", padding: 8 }}
-          >
+            >
             <option value="PROFESSIONAL">PROFESSIONAL</option>
             <option value="SOCIAL">SOCIAL</option>
-            <option value="SERVICE">SERVICE</option>
-          </select>
+            <option value="PHILANTHROPY">PHILANTHROPY</option>
+            <option value="GENERAL_MEETING">GENERAL_MEETING</option>
+            <option value="NEW_MEMBER_WORKSHOP">NEW_MEMBER_WORKSHOP</option>
+            <option value="PROJECT_MEETING">PROJECT_MEETING</option>
+            <option value="OTHER_MANDATORY">OTHER_MANDATORY</option>
+            </select>
         </label>
 
         <label>
