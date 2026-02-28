@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
@@ -58,8 +60,6 @@ export default function AdminUI() {
             points: Number(form.points),
             is_mandatory: Boolean(form.is_mandatory),
             date: new Date(form.date).toISOString(),
-            committee_id: form.committee_id || null,
-            project_id: form.event_type === "PROJECT_MEETING" ? form.project_id || null : null,
         };
         const { error } = await supabase.from("events").insert(payload);
         if (error) {
