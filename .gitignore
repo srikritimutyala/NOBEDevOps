@@ -34,3 +34,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+.github/copilot-instructions.md
+.gitignore
+nobedevops/.github/copilot-instructions.md
