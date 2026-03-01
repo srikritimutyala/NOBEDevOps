@@ -1,14 +1,71 @@
-import { createClient } from "@/utils/supabase/server";
+import { createClient } from "@/app/utils/supabase/server";
 import { randomBytes } from "crypto";
 import { cookies } from "next/headers";
+import AdminDashboard, { AttendanceRow } from "./adminDashboard";
 
-export default function AdminPage() {
+export default async function AdminPage() {
+
+  // ✅ server-side supabase client
+  const cookieStore = cookies()
+  const supabase = createClient(Promise.resolve(cookieStore))
+
+  // ✅ Fetch dashboard data (adjust table names if yours differ)
+  let totalMembers: number | null = null
+  let totalAttendanceRecords: number | null = null
+  let recentAttendance: AttendanceRow[] = []
+  let attendanceError: string | null = null
+
+  // 1) total members
+  const membersRes = await supabase
+    .from("members")
+    .select("*", { count: "exact", head: true })
+
+  if (membersRes.error) {
+    attendanceError = membersRes.error.message
+  } else {
+    totalMembers = membersRes.count ?? 0
+  }
+
+  // 2) total attendance records
+  const attendanceRes = await supabase
+    .from("attendance")
+    .select("*", { count: "exact", head: true })
+
+  if (attendanceRes.error) {
+    attendanceError = attendanceError ?? attendanceRes.error.message
+  } else {
+    totalAttendanceRecords = attendanceRes.count ?? 0
+  }
+
+  // 3) recent attendance rows
+  const recentRes = await supabase
+    .from("attendance")
+    .select("id, member_name, status, created_at")
+    .order("created_at", { ascending: false })
+    .limit(8)
+
+  if (recentRes.error) {
+    attendanceError = attendanceError ?? recentRes.error.message
+  } else {
+    recentAttendance = (recentRes.data ?? []) as AttendanceRow[]
+  }
+
+
+
+
+
+
   async function createEvent(formData: FormData) {
     "use server";
 
     // Create per-request cookie store + supabase client
     const cookieStore = cookies();
     const supabase = createClient(Promise.resolve(cookieStore));
+
+
+
+
+
 
     const name = String(formData.get("name") ?? "");
     const event_type = String(formData.get("event_type") ?? "");
@@ -37,6 +94,12 @@ export default function AdminPage() {
 
   return (
     <div style={{ maxWidth: 520, margin: "40px auto" }}>
+      <AdminDashboard
+        totalMembers={totalMembers}
+        totalAttendanceRecords={totalAttendanceRecords}
+        recentAttendance={recentAttendance}
+        attendanceError={attendanceError}
+      />
       <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 16 }}>
         Create Event
       </h1>

@@ -1,11 +1,11 @@
-type AttendanceRow = {
+export type AttendanceRow = {
     id?: string | number
     member_name?: string | null
     status?: string | null
     created_at?: string | null
 }
 
-type AdminDashboardProps = {
+export type AdminDashboardProps = {
     totalMembers: number | null
     totalAttendanceRecords: number | null
     recentAttendance: AttendanceRow[]
