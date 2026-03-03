@@ -85,7 +85,7 @@ export default function AdminUI() {
               return;
             }
 
-            // 3) success message + localized link
+            //success message + localized link
             const url = `${window.location.origin}/check-in/${secret}`;
             setMessage("Event created!");
             setCheckInUrl(url);
