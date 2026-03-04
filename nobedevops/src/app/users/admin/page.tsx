@@ -2,7 +2,7 @@ import { createClient } from "@/app/utils/supabase/server";
 import { randomBytes } from "crypto";
 import { cookies } from "next/headers";
 import AdminUI from "./adminUI";
-
+import AdminGuard from "./AdminGuard";
 import AdminDashboard, { AttendanceRow } from "./adminDashboard";
 
 export default async function AdminPage() {
@@ -95,19 +95,20 @@ export default async function AdminPage() {
   }
 
   return (
-    <div style={{ maxWidth: 520, margin: "40px auto" }}>
-      <AdminDashboard
-        totalMembers={totalMembers}
-        totalAttendanceRecords={totalAttendanceRecords}
-        recentAttendance={recentAttendance}
-        attendanceError={attendanceError}
-      />
-      <div className="mx-auto max-w-6xl px-6 pb-10">
-        <div className="rounded-lg border border-black/10 dark:border-white/20 p-6">
-          <AdminUI />
+    <AdminGuard>
+      <div style={{ maxWidth: 520, margin: "40px auto" }}>
+        <AdminDashboard
+          totalMembers={totalMembers}
+          totalAttendanceRecords={totalAttendanceRecords}
+          recentAttendance={recentAttendance}
+          attendanceError={attendanceError}
+        />
+        <div className="mx-auto max-w-6xl px-6 pb-10">
+          <div className="rounded-lg border border-black/10 dark:border-white/20 p-6">
+            <AdminUI />
+          </div>
         </div>
       </div>
-      
-    </div>
+    </AdminGuard>
   );
 }
