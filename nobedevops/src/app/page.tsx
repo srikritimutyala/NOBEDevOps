@@ -22,6 +22,13 @@ export default function HomePage() {
           Admin Dashboard
         </Link>
       </div>
+      {/* Login Button */}
+        <Link
+          href="/users/login"
+          className="px-6 py-3 rounded-lg bg-green-600 text-white font-medium hover:bg-green-700 transition"
+        >
+          Login
+        </Link>
     </main>
   )
 }
