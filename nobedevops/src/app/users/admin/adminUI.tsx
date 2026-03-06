@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
+import QRCode from "react-qr-code";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -22,6 +23,7 @@ export default function AdminUI() {
     });
     //Status label, creates variable that shows if event was created
     const [message, setMessage] = useState("");
+    const [checkInUrl, setCheckInUrl] = useState("");
     //Set default timestamp when page opens
     useEffect(() => {
         //New Date object representing current time
@@ -49,25 +51,49 @@ export default function AdminUI() {
             [name]: type === "checkbox" ? checked : value
         }));
     }
+    async function fetchQrSecret(): Promise<string> {
+        const res = await fetch("/api/admin/generate-secret");
+        if (!res.ok) {
+            throw new Error("Failed to generate QR secret");
+        }
+        const data = await res.json();
+        return data.secret;
+    }
     //Runs when admin submits an event, e=event
     async function handleSubmit(e: any) {
-        //Prevents losing React state and prevents browser reloading the page
         e.preventDefault();
-        //Create payload to send to backend, convert points to number, is_mandatory to boolean, date to ISO string
-        const payload = {
-            name: form.name,
-            event_type: form.event_type,
-            points: Number(form.points),
-            is_mandatory: Boolean(form.is_mandatory),
-            date: new Date(form.date).toISOString(),
-        };
-        const { error } = await supabase.from("events").insert(payload);
-        if (error) {
-            setMessage(`${error.message}`);
-            return;
+
+        try {
+            //get secret from backend
+            const secret = await fetchQrSecret();
+
+            //create payload (now includes qr_code_secret)
+            const payload = {
+                name: form.name,
+                event_type: form.event_type,
+                points: Number(form.points),
+                is_mandatory: Boolean(form.is_mandatory),
+                date: new Date(form.date).toISOString(),
+                created_at: new Date(form.created_at).toISOString(),
+                qr_code_secret: secret,
+            };
+
+            const { error } = await supabase.from("events").insert(payload);
+
+            if (error) {
+              setMessage(error.message);
+              setCheckInUrl("");
+              return;
+            }
+
+            //success message + localized link
+            const url = `${window.location.origin}/check-in/${secret}`;
+            setMessage("Event created!");
+            setCheckInUrl(url);
+        } catch (err: any) {
+          setMessage(err?.message ?? "Something went wrong generating the secret.");
+          setCheckInUrl("");
         }
-        //Updates message state, shows if event was created successfully
-        setMessage("Event created!");
     }
     //What appears in our display
     return (
@@ -156,6 +182,25 @@ export default function AdminUI() {
                 <button type="submit">Create Event</button>
             </form>
             {message && <p>{message}</p>}
+            {checkInUrl && (
+                <div style={{ marginTop: "20px" }}>
+                    <p>Check-in link:</p>
+                    <a href={checkInUrl} target="_blank" rel="noopener noreferrer">
+                        {checkInUrl}
+                    </a>
+
+                    <div
+                        style={{
+                            marginTop: "16px",
+                            background: "white",
+                            padding: "16px",
+                            display: "inline-block",
+                        }}
+                    >
+                        <QRCode value={checkInUrl} size={220} />
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
