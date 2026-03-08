@@ -52,7 +52,7 @@ export default function AdminUI() {
         }));
     }
     async function fetchQrSecret(): Promise<string> {
-        const res = await fetch("/api/admin/generate-secret");
+        const res = await fetch("/api/admin/generate-secret/check-in");
         if (!res.ok) {
             throw new Error("Failed to generate QR secret");
         }
@@ -87,7 +87,7 @@ export default function AdminUI() {
             }
 
             //success message + localized link
-            const url = `${window.location.origin}/check-in/${secret}`;
+            const url = `http://localhost:3000/check-in/${secret}`;
             setMessage("Event created!");
             setCheckInUrl(url);
         } catch (err: any) {
