@@ -29,7 +29,7 @@ export default async function AdminPage() {
   }
 
   // 2) total attendance records
-  const attendanceRes = await supabase
+  const attendanceRes = await (await supabase)
     .from("attendance")
     .select("*", { count: "exact", head: true })
 
