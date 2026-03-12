@@ -112,7 +112,7 @@ export default function AdminUI() {
                     <label>Event Type:</label><br />
                     <select name="event_type" value={form.event_type} onChange={change}>
                         <option value="PROFESSIONAL">PROFESSIONAL</option>
-                        <option value="PHILANTHROPY">PHILANTHROPY</option>
+                        <option value="SERVICE">SERVICE</option>
                         <option value="SOCIAL">SOCIAL</option>
                         <option value="GENERAL_MEETING">GENERAL_MEETING</option>
                         <option value="NEW_MEMBER_WORKSHOP">NEW_MEMBER_WORKSHOP</option>
