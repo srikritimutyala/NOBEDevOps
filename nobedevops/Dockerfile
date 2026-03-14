@@ -50,6 +50,8 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 
+RUN apk add --no-cache git
+
 # Create a non-root user
 RUN addgroup -S nextjs && adduser -S nextjs -G nextjs
 

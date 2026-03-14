@@ -16,7 +16,7 @@ export default async function CheckInPage({
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect(`/login?next=/check-in/${qr_code_secret}`);
+    redirect(`/users/login?next=/check-in/${qr_code_secret}`);
   }
 
   return (
