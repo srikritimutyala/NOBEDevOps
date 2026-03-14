@@ -2,10 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY!
+);
 
 export default function CheckInClient() {
   const params = useParams();
   const qr_code_secret = params?.qr_code_secret as string | undefined;
+  const router = useRouter();
 
   const [message, setMessage] = useState("logging u in");
 
@@ -15,28 +23,18 @@ export default function CheckInClient() {
       return;
     }
 
-    async function checkIn() {
-      try {
-        const res = await fetch("/api/check-in", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ qr_code_secret }),
-        });
+async function checkIn() {
 
-        const data = await res.json();
-        console.log("data", data);
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
 
-        if (data.ok) {
-          setMessage(`checked in to ${data.event_name}`);
-        } else {
-          setMessage(`nope ${data.message}`);
-        }
-      } catch (error) {
-        setMessage("something went wrong server side");
-      }
-    }
+  if (!session) {
+    router.replace("/users/login");
+    return;
+  }
+
+}
 
     checkIn();
   }, [qr_code_secret]);
