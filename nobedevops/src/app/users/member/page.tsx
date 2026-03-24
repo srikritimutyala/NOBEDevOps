@@ -1,10 +1,10 @@
 import RequireAuth from "../RequireAuth";
-import MemberAbsenceForm from "./memberAbsenceForm"
+import EventList from "./eventList"
 
 export default function MemberPage() {
   return (
     <RequireAuth>
-      <MemberAbsenceForm />
+      <EventList />
     </RequireAuth>
   );
 }

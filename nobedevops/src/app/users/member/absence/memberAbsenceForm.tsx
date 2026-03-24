@@ -1,14 +1,10 @@
 'use client';
 
-import { useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY!
-);
+import { useState, useEffect } from 'react';
+import { createClient } from '../../../utils/supabase/client';
 
 export default function AbsencePage() {
+    const supabase = createClient();
     const [formData, setFormData] = useState({
         eventMissed: '',
         reason: '',
@@ -34,7 +30,8 @@ export default function AbsencePage() {
         } = await supabase.auth.getUser();
 
         if (userError || !user) {
-            console.error('User not logged in');
+            console.error('User not logged in:', { userError, user });
+            alert('You must be logged in to submit an absence form');
             return;
         }
 
@@ -52,6 +49,23 @@ export default function AbsencePage() {
         if (error) {
             console.error('Insert error:', error);
             return;
+        }
+
+        // Send email notification
+        try {
+            await fetch('/api/send-email', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    to: 'vinaysanjeev77@gmail.com',
+                    subject: 'New Absence Form Submission',
+                    message: `An absence form has been submitted.\n\nEvent Missed: ${formData.eventMissed}\n\nReason: ${formData.reason}`,
+                }),
+            });
+        } catch (emailError) {
+            console.error('Email send error:', emailError);
         }
 
         setSubmitted(true);
