@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/app/utils/supabase/client';
 import { useAuth } from '@/app/users/authprovider';
 
@@ -9,6 +9,10 @@ export default function LoginForm() {
   const supabase = createClient();
   const { profile, loading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const redirectTo =
+    searchParams.get('redirect') || searchParams.get('next');
 
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
@@ -20,9 +24,15 @@ export default function LoginForm() {
 
   useEffect(() => {
     if (!loading && profile) {
-      router.replace(profile.role === 'ADMIN' ? '/users/admin' : '/users/member');
+      if (redirectTo) {
+        router.replace(redirectTo);
+      } else {
+        router.replace(
+          profile.role === 'ADMIN' ? '/users/admin' : '/users/member'
+        );
+      }
     }
-  }, [loading, profile, router]);
+  }, [loading, profile, router, redirectTo]);
 
   if (loading) {
     return <p className="text-center mt-20 text-gray-500">Loading...</p>;
@@ -37,15 +47,22 @@ export default function LoginForm() {
     setSubmitting(true);
 
     if (mode === 'signin') {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) setError(error.message);
-      // redirect is handled above when profile loads via AuthProvider
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        setError(error.message);
+      }
+      // redirect is handled by the useEffect once profile loads
     } else {
       const { error } = await supabase.auth.signUp({
         email,
         password,
         options: { data: { name } },
       });
+
       if (error) {
         setError(error.message);
       } else {
@@ -67,7 +84,6 @@ export default function LoginForm() {
       <div className="bg-white rounded-lg shadow p-8 w-full max-w-sm space-y-6">
         <h1 className="text-2xl font-bold text-center">NOBE</h1>
 
-        {/* Mode toggle */}
         <div className="flex rounded overflow-hidden border border-gray-300">
           <button
             type="button"
@@ -93,7 +109,6 @@ export default function LoginForm() {
           </button>
         </div>
 
-        {/* Feedback banners */}
         {error && (
           <div className="p-3 bg-red-100 text-red-700 rounded text-sm">{error}</div>
         )}
@@ -149,8 +164,12 @@ export default function LoginForm() {
             className="w-full py-2 bg-blue-600 text-white font-semibold rounded hover:bg-blue-700 transition disabled:opacity-50"
           >
             {submitting
-              ? mode === 'signin' ? 'Signing in...' : 'Creating account...'
-              : mode === 'signin' ? 'Sign in' : 'Create account'}
+              ? mode === 'signin'
+                ? 'Signing in...'
+                : 'Creating account...'
+              : mode === 'signin'
+              ? 'Sign in'
+              : 'Create account'}
           </button>
         </form>
       </div>

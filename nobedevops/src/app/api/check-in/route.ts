@@ -1,13 +1,10 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY!
-);
+import { createClient } from "@/app/utils/supabase/server";
 
 export async function POST(req: Request) {
   try {
+    const supabase = await createClient();
+
     const body = await req.json();
     const { qr_code_secret } = body;
 
@@ -18,7 +15,18 @@ export async function POST(req: Request) {
       );
     }
 
-    // 1️⃣ find the event from the QR secret
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      return NextResponse.json(
+        { ok: false, message: "User not logged in." },
+        { status: 401 }
+      );
+    }
+
     const { data: event, error: eventError } = await supabase
       .from("events")
       .select("id, name")
@@ -27,41 +35,43 @@ export async function POST(req: Request) {
 
     if (eventError || !event) {
       return NextResponse.json(
-        { ok: false, message: `Invalid QR code. ${eventError?.message ?? ""}` },
+        { ok: false, message: "Invalid QR code." },
         { status: 404 }
       );
     }
 
-    // 2️⃣ get the logged-in user
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
+    const { data: existingAttendance, error: existingError } = await supabase
+      .from("attendance")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("event_id", event.id)
+      .maybeSingle();
 
-    if (!user || userError) {
+    if (existingError) {
       return NextResponse.json(
-        { ok: false, message: "User not logged in." },
-        { status: 401 }
+        { ok: false, message: "Failed to verify attendance." },
+        { status: 500 }
       );
-    }//do
+    }
 
-    const user_id = user.id;
+    if (existingAttendance) {
+      return NextResponse.json(
+        { ok: false, message: "You have already checked in to this event." },
+        { status: 409 }
+      );
+    }
 
-    // 3️⃣ insert attendance record
     const { error: attendanceError } = await supabase
       .from("attendance")
       .insert({
-        user_id,
+        user_id: user.id,
         event_id: event.id,
         timestamp: new Date().toISOString(),
       });
 
     if (attendanceError) {
       return NextResponse.json(
-        {
-          ok: false,
-          message: `Failed to record attendance: ${attendanceError.message}`,
-        },
+        { ok: false, message: attendanceError.message },
         { status: 400 }
       );
     }
@@ -72,7 +82,7 @@ export async function POST(req: Request) {
     });
   } catch (error: any) {
     return NextResponse.json(
-      { ok: false, message: `Server error: ${error?.message ?? "unknown"}` },
+      { ok: false, message: error?.message ?? "Unknown server error" },
       { status: 500 }
     );
   }
