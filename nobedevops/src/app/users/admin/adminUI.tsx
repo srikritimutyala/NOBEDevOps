@@ -10,7 +10,7 @@ const supabase = createClient(
 );
 
 export default function AdminUI() {
-    //Setting default values for original display dropdowns
+    const PUBLIC_URL = " http://10.192.204.178:3000";
     const [form, setForm] = useState({
         name: "",
         event_type: "PROFESSIONAL",
@@ -21,33 +21,21 @@ export default function AdminUI() {
         project_id: "",
         created_at: ""
     });
-    //Status label, creates variable that shows if event was created
     const [message, setMessage] = useState("");
     const [checkInUrl, setCheckInUrl] = useState("");
-    //Set default timestamp when page opens
     useEffect(() => {
-        //New Date object representing current time
         const now = new Date();
-        //Adds 0s to dates that require 0s at beginning
         const pad = (n: number) => String(n).padStart(2, "0");
-        //Sets format for date and time
         const formatted =
         `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}` +
         `T${pad(now.getHours())}:${pad(now.getMinutes())}`;
-        //Update "created_at" variable
         setForm(prev => ({...prev, created_at: formatted}));
-    //Run only when component first loads
     }, []);
-    //Handles admin typing in any input field, e=event
     function change(e: any) {
-        //e.target is typed in input, extract four properties from input: 
-        //  name, value, type, checked
+
         const { name, value, type, checked } = e.target;
-        //Updates "form" React state
         setForm(prev => ({
-            //Copy old values
             ...prev,
-            //Only update the field we changed
             [name]: type === "checkbox" ? checked : value
         }));
     }
@@ -59,15 +47,12 @@ export default function AdminUI() {
         const data = await res.json();
         return data.secret;
     }
-    //Runs when admin submits an event, e=event
     async function handleSubmit(e: any) {
         e.preventDefault();
 
         try {
-            //get secret from backend
             const secret = await fetchQrSecret();
 
-            //create payload (now includes qr_code_secret)
             const payload = {
                 name: form.name,
                 event_type: form.event_type,
@@ -87,7 +72,7 @@ export default function AdminUI() {
             }
 
             //success message + localized link
-            const url = `http://localhost:3000/check-in/${secret}`;
+            const url = `${PUBLIC_URL}/check-in/${secret}`;            
             setMessage("Event created!");
             setCheckInUrl(url);
         } catch (err: any) {
@@ -95,19 +80,14 @@ export default function AdminUI() {
           setCheckInUrl("");
         }
     }
-    //What appears in our display
     return (
         <div>
-            {/*Header for the website*/}
             <h2>Create Event</h2>
-            {/*Goes to submit function when submit button is pressed*/}
             <form onSubmit={handleSubmit}>
-                {/*Name input field*/}
                 <div>
                     <label>Name:</label><br />
                     <input name="name" value={form.name} onChange={change} />
                 </div>
-                {/*Event type dropdown*/}
                 <div>
                     <label>Event Type:</label><br />
                     <select name="event_type" value={form.event_type} onChange={change}>
@@ -120,7 +100,6 @@ export default function AdminUI() {
                         <option value="OTHER_MANDATORY">OTHER_MANDATORY</option>
                     </select>
                 </div>
-                {/*Points input field*/}
                 <div>
                     <label>Points:</label><br />
                     <input
@@ -130,7 +109,6 @@ export default function AdminUI() {
                         onChange={change}
                     />
                 </div>
-                {/*Mandatory or not checkbox*/}
                 <div>
                     <label>Mandatory:</label>
                     <input
@@ -140,7 +118,6 @@ export default function AdminUI() {
                         onChange={change}
                     />
                 </div>
-                {/*Date input field*/}
                 <div>
                     <label>Date:</label><br />
                     <input
@@ -150,7 +127,6 @@ export default function AdminUI() {
                         onChange={change}
                     />
                 </div>
-                {/*Committee ID input field*/}
                 <div>
                     <label>Committee ID:</label><br />
                     <input
@@ -159,7 +135,6 @@ export default function AdminUI() {
                         onChange={change}
                     />
                 </div>
-                {/*Project ID input field*/}
                 <div>
                     <label>Project ID:</label><br />
                     <input
@@ -168,7 +143,6 @@ export default function AdminUI() {
                         onChange={change}
                     />
                 </div>
-                {/*Shows time event was created*/}
                 <div>
                     <label>Created At:</label><br />
                     <input
