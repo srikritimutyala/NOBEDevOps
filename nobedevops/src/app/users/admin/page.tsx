@@ -4,6 +4,12 @@ import { cookies } from "next/headers";
 import AdminUI from "./adminUI";
 import AdminGuard from "./AdminGuard";
 import AdminDashboard, { AttendanceRow } from "./adminDashboard";
+import LogoutButton from "../login/logout"
+import BulkAddPage from "./bulkAdd/page";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import Link from "next/link";
+
+
 
 export default async function AdminPage() {
   const supabase = await createClient();
@@ -88,6 +94,18 @@ export default async function AdminPage() {
           <div className="rounded-lg border border-black/10 dark:border-white/20 p-6">
             <AdminUI />
           </div>
+            <div className="rounded-lg border border-black/10 dark:border-white/20 p-6">
+            <LogoutButton />
+          </div>
+        </div>
+        <div className = "flex flex-col  justify-center space-y-4">
+          <Link href="/users/admin/bulkAdd">Go to Bulk Add</Link>
+          <Link href="/users/admin/createEvent">Go to create event</Link>
+          <Link href="/users/admin/reviewAbsence">Go to review absence</Link>
+          <Link href="/users/admin/reviewMemberStats">Go to member stats</Link>
+          <Link href="/users/admin/viewAllEvents">Go to view events</Link>
+
+
         </div>
       </div>
     </AdminGuard>
