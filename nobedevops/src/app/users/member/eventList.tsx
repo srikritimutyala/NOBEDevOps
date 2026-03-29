@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
 import Link from 'next/link';
+import LogoutButton from "../login/logout"
+
 
 interface Event {
     id: string;
@@ -86,6 +88,9 @@ export default function EventList() {
     return (
         <div className="p-6 max-w-4xl mx-auto">
             <h1 className="text-3xl font-bold mb-6">Events</h1>
+            <div className="rounded-lg border border-black/10 dark:border-white/20 p-6">
+                <LogoutButton />
+            </div>
 
             {upcomingEvents.length > 0 && (
                 <section className="mb-8">
@@ -114,6 +119,7 @@ export default function EventList() {
                     <p>No events available.</p>
                 </div>
             )}
+            
         </div>
     );
 }

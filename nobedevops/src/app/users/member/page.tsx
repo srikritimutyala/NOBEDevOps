@@ -3,8 +3,14 @@ import EventList from "./eventList"
 
 export default function MemberPage() {
   return (
-    <RequireAuth>
-      <EventList />
-    </RequireAuth>
+    <div>
+      <RequireAuth>
+        <EventList />
+      </RequireAuth>
+
+    
+
+    </div>
+
   );
 }
