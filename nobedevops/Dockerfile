@@ -11,7 +11,7 @@
 ARG NODE_VERSION=20.11.1
 
 ############################
-# 1) deps: install deps
+# 1) deps: install depsf
 ############################
 FROM node:${NODE_VERSION}-alpine AS deps
 WORKDIR /app
