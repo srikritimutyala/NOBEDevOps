@@ -31,16 +31,49 @@ export async function POST(request: Request) {
       );
     }
 
-    // Parse CSV content
-    const lines = latestUpload.content.trim().split("\n");
-    if (lines.length < 2) {
+    const parseCsvLine = (line: string) => {
+      const values: string[] = [];
+      let current = "";
+      let inQuotes = false;
+
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+
+        if (char === '"') {
+          if (inQuotes && line[i + 1] === '"') {
+            current += '"';
+            i += 1;
+          } else {
+            inQuotes = !inQuotes;
+          }
+        } else if (char === "," && !inQuotes) {
+          values.push(current.trim());
+          current = "";
+        } else {
+          current += char;
+        }
+      }
+
+      values.push(current.trim());
+      return values;
+    };
+
+    // Parse CSV content into rows while preserving line structure
+    const rows = latestUpload.content
+      .replace(/\r\n/g, "\n")
+      .replace(/\r/g, "\n")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+
+    if (rows.length < 2) {
       return NextResponse.json(
         { error: "CSV file must have at least a header and one data row." },
         { status: 400 }
       );
     }
 
-    const headers = lines[0].split(",").map(h => h.trim());
+    const headers = parseCsvLine(rows[0]);
     const expectedHeaders = ["Name", "First Name", "Last Name", "Illinois Email", "Year", "College", "Major", "Committee"];
 
     if (headers.length !== expectedHeaders.length || !headers.every((h, i) => h === expectedHeaders[i])) {
@@ -50,25 +83,33 @@ export async function POST(request: Request) {
       );
     }
 
-    // Parse data rows
-    const peopleData = [];
-    for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(",").map(v => v.trim());
-      if (values.length !== headers.length) continue; // Skip malformed rows
+    const peopleData: Array<Record<string, string>> = [];
+    const missingRows: Array<{ row: number; missingFields: string[] }> = [];
 
-      const [fullName, firstName, lastName, email, year, college, major, committee] = values;
+    for (let rowIndex = 1; rowIndex < rows.length; rowIndex++) {
+      const values = parseCsvLine(rows[rowIndex]);
+      const normalizedValues = values.slice(0, expectedHeaders.length);
 
-      if (!email || !fullName) continue; // Skip if essential fields missing
+      while (normalizedValues.length < expectedHeaders.length) {
+        normalizedValues.push("");
+      }
+
+      const [fullName, firstName, lastName, email, year, college, major, committee] = normalizedValues;
+      const missingFields = expectedHeaders.filter((_, index) => !normalizedValues[index]?.trim());
+
+      if (missingFields.length > 0) {
+        missingRows.push({ row: rowIndex + 1, missingFields });
+      }
 
       peopleData.push({
-        name: fullName,
-        first_name: firstName,
-        last_name: lastName,
-        illinois_email: email,
-        college,
-        year,
-        major,
-        committee,
+        name: fullName?.trim() || "",
+        first_name: firstName?.trim() || "",
+        last_name: lastName?.trim() || "",
+        illinois_email: email?.trim() || "",
+        college: college?.trim() || "",
+        year: year?.trim() || "",
+        major: major?.trim() || "",
+        committee: committee?.trim() || "",
       });
     }
 
@@ -79,26 +120,32 @@ export async function POST(request: Request) {
       );
     }
 
-    // Insert into People table, checking for duplicates
+    // Insert into People table, checking for duplicates by email + first and last name
     let insertedCount = 0;
     let existingCount = 0;
+    const existingRows: Array<Record<string, string>> = [];
+
     for (const person of peopleData) {
-      // Check if person already exists
-      const { data: existing } = await supabase
-        .from("People")
-        .select("id")
-        .eq("illinois_email", person.illinois_email)
-        .eq("name", person.name)
-        .eq("first_name", person.first_name)
-        .eq("last_name", person.last_name)
-        .maybeSingle();
+      let existing = null;
+
+      if (person.illinois_email) {
+        const result = await supabase
+          .from("People")
+          .select("id, name, first_name, last_name, illinois_email, college, year, major, committee")
+          .eq("illinois_email", person.illinois_email)
+          .eq("first_name", person.first_name)
+          .eq("last_name", person.last_name)
+          .maybeSingle();
+
+        existing = result.data;
+      }
 
       if (existing) {
         existingCount++;
+        existingRows.push(existing as Record<string, string>);
         continue;
       }
 
-      // Insert if not exists
       const { error: insertError } = await supabase
         .from("People")
         .insert(person);
@@ -114,7 +161,12 @@ export async function POST(request: Request) {
       ok: true,
       populated: insertedCount,
       existing: existingCount,
-      message: `${insertedCount} entries added. ${existingCount} entries already existed.`,
+      duplicates: existingRows,
+      missing: missingRows.length,
+      missingRows,
+      message: `${insertedCount} entries added. ${existingCount} entries already existed.${
+        missingRows.length > 0 ? ` ${missingRows.length} row(s) had missing fields.` : ""
+      }`,
     });
   } catch (error: any) {
     return NextResponse.json(

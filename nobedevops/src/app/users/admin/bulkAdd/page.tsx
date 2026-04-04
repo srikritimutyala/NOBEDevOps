@@ -9,6 +9,18 @@ type UploadEntry = {
   id: string;
 };
 
+type DuplicateEntry = {
+  id: string;
+  name: string;
+  first_name: string;
+  last_name: string;
+  illinois_email: string;
+  college: string;
+  year: string;
+  major: string;
+  committee: string;
+};
+
 export default function BulkAddPage() {
   const [uploads, setUploads] = useState<UploadEntry[]>([]);
   const [message, setMessage] = useState<string | null>(null);
@@ -16,6 +28,10 @@ export default function BulkAddPage() {
   const [loading, setLoading] = useState(false);
   const [populating, setPopulating] = useState(false);
   const [hasUploaded, setHasUploaded] = useState(false);
+  const [existingRows, setExistingRows] = useState<DuplicateEntry[]>([]);
+  const [showDuplicateDetails, setShowDuplicateDetails] = useState(false);
+  const [missingCount, setMissingCount] = useState(0);
+  const [missingDetails, setMissingDetails] = useState<Array<{ row: number; missingFields: string[] }>>([]);
 
   const handlePopulate = async () => {
     setPopulating(true);
@@ -35,8 +51,16 @@ export default function BulkAddPage() {
       }
 
       setMessage(data.message);
+      setExistingRows(data.duplicates ?? []);
+      setMissingCount(data.missing ?? 0);
+      setMissingDetails(data.missingRows ?? []);
+      setShowDuplicateDetails(false);
     } catch (populateError: any) {
       setError(populateError?.message || "Unable to populate database.");
+      setExistingRows([]);
+      setMissingCount(0);
+      setMissingDetails([]);
+      setShowDuplicateDetails(false);
     } finally {
       setPopulating(false);
     }
@@ -124,6 +148,10 @@ export default function BulkAddPage() {
       setMessage(`Uploaded ${data.uploaded} CSV file(s) successfully.`);
       setUploads([]);
       setHasUploaded(true);
+      setExistingRows([]);
+      setMissingCount(0);
+      setMissingDetails([]);
+      setShowDuplicateDetails(false);
     } catch (uploadError: any) {
       setError(uploadError?.message || "Unable to upload files.");
     } finally {
@@ -214,6 +242,47 @@ export default function BulkAddPage() {
 
       {message && <p className="rounded-xl bg-emerald-100 px-4 py-3 text-emerald-800">{message}</p>}
       {error && <p className="rounded-xl bg-rose-100 px-4 py-3 text-rose-800">{error}</p>}
+
+      {existingRows.length > 0 && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <button
+            type="button"
+            onClick={() => setShowDuplicateDetails((current) => !current)}
+            className="flex w-full items-center justify-between rounded-xl bg-slate-100 px-4 py-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-200"
+          >
+            <span>Show duplicate entries that were not added</span>
+            <span>{showDuplicateDetails ? "▲" : "▼"}</span>
+          </button>
+
+          {showDuplicateDetails && (
+            <div className="mt-4 space-y-3">
+              {existingRows.map((row) => (
+                <div key={row.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-sm font-semibold text-slate-900">{row.name} ({row.illinois_email})</p>
+                  <p className="text-sm text-slate-600">{row.first_name} {row.last_name}</p>
+                  <p className="text-sm text-slate-600">{row.college} · {row.year} · {row.major} · {row.committee}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {missingCount > 0 && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="rounded-xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">
+            {missingCount} row(s) had missing fields and were inserted with null values
+          </div>
+          <div className="mt-4 space-y-2">
+            {missingDetails.map((detail) => (
+              <div key={`${detail.row}-${detail.missingFields.join(",")}`} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+                <div className="font-semibold text-slate-900">Row {detail.row}</div>
+                <div>Missing fields: {detail.missingFields.join(", ")}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
