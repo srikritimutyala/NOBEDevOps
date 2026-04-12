@@ -1,13 +1,16 @@
 export type AttendanceRow = {
     id?: string | number
     member_name?: string | null
-    status?: string | null
-    created_at?: string | null
+    event_name?: string | null
+    timestamp?: string | null
 }
 
 export type AdminDashboardProps = {
     totalMembers: number | null
     totalAttendanceRecords: number | null
+    attendanceRate: number | null
+    atRiskMembers: number | null
+    totalPastEvents: number | null
     recentAttendance: AttendanceRow[]
     attendanceError?: string | null
 }
@@ -15,6 +18,9 @@ export type AdminDashboardProps = {
 export default function AdminDashboard({
     totalMembers,
     totalAttendanceRecords,
+    attendanceRate,
+    atRiskMembers,
+    totalPastEvents,
     recentAttendance,
     attendanceError,
 }: AdminDashboardProps) {
@@ -28,13 +34,31 @@ export default function AdminDashboard({
             <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <StatCard label="Total Members" value={formatValue(totalMembers)} />
                 <StatCard label="Attendance Records" value={formatValue(totalAttendanceRecords)} />
-                <StatCard label="Attendance Rate" value="Placeholder" />
-                <StatCard label="Late Arrivals" value="Placeholder" />
+                <StatCard label="Attendance Rate" value={formatPercentage(attendanceRate)} />
+                <StatCard label="At-Risk Members (3+ unexcused)" value={formatValue(atRiskMembers)} />
             </section>
 
             <section className="grid gap-4 lg:grid-cols-2">
-                <PlaceholderPanel title="Attendance Trend Graph" description="Hook this up to chart data once attendance timestamps are finalized." />
-                <PlaceholderPanel title="Member Attendance Distribution" description="Use this area for pie/bar chart visualizing attendance by status." />
+                <SummaryPanel
+                    title="Coverage Snapshot"
+                    description="Computed from past events and members linked to auth accounts."
+                    rows={[
+                        { label: "Past events", value: formatValue(totalPastEvents) },
+                        { label: "Attendance records", value: formatValue(totalAttendanceRecords) },
+                        { label: "Overall attendance rate", value: formatPercentage(attendanceRate) },
+                    ]}
+                />
+                <SummaryPanel
+                    title="Risk Snapshot"
+                    description="3 or more unexcused misses"
+                    rows={[
+                        { label: "At-risk members", value: formatValue(atRiskMembers) },
+                        {
+                            label: "Policy status",
+                            value: atRiskMembers === null ? "N/A" : atRiskMembers > 0 ? "Action needed" : "No threshold reached",
+                        },
+                    ]}
+                />
             </section>
 
             <section className="rounded-lg border border-black/10 dark:border-white/20 p-4 space-y-3">
@@ -48,8 +72,8 @@ export default function AdminDashboard({
                         {recentAttendance.map((row, index) => (
                             <li key={row.id ?? index} className="rounded-md border border-black/10 dark:border-white/20 p-3 text-sm">
                                 <p><span className="font-medium">Member:</span> {row.member_name ?? "Unknown"}</p>
-                                <p><span className="font-medium">Status:</span> {row.status ?? "N/A"}</p>
-                                <p><span className="font-medium">Recorded:</span> {row.created_at ?? "N/A"}</p>
+                                <p><span className="font-medium">Event:</span> {row.event_name ?? "Unknown event"}</p>
+                                <p><span className="font-medium">Recorded:</span> {formatTimestamp(row.timestamp ?? null)}</p>
                             </li>
                         ))}
                     </ul>
@@ -68,13 +92,26 @@ function StatCard({ label, value }: { label: string; value: string }) {
     )
 }
 
-function PlaceholderPanel({ title, description }: { title: string; description: string }) {
+function SummaryPanel({
+    title,
+    description,
+    rows,
+}: {
+    title: string
+    description: string
+    rows: Array<{ label: string; value: string }>
+}) {
     return (
         <article className="rounded-lg border border-dashed border-black/20 dark:border-white/30 p-4 min-h-40 flex flex-col justify-between">
             <h2 className="text-lg font-medium">{title}</h2>
             <p className="text-sm opacity-75">{description}</p>
-            <div className="mt-4 h-24 rounded-md bg-black/5 dark:bg-white/10 grid place-items-center text-xs opacity-70">
-                Graph Placeholder
+            <div className="mt-4 space-y-2">
+                {rows.map((row) => (
+                    <div key={row.label} className="rounded-md bg-black/5 dark:bg-white/10 px-3 py-2 flex items-center justify-between text-sm">
+                        <span className="opacity-75">{row.label}</span>
+                        <span className="font-medium">{row.value}</span>
+                    </div>
+                ))}
             </div>
         </article>
     )
@@ -86,4 +123,32 @@ function formatValue(value: number | null) {
     }
 
     return value.toLocaleString()
+}
+
+function formatPercentage(value: number | null) {
+    if (value === null) {
+        return "N/A"
+    }
+
+    return `${value.toFixed(1)}%`
+}
+
+function formatTimestamp(value: string | null) {
+    if (!value) {
+        return "N/A"
+    }
+
+    const date = new Date(value)
+
+    if (Number.isNaN(date.getTime())) {
+        return value
+    }
+
+    return new Intl.DateTimeFormat("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+    }).format(date)
 }
