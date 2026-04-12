@@ -1,6 +1,14 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/app/utils/supabase/server";
 
+function formatChicagoTime(value: string) {
+  return new Date(value).toLocaleString("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "America/Chicago",
+  });
+}
+
 export async function POST(req: Request) {
   try {
     const supabase = await createClient();
@@ -29,6 +37,7 @@ export async function POST(req: Request) {
 
     const { data: event, error: eventError } = await supabase
       .from("events")
+      .select("id, name, check_in_starts_at, check_in_ends_at")
       .select("id, name, points, event_type")
       .eq("qr_code_secret", qr_code_secret)
       .single();
@@ -40,6 +49,32 @@ export async function POST(req: Request) {
       );
     }
 
+    const now = new Date();
+
+    if (event.check_in_starts_at) {
+      const startsAt = new Date(event.check_in_starts_at);
+      if (now < startsAt) {
+        return NextResponse.json(
+          {
+            ok: false,
+            message: `Check-in opens at ${formatChicagoTime(event.check_in_starts_at)}.`,
+          },
+          { status: 403 }
+        );
+      }
+    }
+
+    if (event.check_in_ends_at) {
+      const endsAt = new Date(event.check_in_ends_at);
+      if (now > endsAt) {
+        return NextResponse.json(
+          {
+            ok: false,
+            message: `Check-in closed at ${formatChicagoTime(event.check_in_ends_at)}.`,
+          },
+          { status: 403 }
+        );
+      }
     const { data: profile, error: profileError } = await supabase
       .from("People")
       .select(`

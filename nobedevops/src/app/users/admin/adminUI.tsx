@@ -13,10 +13,13 @@ export default function AdminUI() {
     const PUBLIC_URL = " http://10.195.105.173:3000";
     const [form, setForm] = useState({
         name: "",
-        event_type: "PROFESSIONAL",
+        event_type: "PROFESSIONAL", 
         points: 0,
         is_mandatory: false,
         date: "",
+        has_check_in_window: false,
+        check_in_start_offset_minutes: "0",
+        check_in_end_offset_minutes: "30",
         committee_id: "",
         project_id: "",
         created_at: ""
@@ -51,14 +54,42 @@ export default function AdminUI() {
         e.preventDefault();
 
         try {
+            const eventDate = new Date(form.date);
+
+            if (Number.isNaN(eventDate.getTime())) {
+                setMessage("Please enter a valid event date.");
+                setCheckInUrl("");
+                return;
+            }
+
+            const startOffsetMinutes = Number(form.check_in_start_offset_minutes);
+            const endOffsetMinutes = Number(form.check_in_end_offset_minutes);
+
+            if (
+                form.has_check_in_window &&
+                startOffsetMinutes > endOffsetMinutes
+            ) {
+                setMessage("Check-in start must be before check-in end.");
+                setCheckInUrl("");
+                return;
+            }
+
             const secret = await fetchQrSecret();
+            const checkInStartsAt = new Date(eventDate.getTime() + startOffsetMinutes * 60_000);
+            const checkInEndsAt = new Date(eventDate.getTime() + endOffsetMinutes * 60_000);
 
             const payload = {
                 name: form.name,
                 event_type: form.event_type,
                 points: Number(form.points),
                 is_mandatory: Boolean(form.is_mandatory),
-                date: new Date(form.date).toISOString(),
+                date: eventDate.toISOString(),
+                check_in_starts_at: form.has_check_in_window
+                    ? checkInStartsAt.toISOString()
+                    : null,
+                check_in_ends_at: form.has_check_in_window
+                    ? checkInEndsAt.toISOString()
+                    : null,
                 created_at: new Date(form.created_at).toISOString(),
                 qr_code_secret: secret,
             };
@@ -127,6 +158,53 @@ export default function AdminUI() {
                         onChange={change}
                     />
                 </div>
+                <div>
+                    <label>Check-In Window:</label>
+                    <input
+                        type="checkbox"
+                        name="has_check_in_window"
+                        checked={form.has_check_in_window}
+                        onChange={(e) =>
+                            setForm(prev => ({
+                                ...prev,
+                                has_check_in_window: e.target.checked,
+                            }))
+                        }
+                    />
+                </div>
+                {form.has_check_in_window && (
+                    <div
+                        style={{
+                            marginLeft: "20px",
+                            marginTop: "12px",
+                            padding: "12px 16px",
+                            borderLeft: "3px solid #2563eb",
+                            background: "#000000",
+                            color: "#ffffff",
+                        }}
+                    >
+                        <div>
+                            <label>Check-In Starts (negative values allowed):</label><br />
+                            <input
+                                type="number"
+                                name="check_in_start_offset_minutes"
+                                value={form.check_in_start_offset_minutes}
+                                onChange={change}
+                                style={{ color: "#ffffff", background: "#000000" }}
+                            />
+                        </div>
+                        <div style={{ marginTop: "12px" }}>
+                            <label>Check-In Ends:</label><br />
+                            <input
+                                type="number"
+                                name="check_in_end_offset_minutes"
+                                value={form.check_in_end_offset_minutes}
+                                onChange={change}
+                                style={{ color: "#ffffff", background: "#000000" }}
+                            />
+                        </div>
+                    </div>
+                )}
                 <div>
                     <label>Committee ID:</label><br />
                     <input
