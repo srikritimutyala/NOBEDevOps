@@ -10,7 +10,7 @@ const supabase = createClient(
 );
 
 export default function AdminUI() {
-    const PUBLIC_URL = "http://localhost:3000"; // Change this to your LAN IP adress for testing on phone
+    const PUBLIC_URL = " http://10.195.105.173:3000";
     const [form, setForm] = useState({
         name: "",
         event_type: "PROFESSIONAL", 
