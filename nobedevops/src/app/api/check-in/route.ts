@@ -37,8 +37,7 @@ export async function POST(req: Request) {
 
     const { data: event, error: eventError } = await supabase
       .from("events")
-      .select("id, name, check_in_starts_at, check_in_ends_at")
-      .select("id, name, points, event_type")
+      .select("id, name, points, event_type, check_in_starts_at, check_in_ends_at")
       .eq("qr_code_secret", qr_code_secret)
       .single();
 
@@ -75,6 +74,8 @@ export async function POST(req: Request) {
           { status: 403 }
         );
       }
+    }
+
     const { data: profile, error: profileError } = await supabase
       .from("People")
       .select(`
