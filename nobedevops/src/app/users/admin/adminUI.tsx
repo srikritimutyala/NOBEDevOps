@@ -10,7 +10,7 @@ const supabase = createClient(
 );
 
 export default function AdminUI() {
-    const PUBLIC_URL = " http://10.192.204.178:3000";
+    const PUBLIC_URL = "http://172.29.176.1:3000";
     const [form, setForm] = useState({
         name: "",
         event_type: "PROFESSIONAL",
