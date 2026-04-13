@@ -1,3 +1,7 @@
 # NOBEDevOps
 
-##### We are building the NOBE Internal Attendance Tool, a custom full-stack web application designed to automate the chapter’s new 'Points and Strikes' policy starting Spring 2026. This system replaces manual tracking with a robust QR-code check-in flow, allowing members to scan into events via mobile while the backend (built on Next.js and Supabase) automatically validates attendance against strict time windows and committee assignments. You will manage the end-to-end delivery of this platform, overseeing features like a personalized member dashboard for tracking progress, an admin 'Command Center' for bulk roster imports and absence request approvals, and automated email triggers for strike alerts. This is a high-impact internal tool using a modern stack (Next.js, Tailwind, Vercel) that solves a critical operational bottleneck, providing the executive board with real-time data visibility and eliminating manual spreadsheet management. Given this is an internal project, you will have a lot of control over the direction this project takes. 
+### Overview:
+#This is NOBE internal attendance tool, made for both exec and members for many different uses like making event, tracking attendance and being informed on future events. The purpose is to make the organization of events and points more streamlined as opposed to relying on google sheets to track everyones attendance and points.
+
+### Project Tech Stack:
+#1. Frontend/Styling:
