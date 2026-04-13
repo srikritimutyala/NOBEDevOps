@@ -1,8 +1,7 @@
 import { createClient } from "@/app/utils/supabase/server";
-import AdminUI from "./adminUI";
-import AdminGuard from "./AdminGuard";
 import AdminDashboard, { AttendanceRow } from "./adminDashboard";
-import LogoutButton from "../login/logout"
+import AdminGuard from "./AdminGuard";
+import LogoutButton from "../login/logout";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -167,9 +166,6 @@ export default async function AdminPage() {
         />
         <div className="mx-auto max-w-6xl px-6 pb-10">
           <div className="rounded-lg border border-black/10 dark:border-white/20 p-6">
-            <AdminUI />
-          </div>
-          <div className="rounded-lg border border-black/10 dark:border-white/20 p-6">
             <LogoutButton />
           </div>
         </div>
@@ -179,8 +175,6 @@ export default async function AdminPage() {
           <Link href="/users/admin/reviewAbsence">Go to review absence</Link>
           <Link href="/users/admin/reviewMemberStats">Go to member stats</Link>
           <Link href="/users/admin/viewAllEvents">Go to view events</Link>
-
-
         </div>
       </div>
     </AdminGuard>
