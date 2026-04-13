@@ -39,8 +39,6 @@ export default function CreateEventPage() {
     has_check_in_window: false,
     check_in_start_offset_minutes: "0",
     check_in_end_offset_minutes: "30",
-    committee_id: "",
-    project_id: "",
     created_at: "",
   });
 
@@ -166,13 +164,9 @@ export default function CreateEventPage() {
         points: Number(form.points),
         is_mandatory: form.is_mandatory,
         date: eventStart.toISOString(),
-        start_time: eventStart.toISOString(),
-        end_time: eventEnd.toISOString(),
         check_in_starts_at: checkInStartsAt.toISOString(),
         check_in_ends_at: checkInEndsAt.toISOString(),
         location: form.location.trim(),
-        committee_id: form.committee_id.trim() || null,
-        project_id: form.project_id.trim() || null,
         created_at: createdAtValue.toISOString(),
         qr_code_secret: secret,
       };
@@ -418,26 +412,7 @@ export default function CreateEventPage() {
           </div>
         )}
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <div>
-            <label className="block font-medium">Committee ID</label>
-            <input
-              name="committee_id"
-              value={form.committee_id}
-              onChange={handleChange}
-              className="mt-1 w-full rounded-md border px-3 py-2"
-            />
-          </div>
-          <div>
-            <label className="block font-medium">Project ID</label>
-            <input
-              name="project_id"
-              value={form.project_id}
-              onChange={handleChange}
-              className="mt-1 w-full rounded-md border px-3 py-2"
-            />
-          </div>
-        </div>
+       
 
         <div>
           <label className="block font-medium">Created at</label>
