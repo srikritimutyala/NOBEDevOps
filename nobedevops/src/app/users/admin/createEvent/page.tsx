@@ -30,12 +30,20 @@ export default function CreateEventPage() {
   const [form, setForm] = useState({
     name: "",
     event_type: "PROFESSIONAL",
+    points: 0,
     is_mandatory: false,
     date: "",
     start_time: "18:00",
     end_time: "19:00",
     location: "",
+    has_check_in_window: false,
+    check_in_start_offset_minutes: "0",
+    check_in_end_offset_minutes: "30",
+    committee_id: "",
+    project_id: "",
+    created_at: "",
   });
+
   const [message, setMessage] = useState<string | null>(null);
   const [qrLink, setQrLink] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -44,9 +52,17 @@ export default function CreateEventPage() {
 
   useEffect(() => {
     const today = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+
+    const defaultDate = today.toISOString().slice(0, 10);
+    const createdAtLocal =
+      `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}` +
+      `T${pad(today.getHours())}:${pad(today.getMinutes())}`;
+
     setForm((prev) => ({
       ...prev,
-      date: today.toISOString().slice(0, 10),
+      date: defaultDate,
+      created_at: createdAtLocal,
     }));
   }, []);
 
@@ -82,41 +98,87 @@ export default function CreateEventPage() {
     setIsSubmitting(true);
 
     try {
-      if (!form.name.trim() || !form.date || !form.start_time || !form.end_time || !form.location.trim()) {
-        setMessage("Please fill in all fields before submitting.");
+      if (
+        !form.name.trim() ||
+        !form.date ||
+        !form.start_time ||
+        !form.end_time ||
+        !form.location.trim()
+      ) {
+        setMessage("Please fill in all required fields before submitting.");
         return;
       }
 
-      const startDateTime = combineDateTime(form.date, form.start_time);
-      const endDateTime = combineDateTime(form.date, form.end_time);
+      const eventStart = combineDateTime(form.date, form.start_time);
+      const eventEnd = combineDateTime(form.date, form.end_time);
 
-      if (!startDateTime || !endDateTime) {
-        setMessage("Please enter a valid date and timing window.");
+      if (!eventStart || !eventEnd) {
+        setMessage("Please enter a valid event date and time.");
         return;
       }
 
-      let checkInStart = startDateTime;
-      let checkInEnd = endDateTime;
-      let fallbackUsed = false;
+      if (eventEnd <= eventStart) {
+        setMessage("End time must be later than start time.");
+        return;
+      }
 
-      if (checkInEnd <= checkInStart) {
-        fallbackUsed = true;
-        checkInEnd = new Date(checkInStart.getTime() + 60 * 60 * 1000);
+      const startOffsetMinutes = Number(form.check_in_start_offset_minutes);
+      const endOffsetMinutes = Number(form.check_in_end_offset_minutes);
+
+      if (
+        form.has_check_in_window &&
+        (Number.isNaN(startOffsetMinutes) || Number.isNaN(endOffsetMinutes))
+      ) {
+        setMessage("Check-in offsets must be valid numbers.");
+        return;
+      }
+
+      if (
+        form.has_check_in_window &&
+        startOffsetMinutes > endOffsetMinutes
+      ) {
+        setMessage("Check-in start must be before check-in end.");
+        return;
       }
 
       const secret = await fetchSecret();
+
+      const checkInStartsAt = form.has_check_in_window
+        ? new Date(eventStart.getTime() + startOffsetMinutes * 60_000)
+        : eventStart;
+
+      const checkInEndsAt = form.has_check_in_window
+        ? new Date(eventStart.getTime() + endOffsetMinutes * 60_000)
+        : eventEnd;
+
+      const createdAtValue = form.created_at
+        ? new Date(form.created_at)
+        : new Date();
+
+      if (Number.isNaN(createdAtValue.getTime())) {
+        setMessage("Created At is invalid.");
+        return;
+      }
+
       const payload = {
         name: form.name.trim(),
         event_type: form.event_type,
+        points: Number(form.points),
         is_mandatory: form.is_mandatory,
-        date: checkInStart.toISOString(),
-        check_in_starts_at: checkInStart.toISOString(),
-        check_in_ends_at: checkInEnd.toISOString(),
+        date: eventStart.toISOString(),
+        start_time: eventStart.toISOString(),
+        end_time: eventEnd.toISOString(),
+        check_in_starts_at: checkInStartsAt.toISOString(),
+        check_in_ends_at: checkInEndsAt.toISOString(),
         location: form.location.trim(),
+        committee_id: form.committee_id.trim() || null,
+        project_id: form.project_id.trim() || null,
+        created_at: createdAtValue.toISOString(),
         qr_code_secret: secret,
-      } as const;
+      };
 
       const { error } = await supabase.from("events").insert(payload);
+
       if (error) {
         setMessage(error.message);
         return;
@@ -124,11 +186,7 @@ export default function CreateEventPage() {
 
       const url = `${window.location.origin}/check-in/${secret}`;
       setQrLink(url);
-      setMessage(
-        fallbackUsed
-          ? "Event created. Fallback time window was used because the end time was not later than the start time."
-          : "Event created successfully."
-      );
+      setMessage("Event created successfully.");
     } catch (err: any) {
       setMessage(err?.message ?? "Unable to create event.");
     } finally {
@@ -138,6 +196,7 @@ export default function CreateEventPage() {
 
   async function handleDownloadQrCode() {
     setDownloadError(null);
+
     if (!qrRef.current) {
       setDownloadError("QR code is not available yet.");
       return;
@@ -163,6 +222,7 @@ export default function CreateEventPage() {
         canvas.width = img.width;
         canvas.height = img.height;
         const ctx = canvas.getContext("2d");
+
         if (!ctx) {
           setDownloadError("Unable to create canvas context.");
           URL.revokeObjectURL(url);
@@ -172,20 +232,24 @@ export default function CreateEventPage() {
         ctx.fillStyle = "white";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 0, 0);
+
         canvas.toBlob((blob) => {
           if (!blob) {
             setDownloadError("Failed to generate download image.");
             URL.revokeObjectURL(url);
             return;
           }
+
           const link = document.createElement("a");
           link.href = URL.createObjectURL(blob);
-          link.download = `${form.name.trim().replace(/\s+/g, "-").toLowerCase() || "event"}-qr.png`;
+          link.download = `${
+            form.name.trim().replace(/\s+/g, "-").toLowerCase() || "event"
+          }-qr.png`;
           link.click();
           URL.revokeObjectURL(link.href);
           URL.revokeObjectURL(url);
         }, "image/png");
-      } catch (downloadErr) {
+      } catch {
         setDownloadError("Unable to generate QR code image.");
         URL.revokeObjectURL(url);
       }
@@ -204,14 +268,19 @@ export default function CreateEventPage() {
       <div className="mb-6 flex items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-semibold">Create Event</h1>
-          <p className="text-sm text-gray-600">Only Name, Event type, Mandatory, date, timing, and location are required.</p>
+          <p className="text-sm text-gray-600">
+            Required: name, type, mandatory, date, timing, and location.
+          </p>
         </div>
         <Link href="/users/admin" className="text-sm text-sky-600 hover:underline">
           Back to Admin
         </Link>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4 rounded-xl border border-black/10 bg-white p-6 shadow-sm">
+      <form
+        onSubmit={handleSubmit}
+        className="space-y-4 rounded-xl border border-black/10 bg-white p-6 shadow-sm"
+      >
         <div>
           <label className="block font-medium">Name</label>
           <input
@@ -236,6 +305,17 @@ export default function CreateEventPage() {
               </option>
             ))}
           </select>
+        </div>
+
+        <div>
+          <label className="block font-medium">Points</label>
+          <input
+            type="number"
+            name="points"
+            value={form.points}
+            onChange={handleChange}
+            className="mt-1 w-full rounded-md border px-3 py-2"
+          />
         </div>
 
         <div className="flex items-center gap-3">
@@ -291,6 +371,83 @@ export default function CreateEventPage() {
               className="mt-1 w-full rounded-md border px-3 py-2"
             />
           </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <label className="font-medium">Use custom check-in window</label>
+          <input
+            type="checkbox"
+            name="has_check_in_window"
+            checked={form.has_check_in_window}
+            onChange={handleChange}
+          />
+        </div>
+
+        {form.has_check_in_window && (
+          <div className="rounded-lg border border-sky-200 bg-sky-50 p-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <label className="block font-medium">
+                  Check-in start offset (minutes)
+                </label>
+                <input
+                  type="number"
+                  name="check_in_start_offset_minutes"
+                  value={form.check_in_start_offset_minutes}
+                  onChange={handleChange}
+                  className="mt-1 w-full rounded-md border px-3 py-2"
+                />
+                <p className="mt-1 text-xs text-gray-600">
+                  Negative values are allowed.
+                </p>
+              </div>
+
+              <div>
+                <label className="block font-medium">
+                  Check-in end offset (minutes)
+                </label>
+                <input
+                  type="number"
+                  name="check_in_end_offset_minutes"
+                  value={form.check_in_end_offset_minutes}
+                  onChange={handleChange}
+                  className="mt-1 w-full rounded-md border px-3 py-2"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <label className="block font-medium">Committee ID</label>
+            <input
+              name="committee_id"
+              value={form.committee_id}
+              onChange={handleChange}
+              className="mt-1 w-full rounded-md border px-3 py-2"
+            />
+          </div>
+          <div>
+            <label className="block font-medium">Project ID</label>
+            <input
+              name="project_id"
+              value={form.project_id}
+              onChange={handleChange}
+              className="mt-1 w-full rounded-md border px-3 py-2"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="block font-medium">Created at</label>
+          <input
+            type="datetime-local"
+            name="created_at"
+            value={form.created_at}
+            onChange={handleChange}
+            className="mt-1 w-full rounded-md border px-3 py-2"
+          />
         </div>
 
         <button
