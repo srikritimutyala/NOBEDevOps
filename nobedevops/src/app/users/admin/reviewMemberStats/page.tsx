@@ -24,7 +24,7 @@ export default async function ReviewMemberStats() {
             .select("id, user_id, event_id, timestamp"),
         supabase
             .from("excused_absences")
-            .select("id, user_id, status, reason, submitted_at"),
+            .select("id, user_id, event_id, status, reason, submitted_at"),
     ]);
 
     const loadError =
