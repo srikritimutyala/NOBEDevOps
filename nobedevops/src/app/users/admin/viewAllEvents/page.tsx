@@ -16,6 +16,14 @@ type EventItem = {
   created_at: string;
 };
 
+type EventStats = {
+  totalMembers: number;
+  attendedCount: number;
+  excusedCount: number;
+  unexcusedCount: number;
+  attendanceRate: number;
+};
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY!
@@ -31,6 +39,8 @@ export default function ViewAllEvents() {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedEventType, setSelectedEventType] = useState("ALL");
   const [mandatoryFilter, setMandatoryFilter] = useState("ALL");
+  const [eventStats, setEventStats] = useState<EventStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
 
   useEffect(() => {
     async function fetchEvents() {
@@ -56,6 +66,77 @@ export default function ViewAllEvents() {
 
     fetchEvents();
   }, []);
+
+  useEffect(() => {
+    async function fetchEventStats() {
+      if (!selectedEvent || !isPastEvent(selectedEvent.date)) {
+        setEventStats(null);
+        return;
+      }
+
+      setStatsLoading(true);
+
+      const [membersRes, attendanceRes, absencesRes] = await Promise.all([
+        supabase.from("People").select("id, auth_id"),
+        supabase
+          .from("attendance")
+          .select("user_id, event_id")
+          .eq("event_id", selectedEvent.id),
+        supabase
+          .from("excused_absences")
+          .select("user_id, event_id, status")
+          .eq("event_id", selectedEvent.id)
+      ]);
+
+      if (membersRes.error || attendanceRes.error || absencesRes.error) {
+        setEventStats(null);
+        setStatsLoading(false);
+        return;
+      }
+
+      const members = membersRes.data ?? [];
+      const attendance = attendanceRes.data ?? [];
+      const absences = absencesRes.data ?? [];
+
+      const attendedUserIds = new Set(attendance.map((row) => row.user_id));
+
+      const approvedExcusedUserIds = new Set(
+        absences
+          .filter((row) => row.status?.toLowerCase() === "approved")
+          .map((row) => row.user_id)
+      );
+
+      const totalMembers = members.length;
+      const attendedCount = attendedUserIds.size;
+
+      const excusedCount = members.filter(
+        (member) =>
+          !attendedUserIds.has(member.auth_id) &&
+          approvedExcusedUserIds.has(member.auth_id)
+      ).length;
+
+      const unexcusedCount = members.filter(
+        (member) =>
+          !attendedUserIds.has(member.auth_id) &&
+          !approvedExcusedUserIds.has(member.auth_id)
+      ).length;
+
+      const attendanceRate =
+        totalMembers > 0 ? Math.round((attendedCount / totalMembers) * 100) : 0;
+
+      setEventStats({
+        totalMembers,
+        attendedCount,
+        excusedCount,
+        unexcusedCount,
+        attendanceRate,
+      });
+
+      setStatsLoading(false);
+    }
+
+    fetchEventStats();
+  }, [selectedEvent]);
 
   const filteredEvents = useMemo(() => {
     return events.filter((event) => {
@@ -199,6 +280,11 @@ export default function ViewAllEvents() {
     setCurrentMonth(
       new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1)
     );
+  }
+
+  function isPastEvent(dateString: string) {
+    const eventDate = new Date(dateString);
+    return !Number.isNaN(eventDate.getTime()) && eventDate < new Date();
   }
 
   return (
@@ -376,7 +462,7 @@ export default function ViewAllEvents() {
       </button>
 
       <Link
-        href={`/users/admin/creatingEvent?eventId=${selectedEvent.id}`}
+        href={`/users/admin/createEvent?eventId=${selectedEvent.id}`}
         style={styles.editEventButton}
       >
         Edit Event Details
@@ -435,28 +521,73 @@ export default function ViewAllEvents() {
           <div style={styles.sideStatList}>
             <div style={styles.sideStatItem}>
               <span style={styles.sideStatLabel}>Attendance</span>
-              <span style={styles.sideStatValue}>Coming soon</span>
+              <span style={styles.sideStatValue}>
+                {!selectedEvent
+                  ? "-"
+                  : !isPastEvent(selectedEvent.date)
+                  ? "Available after event"
+                  : statsLoading
+                  ? "Loading..."
+                  : eventStats
+                  ? `${eventStats.attendedCount}/${eventStats.totalMembers}`
+                  : "Unavailable"}
+              </span>
             </div>
 
             <div style={styles.sideStatItem}>
-              <span style={styles.sideStatLabel}>Absences / Forms</span>
-              <span style={styles.sideStatValue}>Coming soon</span>
+              <span style={styles.sideStatLabel}>Attendance Rate</span>
+              <span style={styles.sideStatValue}>
+                {!selectedEvent
+                  ? "-"
+                  : !isPastEvent(selectedEvent.date)
+                  ? "Available after event"
+                  : statsLoading
+                  ? "Loading..."
+                  : eventStats
+                  ? `${eventStats.attendanceRate}%`
+                  : "Unavailable"}
+              </span>
             </div>
 
-            <div style={styles.sideStatItem}>
-              <span style={styles.sideStatLabel}>Sponsors / Partners</span>
-              <span style={styles.sideStatValue}>Coming soon</span>
-            </div>
+            {selectedEvent?.is_mandatory === true && (
+              <>
+                <div style={styles.sideStatItem}>
+                  <span style={styles.sideStatLabel}>Excused Absences</span>
+                  <span style={styles.sideStatValue}>
+                    {!isPastEvent(selectedEvent.date)
+                      ? "Available after event"
+                      : statsLoading
+                      ? "Loading..."
+                      : eventStats
+                      ? `${eventStats.excusedCount}`
+                      : "Unavailable"}
+                  </span>
+                </div>
+
+                <div style={styles.sideStatItem}>
+                  <span style={styles.sideStatLabel}>Unexcused Absences</span>
+                  <span style={styles.sideStatValue}>
+                    {!isPastEvent(selectedEvent.date)
+                      ? "Available after event"
+                      : statsLoading
+                      ? "Loading..."
+                      : eventStats
+                      ? `${eventStats.unexcusedCount}`
+                      : "Unavailable"}
+                  </span>
+                </div>
+              </>
+            )}
           </div>
         </div>
-
-        <Link
-          href={`/users/admin/reviewMemberStatus?eventId=${selectedEvent.id}`}
-          style={styles.secondaryDetailsButton}
-        >
-          Open Full Review Page
-        </Link>
       </div>
+
+      <Link
+        href={`/users/admin/eventReview?eventId=${selectedEvent.id}`}
+        style={styles.secondaryDetailsButton}
+      >
+        Open Full Review Page
+      </Link>
     </div>
   </div>
 )}
@@ -497,7 +628,7 @@ export default function ViewAllEvents() {
         </div>
 
         <div style={styles.actionRow}>
-            <Link href="/users/admin/creatingEvent" style={styles.primaryButton}>
+            <Link href="/users/admin/createEvent" style={styles.primaryButton}>
                 Create Event
             </Link>
 
