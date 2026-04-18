@@ -65,6 +65,7 @@ COPY --from=build /app/.next/standalone ./
 
 USER nextjs
 
+
 EXPOSE 3000
 
 # Next standalone server entrypoint:
