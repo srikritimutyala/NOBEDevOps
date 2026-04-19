@@ -267,8 +267,8 @@ export default function CreateEventPage() {
     <div className="mx-auto max-w-3xl p-6">
       <div className="mb-6 flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-semibold">Create Event</h1>
-          <p className="text-sm text-gray-600">
+          <h1 className="text-3xl font-semibold text-slate-900">Create Event</h1>
+          <p className="text-sm text-slate-600">
             Required: name, type, mandatory, date, timing, and location.
           </p>
         </div>
@@ -279,25 +279,25 @@ export default function CreateEventPage() {
 
       <form
         onSubmit={handleSubmit}
-        className="space-y-4 rounded-xl border border-black/10 bg-white p-6 shadow-sm"
+        className="space-y-4 rounded-xl border border-slate-200 bg-white p-6 text-slate-900 shadow-sm"
       >
         <div>
-          <label className="block font-medium">Name</label>
+          <label className="block font-medium text-slate-900">Name</label>
           <input
             name="name"
             value={form.name}
             onChange={handleChange}
-            className="mt-1 w-full rounded-md border px-3 py-2"
+            className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900"
           />
         </div>
 
         <div>
-          <label className="block font-medium">Event type</label>
+          <label className="block font-medium text-slate-900">Event type</label>
           <select
             name="event_type"
             value={form.event_type}
             onChange={handleChange}
-            className="mt-1 w-full rounded-md border px-3 py-2"
+            className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900"
           >
             {eventTypes.map((type) => (
               <option key={type} value={type}>
@@ -308,18 +308,18 @@ export default function CreateEventPage() {
         </div>
 
         <div>
-          <label className="block font-medium">Points</label>
+          <label className="block font-medium text-slate-900">Points</label>
           <input
             type="number"
             name="points"
             value={form.points}
             onChange={handleChange}
-            className="mt-1 w-full rounded-md border px-3 py-2"
+            className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900"
           />
         </div>
 
         <div className="flex items-center gap-3">
-          <label className="font-medium">Mandatory</label>
+          <label className="font-medium text-slate-900">Mandatory</label>
           <input
             type="checkbox"
             name="is_mandatory"
@@ -330,51 +330,51 @@ export default function CreateEventPage() {
 
         <div className="grid gap-4 md:grid-cols-2">
           <div>
-            <label className="block font-medium">Date</label>
+            <label className="block font-medium text-slate-900">Date</label>
             <input
               type="date"
               name="date"
               value={form.date}
               onChange={handleChange}
-              className="mt-1 w-full rounded-md border px-3 py-2"
+              className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900"
             />
           </div>
           <div>
-            <label className="block font-medium">Location</label>
+            <label className="block font-medium text-slate-900">Location</label>
             <input
               name="location"
               value={form.location}
               onChange={handleChange}
-              className="mt-1 w-full rounded-md border px-3 py-2"
+              className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900"
             />
           </div>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
           <div>
-            <label className="block font-medium">Start time</label>
+            <label className="block font-medium text-slate-900">Start time</label>
             <input
               type="time"
               name="start_time"
               value={form.start_time}
               onChange={handleChange}
-              className="mt-1 w-full rounded-md border px-3 py-2"
+              className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900"
             />
           </div>
           <div>
-            <label className="block font-medium">End time</label>
+            <label className="block font-medium text-slate-900">End time</label>
             <input
               type="time"
               name="end_time"
               value={form.end_time}
               onChange={handleChange}
-              className="mt-1 w-full rounded-md border px-3 py-2"
+              className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900"
             />
           </div>
         </div>
 
         <div className="flex items-center gap-3">
-          <label className="font-medium">Use custom check-in window</label>
+          <label className="font-medium text-slate-900">Use custom check-in window</label>
           <input
             type="checkbox"
             name="has_check_in_window"
@@ -387,7 +387,7 @@ export default function CreateEventPage() {
           <div className="rounded-lg border border-sky-200 bg-sky-50 p-4">
             <div className="grid gap-4 md:grid-cols-2">
               <div>
-                <label className="block font-medium">
+                <label className="block font-medium text-slate-900">
                   Check-in start offset (minutes)
                 </label>
                 <input
@@ -395,15 +395,15 @@ export default function CreateEventPage() {
                   name="check_in_start_offset_minutes"
                   value={form.check_in_start_offset_minutes}
                   onChange={handleChange}
-                  className="mt-1 w-full rounded-md border px-3 py-2"
+                  className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900"
                 />
-                <p className="mt-1 text-xs text-gray-600">
+                <p className="mt-1 text-xs text-slate-600">
                   Negative values are allowed.
                 </p>
               </div>
 
               <div>
-                <label className="block font-medium">
+                <label className="block font-medium text-slate-900">
                   Check-in end offset (minutes)
                 </label>
                 <input
@@ -411,7 +411,7 @@ export default function CreateEventPage() {
                   name="check_in_end_offset_minutes"
                   value={form.check_in_end_offset_minutes}
                   onChange={handleChange}
-                  className="mt-1 w-full rounded-md border px-3 py-2"
+                  className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900"
                 />
               </div>
             </div>
@@ -420,33 +420,33 @@ export default function CreateEventPage() {
 
         <div className="grid gap-4 md:grid-cols-2">
           <div>
-            <label className="block font-medium">Committee ID</label>
+            <label className="block font-medium text-slate-900">Committee ID</label>
             <input
               name="committee_id"
               value={form.committee_id}
               onChange={handleChange}
-              className="mt-1 w-full rounded-md border px-3 py-2"
+              className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900"
             />
           </div>
           <div>
-            <label className="block font-medium">Project ID</label>
+            <label className="block font-medium text-slate-900">Project ID</label>
             <input
               name="project_id"
               value={form.project_id}
               onChange={handleChange}
-              className="mt-1 w-full rounded-md border px-3 py-2"
+              className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900"
             />
           </div>
         </div>
 
         <div>
-          <label className="block font-medium">Created at</label>
+          <label className="block font-medium text-slate-900">Created at</label>
           <input
             type="datetime-local"
             name="created_at"
             value={form.created_at}
             onChange={handleChange}
-            className="mt-1 w-full rounded-md border px-3 py-2"
+            className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900"
           />
         </div>
 
@@ -466,8 +466,8 @@ export default function CreateEventPage() {
       )}
 
       {qrLink && (
-        <section className="mt-6 rounded-xl border border-black/10 bg-white p-6 shadow-sm">
-          <p className="font-medium">Check-in link</p>
+        <section className="mt-6 rounded-xl border border-slate-200 bg-white p-6 text-slate-900 shadow-sm">
+          <p className="font-medium text-slate-900">Check-in link</p>
           <a href={qrLink} target="_blank" rel="noreferrer" className="text-sky-600 hover:underline">
             {qrLink}
           </a>
