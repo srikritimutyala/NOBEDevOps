@@ -14,11 +14,14 @@ export default function LoginForm() {
   const redirectTo =
     searchParams.get('redirect') || searchParams.get('next');
 
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [mode, setMode] = useState<'signin' | 'forgot'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(
+    searchParams.get('error') === 'link_expired'
+      ? 'That link has expired. Please request a new one.'
+      : null
+  );
   const [message, setMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -46,43 +49,40 @@ export default function LoginForm() {
 
   if (profile) return null;
 
+  function switchMode(next: 'signin' | 'forgot') {
+    setMode(next);
+    setError(null);
+    setMessage(null);
+  }
+
   async function handleSubmit(e: React.SyntheticEvent) {
     e.preventDefault();
     setError(null);
     setMessage(null);
+
+    if (!email.endsWith('@illinois.edu')) {
+      setError('Please use your @illinois.edu email address.');
+      return;
+    }
+
     setSubmitting(true);
 
     if (mode === 'signin') {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) {
-        setError(error.message);
-      }
-      // redirect is handled by the useEffect once profile loads
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) setError(error.message);
+      // redirect handled by useEffect once profile loads
     } else {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { data: { name } },
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth/callback`,
       });
-
       if (error) {
         setError(error.message);
       } else {
-        setMessage('Account created! Check your email to confirm before signing in.');
+        setMessage('Check your email for a password reset link.');
       }
     }
 
     setSubmitting(false);
-  }
-
-  function switchMode(next: 'signin' | 'signup') {
-    setMode(next);
-    setError(null);
-    setMessage(null);
   }
 
   return (
@@ -145,6 +145,7 @@ export default function LoginForm() {
               type="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
+              placeholder="netid@illinois.edu"
               required
               className="field-input"
             />
@@ -168,14 +169,30 @@ export default function LoginForm() {
             style={{ marginTop: '8px' }}
           >
             {submitting
-              ? mode === 'signin'
-                ? 'Signing in...'
-                : 'Creating account...'
-              : mode === 'signin'
-              ? 'Sign in'
-              : 'Create account'}
+              ? mode === 'signin' ? 'Signing in...' : 'Sending...'
+              : mode === 'signin' ? 'Sign in' : 'Send reset link'}
           </button>
         </form>
+
+        <div className="text-center text-sm">
+          {mode === 'signin' ? (
+            <button
+              type="button"
+              onClick={() => switchMode('forgot')}
+              className="text-blue-600 hover:underline"
+            >
+              Forgot password?
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => switchMode('signin')}
+              className="text-blue-600 hover:underline"
+            >
+              Back to sign in
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
