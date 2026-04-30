@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { createClient } from '../../../utils/supabase/client';
 
@@ -15,16 +15,24 @@ interface AbsenceRecord {
     status: string | null;
 }
 
+interface Event {
+    id: string;
+    name: string;
+    date: string;
+}
+
 export default function AbsencePage() {
     const supabase = createClient();
     const [formData, setFormData] = useState({
-        eventMissed: '',
+        eventId: '',
         reason: '',
     });
     const [submitted, setSubmitted] = useState(false);
     const [absences, setAbsences] = useState<AbsenceRecord[]>([]);
     const [absencesLoading, setAbsencesLoading] = useState(true);
     const [absencesError, setAbsencesError] = useState<string | null>(null);
+    const [events, setEvents] = useState<Event[]>([]);
+    const [eventsLoading, setEventsLoading] = useState(true);
 
     const fetchAbsences = async () => {
         const {
@@ -57,10 +65,20 @@ export default function AbsencePage() {
 
     useEffect(() => {
         fetchAbsences();
+
+        const fetchEvents = async () => {
+            const { data } = await supabase
+                .from('events')
+                .select('id, name, date')
+                .order('date', { ascending: false });
+            setEvents(data || []);
+            setEventsLoading(false);
+        };
+        fetchEvents();
     }, []);
 
     const handleChange = (
-        e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+        e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
     ) => {
         const { name, value } = e.target;
         setFormData((prev) => ({
@@ -69,8 +87,18 @@ export default function AbsencePage() {
         }));
     };
 
+    const eventsMap = Object.fromEntries(events.map(e => [e.id, e]));
+
     const pathname = usePathname();
     const currentPath = pathname?.replace(/\/$/, '') || '';
+    const searchParams = useSearchParams();
+
+    useEffect(() => {
+        const eventId = searchParams.get('eventId');
+        if (eventId) {
+            setFormData((prev) => ({ ...prev, eventId }));
+        }
+    }, [searchParams]);
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -86,12 +114,15 @@ export default function AbsencePage() {
             return;
         }
 
-        const { data, error } = await supabase
+        const selectedEvent = eventsMap[formData.eventId];
+
+        const { error } = await supabase
             .from('excused_absences')
             .insert([
                 {
                     user_id: user.id,
-                    reason: `${formData.eventMissed ? `Event: ${formData.eventMissed} — ` : ''}${formData.reason}`,
+                    event_id: formData.eventId || null,
+                    reason: formData.reason,
                     submitted_at: new Date().toISOString(),
                     status: 'PENDING',
                 },
@@ -112,7 +143,7 @@ export default function AbsencePage() {
                 body: JSON.stringify({
                     to: 'vinaysanjeev77@gmail.com',
                     subject: 'New Absence Form Submission',
-                    message: `An absence form has been submitted.\n\nEvent Missed: ${formData.eventMissed}\n\nReason: ${formData.reason}`,
+                    message: `An absence form has been submitted.\n\nEvent Missed: ${selectedEvent?.name ?? 'Unknown'}\n\nReason: ${formData.reason}`,
                 }),
             });
         } catch (emailError) {
@@ -120,63 +151,71 @@ export default function AbsencePage() {
         }
 
         setSubmitted(true);
-        setFormData({ eventMissed: '', reason: '' });
+        setFormData({ eventId: '', reason: '' });
         setTimeout(() => setSubmitted(false), 3000);
         await fetchAbsences();
     };
 
     return (
-        <div className="min-h-screen bg-slate-950 text-white p-8">
-            <div className="max-w-6xl mx-auto">
-                <div className="mb-8 rounded-3xl border border-white/10 bg-slate-900/80 p-6">
-                    <div className="inline-flex overflow-hidden rounded-full border border-white/10 bg-slate-800">
+        <div className="app-shell">
+            <div className="page-frame page-stack">
+                <section className="hero-card">
+                    <div className="pill-nav">
                         <Link
                             href="/users/member"
-                            className="rounded-full px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-700"
+                            className="pill-link"
                         >
                             Event Calendar
                         </Link>
-                        <span
-                            className={`rounded-full px-4 py-2 text-sm font-semibold ${currentPath === '/users/member/absence' ? 'bg-sky-600 text-white' : 'text-slate-300 hover:bg-slate-700'}`}
-                        >
+                        <span className={currentPath === '/users/member/absence' ? 'pill-link-active' : 'pill-link'}>
                             Absence Form
                         </span>
                     </div>
-                    <h1 className="mt-6 text-4xl font-bold">Absence Form</h1>
-                    <p className="mt-2 text-slate-400">Submit a request and review your excused absences.</p>
-                </div>
+                    <p className="eyebrow" style={{ marginTop: '20px' }}>Member</p>
+                    <h1 className="page-title">Absence requests</h1>
+                    <p className="page-subtitle">Submit a request and review your excused absences.</p>
+                </section>
 
-                <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-                    <section className="rounded-3xl border border-white/10 bg-slate-900 p-8 shadow-xl">
-                        <h2 className="text-2xl font-semibold mb-6">Submit absence</h2>
+                <div className="surface-grid two-up">
+                    <section className="panel">
+                        <div className="panel-header">
+                            <div>
+                                <p className="eyebrow">Submit</p>
+                                <h2 className="section-title">Submit absence</h2>
+                            </div>
+                        </div>
 
                         {submitted && (
-                            <div className="mb-6 rounded-2xl bg-emerald-600/10 px-4 py-3 text-emerald-200 ring-1 ring-emerald-500/20">
+                            <div className="message-success" style={{ marginBottom: '24px' }}>
                                 Absence form submitted successfully!
                             </div>
                         )}
 
-                        <form onSubmit={handleSubmit} className="space-y-6">
-                            <div>
-                                <label htmlFor="eventMissed" className="block text-sm font-medium text-slate-300 mb-2">
-                                    Event Missed
-                                </label>
-                                <input
-                                    type="text"
-                                    id="eventMissed"
-                                    name="eventMissed"
-                                    value={formData.eventMissed}
+                        <form onSubmit={handleSubmit} className="field-group">
+                            <div className="field-group">
+                                <label htmlFor="eventId" className="field-label">Event missed</label>
+                                <select
+                                    id="eventId"
+                                    name="eventId"
+                                    value={formData.eventId}
                                     onChange={handleChange}
                                     required
-                                    placeholder="e.g., Team Meeting, Project Deadline"
-                                    className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
-                                />
+                                    className="field-select"
+                                    disabled={eventsLoading}
+                                >
+                                    <option value="">
+                                        {eventsLoading ? 'Loading events...' : 'Select an event'}
+                                    </option>
+                                    {events.map((event) => (
+                                        <option key={event.id} value={event.id}>
+                                            {event.name} — {new Date(event.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                        </option>
+                                    ))}
+                                </select>
                             </div>
 
-                            <div>
-                                <label htmlFor="reason" className="block text-sm font-medium text-slate-300 mb-2">
-                                    Reason for Absence
-                                </label>
+                            <div className="field-group">
+                                <label htmlFor="reason" className="field-label">Reason for absence</label>
                                 <textarea
                                     id="reason"
                                     name="reason"
@@ -185,49 +224,59 @@ export default function AbsencePage() {
                                     required
                                     placeholder="Please provide details..."
                                     rows={6}
-                                    className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
+                                    className="field-textarea"
                                 />
                             </div>
 
                             <button
                                 type="submit"
-                                className="w-full rounded-2xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500"
+                                className="btn button-full"
                             >
                                 Submit Absence
                             </button>
                         </form>
                     </section>
 
-                    <aside className="rounded-3xl border border-white/10 bg-slate-900 p-8 shadow-xl">
-                        <h2 className="text-2xl font-semibold mb-6">Your excused absences</h2>
+                    <aside className="panel">
+                        <div className="panel-header">
+                            <div>
+                                <p className="eyebrow">History</p>
+                                <h2 className="section-title">Your excused absences</h2>
+                            </div>
+                        </div>
 
                         {absencesLoading ? (
-                            <div className="rounded-2xl bg-slate-950 p-6 text-slate-400">Loading your absences...</div>
+                            <div className="subtle-card"><p className="section-copy">Loading your absences...</p></div>
                         ) : absencesError ? (
-                            <div className="rounded-2xl bg-slate-950 p-6 text-rose-300">{absencesError}</div>
+                            <div className="message-error">{absencesError}</div>
                         ) : absences.length === 0 ? (
-                            <div className="rounded-2xl bg-slate-950 p-6 text-slate-400">No excused absences have been submitted yet.</div>
+                            <div className="empty-state">No excused absences have been submitted yet.</div>
                         ) : (
-                            <div className="space-y-4">
+                            <div className="list-stack">
                                 {absences.map((absence) => (
-                                    <div key={absence.id} className="rounded-3xl border border-slate-800 bg-slate-950 p-5">
-                                        <div className="flex items-start justify-between gap-4">
+                                    <div key={absence.id} className="subtle-card">
+                                        <div className="panel-header" style={{ marginBottom: '16px' }}>
                                             <div>
-                                                <p className="text-sm text-slate-400">Status</p>
-                                                <p className="mt-1 text-base font-semibold text-white">{absence.status || 'PENDING'}</p>
+                                                <p className="eyebrow" style={{ marginBottom: '4px' }}>Status</p>
+                                                <p><strong>{absence.status || 'PENDING'}</strong></p>
                                             </div>
-                                            <div className="text-right">
-                                                <p className="text-sm text-slate-400">Submitted</p>
-                                                <p className="mt-1 text-base font-semibold text-white">
+                                            <div style={{ textAlign: 'right' }}>
+                                                <p className="eyebrow" style={{ marginBottom: '4px' }}>Submitted</p>
+                                                <p><strong>
                                                     {absence.submitted_at ? new Date(absence.submitted_at).toLocaleDateString() : 'N/A'}
-                                                </p>
+                                                </strong></p>
                                             </div>
                                         </div>
-                                        <div className="mt-4 rounded-2xl bg-slate-950/80 p-4 text-sm leading-6 text-slate-300">
+                                        {absence.event_id && eventsMap[absence.event_id] && (
+                                            <p className="field-label" style={{ marginBottom: '8px' }}>
+                                                {eventsMap[absence.event_id].name} — {new Date(eventsMap[absence.event_id].date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                            </p>
+                                        )}
+                                        <div className="message">
                                             {absence.reason || 'No reason provided.'}
                                         </div>
                                         {absence.reviewed_at && (
-                                            <p className="mt-4 text-sm text-slate-500">
+                                            <p className="field-help" style={{ marginTop: '14px' }}>
                                                 Reviewed on {new Date(absence.reviewed_at).toLocaleDateString()}
                                             </p>
                                         )}

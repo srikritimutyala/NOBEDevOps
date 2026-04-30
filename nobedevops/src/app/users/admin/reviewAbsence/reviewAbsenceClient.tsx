@@ -137,7 +137,7 @@ export default function ReviewAbsenceClient({ items }: Props) {
 
   if (rows.length === 0) {
     return (
-      <section className="rounded-lg border border-black/10 p-6 text-sm opacity-80 dark:border-white/20">
+      <section className="empty-state">
         No absence requests have been submitted yet.
       </section>
     );
@@ -148,8 +148,8 @@ export default function ReviewAbsenceClient({ items }: Props) {
   const visibleRows = activeSection === "PENDING" ? pendingRows : reviewedRows;
 
   return (
-    <section className="space-y-4">
-      <div className="flex flex-wrap gap-3">
+    <section className="page-stack">
+      <div className="pill-nav">
         <SectionToggle
           label="Pending"
           count={pendingRows.length}
@@ -175,9 +175,9 @@ export default function ReviewAbsenceClient({ items }: Props) {
             return (
               <article
                 key={item.id}
-                className="rounded-xl border border-black/10 p-5 dark:border-white/20"
+                className="panel"
               >
-                <div className="flex flex-col gap-3 border-b border-black/10 pb-4 dark:border-white/10 md:flex-row md:items-start md:justify-between">
+                <div className="panel-header" style={{ paddingBottom: '16px', borderBottom: '1px solid var(--border)' }}>
                   <div className="space-y-2">
                     <h2 className="text-lg font-medium">{item.submitterLabel}</h2>
                     <p className="text-sm opacity-80">
@@ -205,7 +205,7 @@ export default function ReviewAbsenceClient({ items }: Props) {
                           status: event.target.value as "APPROVED" | "DENIED",
                         })
                       }
-                      className="w-full rounded-lg border border-black/15 bg-white px-3 py-2 dark:border-white/20 dark:bg-transparent"
+                      className="field-select"
                     >
                       <option value="APPROVED">Approved</option>
                       <option value="DENIED">Disapproved</option>
@@ -224,7 +224,7 @@ export default function ReviewAbsenceClient({ items }: Props) {
                       }
                       rows={5}
                       placeholder="Write the message that should be emailed back to the member."
-                      className="w-full rounded-lg border border-black/15 bg-white px-3 py-2 dark:border-white/20 dark:bg-transparent"
+                      className="field-textarea"
                     />
                   </label>
                 </div>
@@ -232,9 +232,9 @@ export default function ReviewAbsenceClient({ items }: Props) {
                 <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div className="min-h-5 text-sm">
                     {form.error ? (
-                      <p className="text-red-600 dark:text-red-300">{form.error}</p>
+                      <p className="message-error">{form.error}</p>
                     ) : form.success ? (
-                      <p className="text-green-700 dark:text-green-300">{form.success}</p>
+                      <p className="message-success">{form.success}</p>
                     ) : null}
                   </div>
 
@@ -242,7 +242,7 @@ export default function ReviewAbsenceClient({ items }: Props) {
                     type="button"
                     disabled={form.submitting}
                     onClick={() => handleSubmit(item.id)}
-                    className="inline-flex items-center justify-center rounded-lg bg-black px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-black"
+                    className="btn"
                   >
                     {form.submitting ? "Submitting..." : "Submit review"}
                   </button>
@@ -259,7 +259,7 @@ export default function ReviewAbsenceClient({ items }: Props) {
           {visibleRows.map((item) => (
             <article
               key={item.id}
-              className="rounded-xl border border-black/10 p-5 dark:border-white/20"
+              className="panel"
             >
               <div className="space-y-2">
                 <h2 className="text-lg font-medium">{item.submitterLabel}</h2>
@@ -325,11 +325,11 @@ function ReviewSection({
   const items = Children.toArray(children);
 
   return (
-    <section className="space-y-4 rounded-2xl border border-black/10 p-5 dark:border-white/20">
-      <p className="text-sm opacity-80">{description}</p>
+    <section className="panel">
+      <p className="section-copy" style={{ marginTop: 0 }}>{description}</p>
 
       {items.length > 0 ? items : (
-        <div className="rounded-lg border border-dashed border-black/15 p-4 text-sm opacity-80 dark:border-white/20">
+        <div className="empty-state">
           {emptyText}
         </div>
       )}
@@ -352,19 +352,15 @@ function SectionToggle({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition ${
-        active
-          ? "border-black bg-black text-white dark:border-white dark:bg-white dark:text-black"
-          : "border-black/15 bg-white text-black dark:border-white/20 dark:bg-transparent dark:text-white"
-      }`}
+      className={active ? "pill-link-active" : "pill-link"}
     >
       <span>{label}</span>
       <span
-        className={`rounded-full px-2 py-0.5 text-xs ${
-          active
-            ? "bg-white/15 text-white dark:bg-black/10 dark:text-black"
-            : "bg-black/5 text-black dark:bg-white/10 dark:text-white"
-        }`}
+        className="rounded-full px-2 py-0.5 text-xs"
+        style={{
+          background: active ? "rgba(255, 250, 246, 0.18)" : "rgba(106, 68, 51, 0.08)",
+          color: active ? "#fffaf6" : "var(--foreground)",
+        }}
       >
         {count}
       </span>

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import QRCode from "react-qr-code";
 import { createClient } from "@supabase/supabase-js";
 
@@ -27,6 +28,8 @@ function combineDateTime(date: string, time: string) {
 }
 
 export default function CreateEventPage() {
+  const searchParams = useSearchParams();
+  const eventId = searchParams.get("eventId");
   const [form, setForm] = useState({
     name: "",
     event_type: "PROFESSIONAL",
@@ -46,9 +49,14 @@ export default function CreateEventPage() {
   const [qrLink, setQrLink] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [isLoadingEvent, setIsLoadingEvent] = useState(false);
   const qrRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    if (eventId) {
+      return;
+    }
+
     const today = new Date();
     const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -62,7 +70,78 @@ export default function CreateEventPage() {
       date: defaultDate,
       created_at: createdAtLocal,
     }));
-  }, []);
+  }, [eventId]);
+
+  useEffect(() => {
+    if (!eventId) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadEvent() {
+      setIsLoadingEvent(true);
+      setMessage(null);
+
+      const { data, error } = await supabase
+        .from("events")
+        .select("id, name, event_type, points, is_mandatory, date, location, created_at, qr_code_secret, check_in_starts_at, check_in_ends_at")
+        .eq("id", eventId)
+        .single();
+
+      if (cancelled) {
+        return;
+      }
+
+      if (error || !data) {
+        setMessage(error?.message ?? "Unable to load event details.");
+        setIsLoadingEvent(false);
+        return;
+      }
+
+      const eventStart = new Date(data.date);
+      const checkInStart = data.check_in_starts_at ? new Date(data.check_in_starts_at) : null;
+      const checkInEnd = data.check_in_ends_at ? new Date(data.check_in_ends_at) : null;
+      const createdAt = data.created_at ? new Date(data.created_at) : new Date();
+
+      const hasValidStart = !Number.isNaN(eventStart.getTime());
+      const hasValidCheckInStart = checkInStart && !Number.isNaN(checkInStart.getTime());
+      const hasValidCheckInEnd = checkInEnd && !Number.isNaN(checkInEnd.getTime());
+      const hasCustomWindow =
+        Boolean(hasValidCheckInStart && hasValidCheckInEnd) &&
+        ((checkInStart as Date).getTime() !== eventStart.getTime() ||
+          (checkInEnd as Date).getTime() !== eventStart.getTime());
+
+      setForm({
+        name: data.name ?? "",
+        event_type: data.event_type ?? "PROFESSIONAL",
+        points: data.points ?? 0,
+        is_mandatory: data.is_mandatory ?? false,
+        date: hasValidStart ? toDateInputValue(eventStart) : "",
+        start_time: hasValidStart ? toTimeInputValue(eventStart) : "18:00",
+        end_time: hasValidCheckInEnd ? toTimeInputValue(checkInEnd as Date) : (hasValidStart ? toTimeInputValue(eventStart) : "19:00"),
+        location: data.location ?? "",
+        has_check_in_window: hasCustomWindow,
+        check_in_start_offset_minutes:
+          hasCustomWindow ? String(Math.round((((checkInStart as Date).getTime() - eventStart.getTime()) / 60000))) : "0",
+        check_in_end_offset_minutes:
+          hasCustomWindow && hasValidCheckInEnd ? String(Math.round((((checkInEnd as Date).getTime() - eventStart.getTime()) / 60000))) : "30",
+        created_at: !Number.isNaN(createdAt.getTime()) ? toDateTimeLocalInputValue(createdAt) : "",
+      });
+
+      if (data.qr_code_secret) {
+        setQrLink(`${window.location.origin}/check-in/${data.qr_code_secret}`);
+      }
+
+      setIsLoadingEvent(false);
+    }
+
+    loadEvent();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId]);
 
   function handleChange(
     e: ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -139,8 +218,6 @@ export default function CreateEventPage() {
         return;
       }
 
-      const secret = await fetchSecret();
-
       const checkInStartsAt = form.has_check_in_window
         ? new Date(eventStart.getTime() + startOffsetMinutes * 60_000)
         : eventStart;
@@ -158,6 +235,25 @@ export default function CreateEventPage() {
         return;
       }
 
+      let secret = "";
+
+      if (eventId) {
+        const { data: existingEvent, error: existingEventError } = await supabase
+          .from("events")
+          .select("qr_code_secret")
+          .eq("id", eventId)
+          .single();
+
+        if (existingEventError) {
+          setMessage(existingEventError.message);
+          return;
+        }
+
+        secret = existingEvent?.qr_code_secret ?? "";
+      } else {
+        secret = await fetchSecret();
+      }
+
       const payload = {
         name: form.name.trim(),
         event_type: form.event_type,
@@ -171,7 +267,9 @@ export default function CreateEventPage() {
         qr_code_secret: secret,
       };
 
-      const { error } = await supabase.from("events").insert(payload);
+      const { error } = eventId
+        ? await supabase.from("events").update(payload).eq("id", eventId)
+        : await supabase.from("events").insert(payload);
 
       if (error) {
         setMessage(error.message);
@@ -180,7 +278,7 @@ export default function CreateEventPage() {
 
       const url = `${window.location.origin}/check-in/${secret}`;
       setQrLink(url);
-      setMessage("Event created successfully.");
+      setMessage(eventId ? "Event updated successfully." : "Event created successfully.");
     } catch (err: any) {
       setMessage(err?.message ?? "Unable to create event.");
     } finally {
@@ -258,210 +356,234 @@ export default function CreateEventPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl p-6">
-      <div className="mb-6 flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-semibold">Create Event</h1>
-          <p className="text-sm text-gray-600">
-            Required: name, type, mandatory, date, timing, and location.
-          </p>
-        </div>
-        <Link href="/users/admin" className="text-sm text-sky-600 hover:underline">
-          Back to Admin
-        </Link>
-      </div>
+    <div className="app-shell">
+      <div className="page-frame page-stack" style={{ maxWidth: '960px' }}>
+        <section className="hero-card">
+          <div className="page-header">
+            <div>
+              <p className="eyebrow">Administration</p>
+              <h1 className="page-title">{eventId ? "Edit event" : "Create an event"}</h1>
+              <p className="page-subtitle">
+                {eventId
+                  ? "Update the event details, attendance window, and check-in link without creating a duplicate event."
+                  : "Required: name, type, points, event timing, location, and optional custom check-in window."}
+              </p>
+            </div>
+            <Link href="/users/admin" className="btn-secondary">
+              Back to Admin
+            </Link>
+          </div>
+        </section>
 
-      <form
-        onSubmit={handleSubmit}
-        className="space-y-4 rounded-xl border border-black/10 bg-white p-6 shadow-sm"
-      >
-        <div>
-          <label className="block font-medium">Name</label>
-          <input
-            name="name"
-            value={form.name}
-            onChange={handleChange}
-            className="mt-1 w-full rounded-md border px-3 py-2"
-          />
-        </div>
-
-        <div>
-          <label className="block font-medium">Event type</label>
-          <select
-            name="event_type"
-            value={form.event_type}
-            onChange={handleChange}
-            className="mt-1 w-full rounded-md border px-3 py-2"
-          >
-            {eventTypes.map((type) => (
-              <option key={type} value={type}>
-                {type}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="block font-medium">Points</label>
-          <input
-            type="number"
-            name="points"
-            value={form.points}
-            onChange={handleChange}
-            className="mt-1 w-full rounded-md border px-3 py-2"
-          />
-        </div>
-
-        <div className="flex items-center gap-3">
-          <label className="font-medium">Mandatory</label>
-          <input
-            type="checkbox"
-            name="is_mandatory"
-            checked={form.is_mandatory}
-            onChange={handleChange}
-          />
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2">
-          <div>
-            <label className="block font-medium">Date</label>
+        <form onSubmit={handleSubmit} className="panel field-group">
+          {isLoadingEvent ? (
+            <div className="message">Loading event details...</div>
+          ) : null}
+          <div className="field-group">
+            <label className="field-label">Name</label>
             <input
-              type="date"
-              name="date"
-              value={form.date}
+              name="name"
+              value={form.name}
               onChange={handleChange}
-              className="mt-1 w-full rounded-md border px-3 py-2"
+              className="field-input"
             />
           </div>
-          <div>
-            <label className="block font-medium">Location</label>
+
+          <div className="field-grid two-up">
+            <div className="field-group">
+              <label className="field-label">Event type</label>
+              <select
+                name="event_type"
+                value={form.event_type}
+                onChange={handleChange}
+                className="field-select"
+              >
+                {eventTypes.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="field-group">
+              <label className="field-label">Points</label>
+              <input
+                type="number"
+                name="points"
+                value={form.points}
+                onChange={handleChange}
+                className="field-input"
+              />
+            </div>
+          </div>
+
+          <div className="toggle-row">
+            <div>
+              <label className="field-label">Mandatory event</label>
+              <p className="toggle-copy">Turn this on for meetings or events members are expected to attend.</p>
+            </div>
             <input
-              name="location"
-              value={form.location}
+              type="checkbox"
+              name="is_mandatory"
+              checked={form.is_mandatory}
               onChange={handleChange}
-              className="mt-1 w-full rounded-md border px-3 py-2"
+              className="field-checkbox"
             />
           </div>
-        </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <div>
-            <label className="block font-medium">Start time</label>
+          <div className="field-grid two-up">
+            <div className="field-group">
+              <label className="field-label">Date</label>
+              <input
+                type="date"
+                name="date"
+                value={form.date}
+                onChange={handleChange}
+                className="field-input"
+              />
+            </div>
+            <div className="field-group">
+              <label className="field-label">Location</label>
+              <input
+                name="location"
+                value={form.location}
+                onChange={handleChange}
+                className="field-input"
+              />
+            </div>
+          </div>
+
+          <div className="field-grid two-up">
+            <div className="field-group">
+              <label className="field-label">Start time</label>
+              <input
+                type="time"
+                name="start_time"
+                value={form.start_time}
+                onChange={handleChange}
+                className="field-input"
+              />
+            </div>
+            <div className="field-group">
+              <label className="field-label">End time</label>
+              <input
+                type="time"
+                name="end_time"
+                value={form.end_time}
+                onChange={handleChange}
+                className="field-input"
+              />
+            </div>
+          </div>
+
+          <div className="toggle-row">
+            <div>
+              <label className="field-label">Use custom check-in window</label>
+              <p className="toggle-copy">Useful when members should check in before or after the official start time.</p>
+            </div>
             <input
-              type="time"
-              name="start_time"
-              value={form.start_time}
+              type="checkbox"
+              name="has_check_in_window"
+              checked={form.has_check_in_window}
               onChange={handleChange}
-              className="mt-1 w-full rounded-md border px-3 py-2"
+              className="field-checkbox"
             />
           </div>
-          <div>
-            <label className="block font-medium">End time</label>
-            <input
-              type="time"
-              name="end_time"
-              value={form.end_time}
-              onChange={handleChange}
-              className="mt-1 w-full rounded-md border px-3 py-2"
-            />
-          </div>
-        </div>
 
-        <div className="flex items-center gap-3">
-          <label className="font-medium">Use custom check-in window</label>
-          <input
-            type="checkbox"
-            name="has_check_in_window"
-            checked={form.has_check_in_window}
-            onChange={handleChange}
-          />
-        </div>
+          {form.has_check_in_window && (
+            <div className="subtle-card field-group">
+              <div className="field-grid two-up">
+                <div className="field-group">
+                  <label className="field-label">Check-in start offset (minutes)</label>
+                  <input
+                    type="number"
+                    name="check_in_start_offset_minutes"
+                    value={form.check_in_start_offset_minutes}
+                    onChange={handleChange}
+                    className="field-input"
+                  />
+                  <p className="field-help">Negative values are allowed.</p>
+                </div>
 
-        {form.has_check_in_window && (
-          <div className="rounded-lg border border-sky-200 bg-sky-50 p-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <label className="block font-medium">
-                  Check-in start offset (minutes)
-                </label>
-                <input
-                  type="number"
-                  name="check_in_start_offset_minutes"
-                  value={form.check_in_start_offset_minutes}
-                  onChange={handleChange}
-                  className="mt-1 w-full rounded-md border px-3 py-2"
-                />
-                <p className="mt-1 text-xs text-gray-600">
-                  Negative values are allowed.
-                </p>
-              </div>
-
-              <div>
-                <label className="block font-medium">
-                  Check-in end offset (minutes)
-                </label>
-                <input
-                  type="number"
-                  name="check_in_end_offset_minutes"
-                  value={form.check_in_end_offset_minutes}
-                  onChange={handleChange}
-                  className="mt-1 w-full rounded-md border px-3 py-2"
-                />
+                <div className="field-group">
+                  <label className="field-label">Check-in end offset (minutes)</label>
+                  <input
+                    type="number"
+                    name="check_in_end_offset_minutes"
+                    value={form.check_in_end_offset_minutes}
+                    onChange={handleChange}
+                    className="field-input"
+                  />
+                </div>
               </div>
             </div>
+          )}
+
+          <div className="field-group">
+            <label className="field-label">Created at</label>
+            <input
+              type="datetime-local"
+              name="created_at"
+              value={form.created_at}
+              onChange={handleChange}
+              className="field-input"
+            />
+          </div>
+
+          <div className="action-row">
+            <button type="submit" disabled={isSubmitting} className="btn">
+              {isSubmitting ? (eventId ? "Saving changes..." : "Creating event...") : (eventId ? "Save Changes" : "Create Event")}
+            </button>
+          </div>
+        </form>
+
+        {message && (
+          <div className={message === "Event created successfully." || message === "Event updated successfully." ? "message-success" : "message"}>
+            {message}
           </div>
         )}
 
-       
+        {qrLink && (
+          <section className="panel qr-card">
+            <div>
+              <p className="eyebrow">Check-In</p>
+              <h2 className="section-title">QR code and link</h2>
+            </div>
+            <a href={qrLink} target="_blank" rel="noreferrer">
+              {qrLink}
+            </a>
 
-        <div>
-          <label className="block font-medium">Created at</label>
-          <input
-            type="datetime-local"
-            name="created_at"
-            value={form.created_at}
-            onChange={handleChange}
-            className="mt-1 w-full rounded-md border px-3 py-2"
-          />
-        </div>
+            <div className="qr-frame" ref={qrRef}>
+              <QRCode value={qrLink} size={240} />
+            </div>
 
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="rounded-md bg-sky-600 px-4 py-2 text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {isSubmitting ? "Creating event..." : "Create Event"}
-        </button>
-      </form>
+            <div className="action-row">
+              <button
+                type="button"
+                onClick={handleDownloadQrCode}
+                className="btn-secondary"
+              >
+                Download QR code image
+              </button>
+            </div>
 
-      {message && (
-        <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-900">
-          {message}
-        </div>
-      )}
-
-      {qrLink && (
-        <section className="mt-6 rounded-xl border border-black/10 bg-white p-6 shadow-sm">
-          <p className="font-medium">Check-in link</p>
-          <a href={qrLink} target="_blank" rel="noreferrer" className="text-sky-600 hover:underline">
-            {qrLink}
-          </a>
-
-          <div className="mt-4 inline-block rounded-lg bg-white p-4" ref={qrRef}>
-            <QRCode value={qrLink} size={240} />
-          </div>
-
-          <button
-            type="button"
-            onClick={handleDownloadQrCode}
-            className="mt-4 rounded-md bg-slate-900 px-4 py-2 text-white hover:bg-slate-700"
-          >
-            Download QR code image
-          </button>
-
-          {downloadError && <p className="mt-2 text-sm text-red-600">{downloadError}</p>}
-        </section>
-      )}
+            {downloadError && <p className="message-error">{downloadError}</p>}
+          </section>
+        )}
+      </div>
     </div>
   );
+}
+
+function toDateInputValue(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function toTimeInputValue(date: Date) {
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+function toDateTimeLocalInputValue(date: Date) {
+  return `${toDateInputValue(date)}T${toTimeInputValue(date)}`;
 }

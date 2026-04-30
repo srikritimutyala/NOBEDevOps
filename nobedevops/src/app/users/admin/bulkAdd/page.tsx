@@ -2,6 +2,7 @@
 
 "use client";
 
+import Link from "next/link";
 import { useState, type ChangeEvent, type DragEvent } from "react";
 
 type UploadEntry = {
@@ -161,6 +162,12 @@ export default function BulkAddPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 p-6">
+      <div className="flex justify-end">
+        <Link href="/users/admin" className="btn-secondary">
+          Back to Admin
+        </Link>
+      </div>
+
       <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
         <h1 className="mb-3 text-2xl font-semibold">Bulk CSV Upload</h1>
         <p className="mb-5 text-sm text-slate-600">
@@ -286,5 +293,4 @@ export default function BulkAddPage() {
     </div>
   );
 }
-
 

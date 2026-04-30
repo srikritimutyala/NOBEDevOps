@@ -25,22 +25,24 @@ export default function AdminDashboard({
     attendanceError,
 }: AdminDashboardProps) {
     return (
-        <main className="mx-auto max-w-6xl p-6 space-y-6">
-            <header className="space-y-1">
-                <h1 className="text-2xl font-semibold">Administrator Dashboard</h1>
-                <p className="text-sm opacity-80">Attendance tracking overview (Supabase-backed)</p>
+        <section className="page-stack">
+            <header>
+                <img src="/nobe_logo_f.svg" alt="NOBE Illinois" style={{ width: '52px', height: '52px', marginBottom: '12px' }} />
+                <p className="eyebrow">Administration</p>
+                <h1 className="page-title" style={{ fontSize: '2.7rem' }}>Admin dashboard</h1>
+                <p className="page-subtitle"></p>
             </header>
 
-            <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <section className="stats-grid">
                 <StatCard label="Total Members" value={formatValue(totalMembers)} />
                 <StatCard label="Attendance Records" value={formatValue(totalAttendanceRecords)} />
                 <StatCard label="Attendance Rate" value={formatPercentage(attendanceRate)} />
                 <StatCard label="At-Risk Members (3+ unexcused)" value={formatValue(atRiskMembers)} />
             </section>
 
-            <section className="grid gap-4 lg:grid-cols-2">
+            <section className="surface-grid two-up">
                 <SummaryPanel
-                    title="Coverage Snapshot"
+                    title="Coverage"
                     description="Computed from past events and members linked to auth accounts."
                     rows={[
                         { label: "Past events", value: formatValue(totalPastEvents) },
@@ -49,7 +51,7 @@ export default function AdminDashboard({
                     ]}
                 />
                 <SummaryPanel
-                    title="Risk Snapshot"
+                    title="Risk"
                     description="3 or more unexcused misses"
                     rows={[
                         { label: "At-risk members", value: formatValue(atRiskMembers) },
@@ -61,33 +63,41 @@ export default function AdminDashboard({
                 />
             </section>
 
-            <section className="rounded-lg border border-black/10 dark:border-white/20 p-4 space-y-3">
-                <h2 className="text-lg font-medium">Recent Attendance Activity</h2>
+            <section className="panel">
+                <div className="panel-header">
+                    <div>
+                        <p className="eyebrow">Recent Activity</p>
+                        <h2 className="section-title">Attendance activity</h2>
+                    </div>
+                    <a href="/users/admin/reviewMemberStats" className="btn-secondary" style={{ fontSize: '0.85rem', minHeight: '36px', padding: '0 14px' }}>
+                        View more
+                    </a>
+                </div>
                 {attendanceError ? (
-                    <p className="text-sm text-orange-600 dark:text-orange-300">{attendanceError}</p>
+                    <p className="message-error">{attendanceError}</p>
                 ) : recentAttendance.length === 0 ? (
-                    <p className="text-sm opacity-80">No attendance rows found yet.</p>
+                    <div className="empty-state">No attendance rows found yet.</div>
                 ) : (
-                    <ul className="space-y-2">
+                    <ul className="list-stack">
                         {recentAttendance.map((row, index) => (
-                            <li key={row.id ?? index} className="rounded-md border border-black/10 dark:border-white/20 p-3 text-sm">
+                            <li key={row.id ?? index} className="subtle-card">
                                 <p><span className="font-medium">Member:</span> {row.member_name ?? "Unknown"}</p>
                                 <p><span className="font-medium">Event:</span> {row.event_name ?? "Unknown event"}</p>
-                                <p><span className="font-medium">Recorded:</span> {formatTimestamp(row.timestamp ?? null)}</p>
+                                <p className="section-copy"><span className="font-medium">Recorded:</span> {formatTimestamp(row.timestamp ?? null)}</p>
                             </li>
                         ))}
                     </ul>
                 )}
             </section>
-        </main>
+        </section>
     )
 }
 
 function StatCard({ label, value }: { label: string; value: string }) {
     return (
-        <article className="rounded-lg border border-black/10 dark:border-white/20 p-4">
-            <p className="text-sm opacity-80">{label}</p>
-            <p className="mt-2 text-2xl font-semibold">{value}</p>
+        <article className="stat-card">
+            <p className="stat-label">{label}</p>
+            <p className="stat-value">{value}</p>
         </article>
     )
 }
@@ -102,14 +112,14 @@ function SummaryPanel({
     rows: Array<{ label: string; value: string }>
 }) {
     return (
-        <article className="rounded-lg border border-dashed border-black/20 dark:border-white/30 p-4 min-h-40 flex flex-col justify-between">
-            <h2 className="text-lg font-medium">{title}</h2>
-            <p className="text-sm opacity-75">{description}</p>
-            <div className="mt-4 space-y-2">
+        <article className="panel">
+            <h2 className="section-title">{title}</h2>
+            <p className="section-copy">{description}</p>
+            <div className="list-stack" style={{ marginTop: '16px' }}>
                 {rows.map((row) => (
-                    <div key={row.label} className="rounded-md bg-black/5 dark:bg-white/10 px-3 py-2 flex items-center justify-between text-sm">
-                        <span className="opacity-75">{row.label}</span>
-                        <span className="font-medium">{row.value}</span>
+                    <div key={row.label} className="metric-pair">
+                        <span>{row.label}</span>
+                        <span>{row.value}</span>
                     </div>
                 ))}
             </div>
