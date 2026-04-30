@@ -290,7 +290,12 @@ export default function ViewAllEvents() {
   return (
     <div style={styles.page}>
       <div style={styles.container}>
-        <h1 style={styles.title}>Administrator Dashboard</h1>
+        <div style={styles.headerRow}>
+          <h1 style={styles.title}>Administrator Dashboard</h1>
+          <Link href="/users/admin" style={styles.backToAdminButton}>
+            Back to Admin
+          </Link>
+        </div>
 
         <div style={styles.topPanels}>
           <div style={styles.largePanel}>
@@ -641,24 +646,45 @@ export default function ViewAllEvents() {
 const styles: { [key: string]: CSSProperties } = {
   page: {
     minHeight: "100vh",
-    background: "#000000",
-    color: "#ffffff",
+    background:
+      "radial-gradient(circle at top, rgba(106, 68, 51, 0.14), transparent 30%), linear-gradient(180deg, #f8f4f1 0%, #efe7df 100%)",
+    color: "#261b15",
     padding: "32px 24px",
-    fontFamily: "Inter, Arial, sans-serif",
+    fontFamily: 'var(--font-geist-sans), "Segoe UI", sans-serif',
   },
   container: {
     maxWidth: "1200px",
     margin: "0 auto",
   },
+  headerRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: "16px",
+    marginBottom: "12px",
+    flexWrap: "wrap",
+  },
   title: {
     fontSize: "56px",
     fontWeight: 800,
-    margin: "0 0 12px 0",
+    margin: 0,
     letterSpacing: "-1px",
+    color: "#261b15",
+  },
+  backToAdminButton: {
+    display: "inline-block",
+    background: "rgba(255, 251, 247, 0.92)",
+    color: "#261b15",
+    textDecoration: "none",
+    fontWeight: 700,
+    borderRadius: "12px",
+    padding: "10px 14px",
+    fontSize: "14px",
+    border: "1px solid rgba(78, 62, 53, 0.24)",
   },
   subtitle: {
     fontSize: "18px",
-    color: "#a3a3a3",
+    color: "#64564e",
     margin: "0 0 32px 0",
   },
   statsGrid: {
@@ -696,19 +722,22 @@ const styles: { [key: string]: CSSProperties } = {
     marginBottom: "28px",
   },
   largePanel: {
-    background: "#030303",
-    border: "1px dashed #444",
-    borderRadius: "18px",
+    background: "rgba(255, 251, 247, 0.82)",
+    border: "1px solid rgba(78, 62, 53, 0.14)",
+    borderRadius: "24px",
     padding: "24px",
+    boxShadow: "0 24px 60px rgba(63, 44, 35, 0.1)",
+    backdropFilter: "blur(14px)",
   },
   panelTitle: {
     fontSize: "28px",
     fontWeight: 700,
     marginBottom: "8px",
+    color: "#261b15",
   },
   panelText: {
     fontSize: "16px",
-    color: "#a3a3a3",
+    color: "#64564e",
     lineHeight: 1.5,
     marginBottom: "20px",
   },
@@ -717,10 +746,10 @@ const styles: { [key: string]: CSSProperties } = {
   },
   searchInput: {
     width: "100%",
-    background: "#161616",
-    color: "#ffffff",
-    border: "1px solid #2f2f2f",
-    borderRadius: "12px",
+    background: "rgba(255, 251, 247, 0.92)",
+    color: "#261b15",
+    border: "1px solid rgba(78, 62, 53, 0.24)",
+    borderRadius: "16px",
     padding: "14px 16px",
     fontSize: "16px",
     outline: "none",
@@ -733,10 +762,10 @@ const styles: { [key: string]: CSSProperties } = {
     gap: "12px",
   },
   monthButton: {
-    background: "#151515",
-    color: "#ffffff",
-    border: "1px solid #2f2f2f",
-    borderRadius: "10px",
+    background: "rgba(255, 251, 247, 0.9)",
+    color: "#261b15",
+    border: "1px solid rgba(78, 62, 53, 0.24)",
+    borderRadius: "12px",
     padding: "8px 14px",
     cursor: "pointer",
     fontSize: "16px",
@@ -745,25 +774,25 @@ const styles: { [key: string]: CSSProperties } = {
   monthLabel: {
     fontSize: "18px",
     fontWeight: 700,
-    color: "#f5f5f5",
+    color: "#261b15",
   },
   calendarBox: {
-    background: "#111111",
-    borderRadius: "14px",
+    background: "rgba(255, 251, 247, 0.7)",
+    borderRadius: "18px",
     overflow: "hidden",
-    border: "1px solid #2b2b2b",
+    border: "1px solid rgba(78, 62, 53, 0.14)",
   },
   calendarHeaderRow: {
     display: "grid",
     gridTemplateColumns: "repeat(7, 1fr)",
-    background: "#181818",
-    borderBottom: "1px solid #2b2b2b",
+    background: "rgba(229, 221, 213, 0.55)",
+    borderBottom: "1px solid rgba(78, 62, 53, 0.14)",
   },
   calendarHeaderCell: {
     padding: "12px 8px",
     textAlign: "center",
     fontWeight: 600,
-    color: "#bdbdbd",
+    color: "#64564e",
     fontSize: "14px",
   },
   calendarGrid: {
@@ -772,9 +801,9 @@ const styles: { [key: string]: CSSProperties } = {
   },
   calendarCell: {
     minHeight: "140px",
-    borderRight: "1px solid #222",
-    borderBottom: "1px solid #222",
-    background: "#101010",
+    borderRight: "1px solid rgba(78, 62, 53, 0.12)",
+    borderBottom: "1px solid rgba(78, 62, 53, 0.12)",
+    background: "rgba(255, 251, 247, 0.9)",
     padding: "8px",
     display: "flex",
     flexDirection: "column",
@@ -782,15 +811,15 @@ const styles: { [key: string]: CSSProperties } = {
     overflow: "hidden",
   },
   calendarCellInactive: {
-    background: "#0a0a0a",
+    background: "rgba(229, 221, 213, 0.38)",
   },
   calendarCellToday: {
-    boxShadow: "inset 0 0 0 1px #ffffff",
+    boxShadow: "inset 0 0 0 1px rgba(106, 68, 51, 0.38)",
   },
   dayNumber: {
     fontSize: "13px",
     fontWeight: 700,
-    color: "#d4d4d4",
+    color: "#4d3024",
     marginBottom: "8px",
   },
   dayEvents: {
@@ -808,11 +837,11 @@ const styles: { [key: string]: CSSProperties } = {
     height: "46px",
     minHeight: "44px",
     maxHeight: "46px",
-    background: "#1d1d1d",
-    border: "1px solid #2e2e2e",
-    borderRadius: "8px",
+    background: "linear-gradient(180deg, rgba(106, 68, 51, 0.12), rgba(106, 68, 51, 0.06))",
+    border: "1px solid rgba(106, 68, 51, 0.12)",
+    borderRadius: "12px",
     padding: "6px 8px",
-    color: "#ffffff",
+    color: "#261b15",
     fontSize: "11px",
     lineHeight: 1.1,
     boxSizing: "border-box",
@@ -821,14 +850,14 @@ const styles: { [key: string]: CSSProperties } = {
     textAlign: "left",
   },
   calendarEventSelected: {
-    border: "1px solid #ffffff",
-    boxShadow: "0 0 0 1px #ffffff inset",
+    border: "1px solid rgba(106, 68, 51, 0.45)",
+    boxShadow: "0 0 0 1px rgba(106, 68, 51, 0.25) inset",
   },
   clearSelectionButton: {
-    background: "#111111",
-    color: "#ffffff",
-    border: "1px solid #2d2d2d",
-    borderRadius: "10px",
+    background: "rgba(255, 251, 247, 0.92)",
+    color: "#261b15",
+    border: "1px solid rgba(78, 62, 53, 0.24)",
+    borderRadius: "12px",
     padding: "10px 14px",
     fontSize: "14px",
     fontWeight: 700,
@@ -836,7 +865,7 @@ const styles: { [key: string]: CSSProperties } = {
   },
   calendarEventTime: {
     display: "block",
-    color: "#c7c7c7",
+    color: "#6a4433",
     fontWeight: 600,
     marginBottom: "2px",
     whiteSpace: "nowrap",
@@ -853,7 +882,7 @@ const styles: { [key: string]: CSSProperties } = {
   },
   moreEventsText: {
     fontSize: "11px",
-    color: "#9d9d9d",
+    color: "#64564e",
     fontWeight: 600,
     paddingTop: "2px",
   },
@@ -863,9 +892,9 @@ const styles: { [key: string]: CSSProperties } = {
     gap: "14px",
   },
   eventCard: {
-    background: "#141414",
-    border: "1px solid #2a2a2a",
-    borderRadius: "14px",
+    background: "rgba(255, 251, 247, 0.74)",
+    border: "1px solid rgba(78, 62, 53, 0.14)",
+    borderRadius: "18px",
     padding: "16px",
   },
   eventCardHeader: {
@@ -878,11 +907,12 @@ const styles: { [key: string]: CSSProperties } = {
   eventName: {
     fontSize: "18px",
     fontWeight: 700,
+    color: "#261b15",
   },
   badge: {
-    background: "#222222",
-    border: "1px solid #333333",
-    color: "#d4d4d4",
+    background: "rgba(106, 68, 51, 0.1)",
+    border: "1px solid rgba(106, 68, 51, 0.14)",
+    color: "#4d3024",
     borderRadius: "999px",
     padding: "6px 10px",
     fontSize: "12px",
@@ -890,18 +920,18 @@ const styles: { [key: string]: CSSProperties } = {
     whiteSpace: "nowrap",
   },
   eventMeta: {
-    color: "#b3b3b3",
+    color: "#64564e",
     fontSize: "14px",
     marginBottom: "6px",
   },
   detailsButton: {
     display: "inline-block",
     marginTop: "10px",
-    background: "#ffffff",
-    color: "#000000",
+    background: "#6a4433",
+    color: "#fffaf6",
     textDecoration: "none",
     fontWeight: 700,
-    borderRadius: "10px",
+    borderRadius: "12px",
     padding: "10px 14px",
     fontSize: "14px",
     border: "none",
@@ -953,31 +983,31 @@ const styles: { [key: string]: CSSProperties } = {
     flexWrap: "wrap",
   },
   primaryButton: {
-    background: "#ffffff",
-    color: "#000000",
+    background: "#6a4433",
+    color: "#fffaf6",
     textDecoration: "none",
     fontWeight: 800,
     padding: "14px 20px",
-    borderRadius: "12px",
+    borderRadius: "14px",
     fontSize: "16px",
   },
   secondaryButton: {
-    background: "#111111",
-    color: "#ffffff",
+    background: "rgba(255, 251, 247, 0.92)",
+    color: "#261b15",
     textDecoration: "none",
     fontWeight: 700,
     padding: "14px 20px",
-    borderRadius: "12px",
+    borderRadius: "14px",
     fontSize: "16px",
-    border: "1px solid #2d2d2d",
+    border: "1px solid rgba(78, 62, 53, 0.24)",
   },
   infoText: {
-    color: "#b3b3b3",
+    color: "#64564e",
     fontSize: "15px",
     padding: "8px 0",
   },
   errorText: {
-    color: "#ff9b71",
+    color: "#7d2d25",
     fontSize: "15px",
     fontWeight: 600,
     padding: "8px 0",
@@ -989,10 +1019,10 @@ const styles: { [key: string]: CSSProperties } = {
     },
 
   filterButton: {
-    background: "#111111",
-    color: "#ffffff",
-    border: "1px solid #2f2f2f",
-    borderRadius: "12px",
+    background: "rgba(255, 251, 247, 0.92)",
+    color: "#261b15",
+    border: "1px solid rgba(78, 62, 53, 0.24)",
+    borderRadius: "16px",
     padding: "14px 16px",
     fontSize: "14px",
     fontWeight: 700,
@@ -1002,9 +1032,9 @@ const styles: { [key: string]: CSSProperties } = {
 
   filterPanel: {
     marginTop: "12px",
-    background: "#111111",
-    border: "1px solid #2a2a2a",
-    borderRadius: "14px",
+    background: "rgba(255, 251, 247, 0.8)",
+    border: "1px solid rgba(78, 62, 53, 0.14)",
+    borderRadius: "18px",
     padding: "14px",
     display: "flex",
     flexWrap: "wrap",
@@ -1022,24 +1052,24 @@ const styles: { [key: string]: CSSProperties } = {
   filterLabel: {
     fontSize: "13px",
     fontWeight: 600,
-    color: "#c7c7c7",
+    color: "#4d3024",
   },
 
   filterSelect: {
-    background: "#1a1a1a",
-    color: "#ffffff",
-    border: "1px solid #2f2f2f",
-    borderRadius: "10px",
+    background: "rgba(255, 251, 247, 0.92)",
+    color: "#261b15",
+    border: "1px solid rgba(78, 62, 53, 0.24)",
+    borderRadius: "12px",
     padding: "10px 12px",
     fontSize: "14px",
     outline: "none",
   },
 
   clearFiltersButton: {
-    background: "#ffffff",
-    color: "#000000",
+    background: "#6a4433",
+    color: "#fffaf6",
     border: "none",
-    borderRadius: "10px",
+    borderRadius: "12px",
     padding: "10px 14px",
     fontSize: "14px",
     fontWeight: 700,
@@ -1067,17 +1097,17 @@ selectedEventGrid: {
 },
 
 selectedEventMainCard: {
-  background: "#141414",
-  border: "1px solid #2a2a2a",
-  borderRadius: "18px",
+  background: "rgba(255, 251, 247, 0.72)",
+  border: "1px solid rgba(78, 62, 53, 0.14)",
+  borderRadius: "22px",
   padding: "22px",
   minHeight: "420px",
 },
 
 selectedEventSideCard: {
-  background: "#141414",
-  border: "1px solid #2a2a2a",
-  borderRadius: "18px",
+  background: "rgba(255, 251, 247, 0.72)",
+  border: "1px solid rgba(78, 62, 53, 0.14)",
+  borderRadius: "22px",
   padding: "22px",
   display: "flex",
   flexDirection: "column",
@@ -1090,6 +1120,7 @@ selectedEventTitle: {
   fontWeight: 800,
   marginBottom: "16px",
   lineHeight: 1.15,
+  color: "#261b15",
 },
 
 selectedEventBadgeRow: {
@@ -1110,20 +1141,20 @@ detailRow: {
   justifyContent: "space-between",
   gap: "16px",
   paddingBottom: "12px",
-  borderBottom: "1px solid #242424",
+  borderBottom: "1px solid rgba(78, 62, 53, 0.14)",
   alignItems: "flex-start",
 },
 
 detailLabel: {
   fontSize: "14px",
-  color: "#9f9f9f",
+  color: "#64564e",
   fontWeight: 600,
   minWidth: "120px",
 },
 
 detailValue: {
   fontSize: "15px",
-  color: "#ffffff",
+  color: "#261b15",
   fontWeight: 600,
   textAlign: "right",
 },
@@ -1132,6 +1163,7 @@ sideCardTitle: {
   fontSize: "22px",
   fontWeight: 700,
   marginBottom: "18px",
+  color: "#261b15",
 },
 
 sideStatList: {
@@ -1146,29 +1178,29 @@ sideStatItem: {
   justifyContent: "space-between",
   gap: "12px",
   paddingBottom: "10px",
-  borderBottom: "1px solid #242424",
+  borderBottom: "1px solid rgba(78, 62, 53, 0.14)",
 },
 
 sideStatLabel: {
   fontSize: "14px",
-  color: "#b5b5b5",
+  color: "#64564e",
   fontWeight: 600,
 },
 
 sideStatValue: {
   fontSize: "14px",
-  color: "#ffffff",
+  color: "#261b15",
   fontWeight: 700,
   textAlign: "right",
 },
 
 editEventButton: {
   display: "inline-block",
-  background: "#ffffff",
-  color: "#000000",
+  background: "#6a4433",
+  color: "#fffaf6",
   textDecoration: "none",
   fontWeight: 700,
-  borderRadius: "10px",
+  borderRadius: "12px",
   padding: "10px 14px",
   fontSize: "14px",
 },
@@ -1176,13 +1208,13 @@ editEventButton: {
 secondaryDetailsButton: {
   display: "inline-block",
   marginTop: "10px",
-  background: "#111111",
-  color: "#ffffff",
+  background: "rgba(255, 251, 247, 0.92)",
+  color: "#261b15",
   textDecoration: "none",
   fontWeight: 700,
-  borderRadius: "10px",
+  borderRadius: "12px",
   padding: "10px 14px",
   fontSize: "14px",
-  border: "1px solid #2d2d2d",
+  border: "1px solid rgba(78, 62, 53, 0.24)",
 },
 };

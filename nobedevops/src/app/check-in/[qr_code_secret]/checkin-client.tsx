@@ -92,50 +92,47 @@ export default function CheckInClient() {
 
   if (needsLogin) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100 px-6">
-        <div className="bg-white rounded-lg shadow p-8 w-full max-w-sm space-y-4">
-          <h1 className="text-2xl font-bold text-center">Event Check-In</h1>
-          <p className="text-sm text-gray-600 text-center">
+      <div className="auth-shell">
+        <div className="auth-card">
+          <p className="eyebrow">Event Access</p>
+          <h1 className="page-title" style={{ fontSize: "2.25rem", textAlign: "center" }}>Event Check-In</h1>
+          <p className="page-subtitle" style={{ textAlign: "center" }}>
             Sign in to complete your check-in.
           </p>
 
           {authError && (
-            <div className="p-3 bg-red-100 text-red-700 rounded text-sm">
+            <div className="message-error">
               {authError}
             </div>
           )}
 
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Email
-              </label>
+          <form onSubmit={handleLogin} className="field-group">
+            <div className="field-group">
+              <label className="field-label">Email</label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded"
+                className="field-input"
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Password
-              </label>
+            <div className="field-group">
+              <label className="field-label">Password</label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded"
+                className="field-input"
               />
             </div>
 
             <button
               type="submit"
               disabled={submitting}
-              className="w-full py-2 bg-blue-600 text-white font-semibold rounded hover:bg-blue-700 disabled:opacity-50"
+              className="btn button-full"
             >
               {submitting ? "Signing in..." : "Sign in and check in"}
             </button>
@@ -146,9 +143,9 @@ export default function CheckInClient() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-6 bg-gray-50">
-      <div className="w-full max-w-md rounded-2xl border p-6 shadow-sm bg-white">
-        <h1 className="text-2xl font-bold mb-3 text-center">Event Check-In</h1>
+    <div className="auth-shell">
+      <div className="auth-card" style={{ maxWidth: "520px" }}>
+        <h1 className="page-title" style={{ fontSize: "2.25rem", textAlign: "center", marginBottom: "12px" }}>Event Check-In</h1>
 
         {!checkInResult ? (
           <p className="text-center">{message}</p>
@@ -156,10 +153,10 @@ export default function CheckInClient() {
           <div className="space-y-5">
             <div className="text-center">
               <p className="text-lg font-semibold">{checkInResult.event_name}</p>
-              <p className="text-sm text-gray-600">{checkInResult.message}</p>
+              <p className="section-copy">{checkInResult.message}</p>
             </div>
 
-            <div className="rounded-xl border bg-gray-50 p-4 space-y-2">
+            <div className="subtle-card space-y-2">
               <p>
                 <span className="font-medium">Points earned:</span>{" "}
                 {checkInResult.points_awarded}
@@ -217,10 +214,16 @@ function ProgressRow({
           {value} / {goal}
         </span>
       </div>
-      <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden">
+      <div
+        className="w-full h-3 rounded-full overflow-hidden"
+        style={{ background: "rgba(106, 68, 51, 0.14)" }}
+      >
         <div
-          className="h-full bg-blue-600 transition-all duration-300"
-          style={{ width: `${percent}%` }}
+          className="h-full transition-all duration-300"
+          style={{
+            width: `${percent}%`,
+            background: "linear-gradient(90deg, #6a4433 0%, #8a6250 100%)",
+          }}
         />
       </div>
     </div>

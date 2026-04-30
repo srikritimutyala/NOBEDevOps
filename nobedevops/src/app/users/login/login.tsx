@@ -35,7 +35,13 @@ export default function LoginForm() {
   }, [loading, profile, router, redirectTo]);
 
   if (loading) {
-    return <p className="text-center mt-20 text-gray-500">Loading...</p>;
+    return (
+      <div className="auth-shell">
+        <div className="auth-card">
+          <p className="section-copy">Loading your account...</p>
+        </div>
+      </div>
+    );
   }
 
   if (profile) return null;
@@ -80,88 +86,81 @@ export default function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="bg-white rounded-lg shadow p-8 w-full max-w-sm space-y-6">
-        <h1 className="text-2xl font-bold text-black text-center">NOBE</h1>
+    <div className="auth-shell">
+      <div className="auth-card">
+        <p className="eyebrow"></p>
+        <h1 className="page-title" style={{ fontSize: '2.5rem' }}>NOBE Attendance Portal</h1>
+        <p className="page-subtitle">
+          Sign in to view events, points, attendance, and admin tools
+        </p>
 
-        <div className="flex rounded overflow-hidden border border-gray-300">
+        <div className="pill-nav" style={{ width: '100%', justifyContent: 'stretch', marginTop: '24px' }}>
           <button
             type="button"
             onClick={() => switchMode('signin')}
-            className={`flex-1 py-2 text-sm font-semibold transition ${
-              mode === 'signin'
-                ? 'bg-blue-600 text-white'
-                : 'bg-white text-gray-600 hover:bg-gray-50'
-            }`}
+            className={mode === 'signin' ? 'pill-link-active' : 'pill-link'}
+            style={{ flex: 1 }}
           >
             Sign in
           </button>
           <button
             type="button"
             onClick={() => switchMode('signup')}
-            className={`flex-1 py-2 text-sm font-semibold transition ${
-              mode === 'signup'
-                ? 'bg-blue-600 text-white'
-                : 'bg-white text-gray-600 hover:bg-gray-50'
-            }`}
+            className={mode === 'signup' ? 'pill-link-active' : 'pill-link'}
+            style={{ flex: 1 }}
           >
             Create account
           </button>
         </div>
 
         {error && (
-          <div className="p-3 bg-red-100 text-red-700 rounded text-sm">{error}</div>
+          <div className="message-error" style={{ marginTop: '20px' }}>{error}</div>
         )}
         {message && (
-          <div className="p-3 bg-green-100 text-green-700 rounded text-sm">{message}</div>
+          <div className="message-success" style={{ marginTop: '20px' }}>{message}</div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="field-group" style={{ marginTop: '20px' }}>
           {mode === 'signup' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Full name
-              </label>
+            <div className="field-group">
+              <label className="field-label">Full name</label>
               <input
                 type="text"
                 value={name}
                 onChange={e => setName(e.target.value)}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="field-input"
               />
             </div>
           )}
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Email
-            </label>
+          <div className="field-group">
+            <label className="field-label">Email</label>
             <input
               type="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="field-input"
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Password
-            </label>
+          <div className="field-group">
+            <label className="field-label">Password</label>
             <input
               type="password"
               value={password}
               onChange={e => setPassword(e.target.value)}
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="field-input"
             />
           </div>
 
           <button
             type="submit"
             disabled={submitting}
-            className="w-full py-2 bg-blue-600 text-white font-semibold rounded hover:bg-blue-700 transition disabled:opacity-50"
+            className="btn button-full"
+            style={{ marginTop: '8px' }}
           >
             {submitting
               ? mode === 'signin'

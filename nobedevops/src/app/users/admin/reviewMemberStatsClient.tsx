@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 
 export type MemberRecord = {
     id: number;
@@ -134,54 +135,59 @@ export default function ReviewMemberStatsClient({
     const thresholdReached = (selectedStats?.unexcusedMissedEvents ?? 0) >= 3;
 
     return (
-        <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.16),_transparent_34%),radial-gradient(circle_at_top_right,_rgba(16,185,129,0.12),_transparent_26%),linear-gradient(180deg,_#08111f_0%,_#0b1324_100%)] text-slate-100">
-            <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
-                <header className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl shadow-slate-950/30 backdrop-blur">
+        <main className="app-shell">
+            <div className="page-frame flex w-full flex-col gap-6">
+                <header className="rounded-[2rem] border border-[color:var(--border)] bg-[linear-gradient(145deg,rgba(106,68,51,0.16),rgba(255,251,247,0.88))] p-6 shadow-[0_28px_80px_rgba(63,44,35,0.12)] backdrop-blur">
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                         <div className="space-y-2">
-                            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-300/80">Admin review</p>
-                            <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Member attendance stats</h1>
-                            <p className="max-w-2xl text-sm leading-6 text-slate-300">
+                            <p className="eyebrow">Administration</p>
+                            <h1 className="page-title" style={{ fontSize: "clamp(2.2rem,4vw,3.4rem)" }}>Member attendance stats</h1>
+                            <p className="max-w-2xl text-sm leading-6 text-[color:var(--muted)]">
                                 Search a member by name or Illinois email to review attended events, unexcused misses, and overall attendance percentage.
                             </p>
                         </div>
 
-                        <div className="rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-slate-300">
-                            <span className="block text-xs uppercase tracking-[0.28em] text-slate-400">Loaded records</span>
-                            <span className="mt-1 block text-lg font-semibold text-white">
-                                {members.length} members · {events.length} events
-                            </span>
+                        <div className="flex flex-col items-start gap-3 lg:items-end">
+                            <Link href="/users/admin" className="btn-secondary">
+                                Back to Admin
+                            </Link>
+                            <div className="rounded-2xl border border-[color:var(--border)] bg-[rgba(255,251,247,0.7)] px-4 py-3 text-sm text-[color:var(--muted)]">
+                                <span className="block text-xs uppercase tracking-[0.28em] text-[color:var(--muted)]">Loaded records</span>
+                                <span className="mt-1 block text-lg font-semibold text-[color:var(--foreground)]">
+                                    {members.length} members · {events.length} events
+                                </span>
+                            </div>
                         </div>
                     </div>
                 </header>
 
                 {loadError ? (
-                    <section className="rounded-2xl border border-rose-400/30 bg-rose-500/10 p-4 text-sm text-rose-100">
+                    <section className="message-error">
                         Unable to load every data source cleanly: {loadError}
                     </section>
                 ) : null}
 
                 <section className="grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
-                    <aside className="rounded-3xl border border-white/10 bg-slate-950/60 p-5 shadow-xl shadow-slate-950/25 backdrop-blur">
+                    <aside className="rounded-[2rem] border border-[color:var(--border)] bg-[rgba(255,251,247,0.7)] p-5 shadow-[0_24px_60px_rgba(63,44,35,0.1)] backdrop-blur">
                         <label className="block space-y-2">
-                            <span className="text-sm font-medium text-slate-200">Search member</span>
+                            <span className="text-sm font-medium text-[color:var(--foreground)]">Search member</span>
                             <input
                                 type="search"
                                 value={search}
                                 onChange={(event) => setSearch(event.target.value)}
                                 placeholder="Search name or email"
-                                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400/60 focus:bg-white/8"
+                                className="w-full rounded-2xl border border-[color:var(--border)] bg-[rgba(255,251,247,0.92)] px-4 py-3 text-sm text-[color:var(--foreground)] outline-none transition placeholder:text-[color:var(--muted)] focus:border-[rgba(106,68,51,0.4)] focus:shadow-[0_0_0_4px_rgba(106,68,51,0.12)]"
                             />
                         </label>
 
-                        <div className="mt-5 flex items-center justify-between text-xs uppercase tracking-[0.28em] text-slate-400">
+                        <div className="mt-5 flex items-center justify-between text-xs uppercase tracking-[0.28em] text-[color:var(--muted)]">
                             <span>Matches</span>
                             <span>{filteredMembers.length}</span>
                         </div>
 
                         <div className="mt-3 max-h-[28rem] space-y-2 overflow-auto pr-1">
                             {filteredMembers.length === 0 ? (
-                                <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-4 text-sm text-slate-300">
+                                <div className="rounded-2xl border border-dashed border-[color:var(--border-strong)] bg-[rgba(255,251,247,0.55)] p-4 text-sm text-[color:var(--muted)]">
                                     No members match that search.
                                 </div>
                             ) : (
@@ -193,17 +199,18 @@ export default function ReviewMemberStatsClient({
                                             key={member.id}
                                             type="button"
                                             onClick={() => setSelectedMemberId(member.id)}
-                                            className={`w-full rounded-2xl border px-4 py-3 text-left transition ${isSelected
-                                                    ? "border-cyan-400/50 bg-cyan-400/10 shadow-lg shadow-cyan-950/20"
-                                                    : "border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/8"
-                                                }`}
+                                            className={`w-full rounded-2xl border px-4 py-3 text-left transition ${
+                                                isSelected
+                                                    ? "border-[rgba(106,68,51,0.35)] bg-[rgba(106,68,51,0.12)] shadow-[0_12px_30px_rgba(63,44,35,0.08)]"
+                                                    : "border-[color:var(--border)] bg-[rgba(255,251,247,0.58)] hover:border-[rgba(106,68,51,0.22)] hover:bg-[rgba(255,251,247,0.88)]"
+                                            }`}
                                         >
                                             <div className="flex items-start justify-between gap-3">
                                                 <div>
-                                                    <p className="font-medium text-white">{member.name ?? "Unnamed member"}</p>
-                                                    <p className="mt-1 text-sm text-slate-300">{member.illinois_email ?? "No email on file"}</p>
+                                                    <p className="font-medium text-[color:var(--foreground)]">{member.name ?? "Unnamed member"}</p>
+                                                    <p className="mt-1 text-sm text-[color:var(--muted)]">{member.illinois_email ?? "No email on file"}</p>
                                                 </div>
-                                                <span className="rounded-full bg-black/20 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-200">
+                                                <span className="rounded-full bg-[rgba(106,68,51,0.1)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-[color:var(--accent-strong)]">
                                                     {member.role ?? "Member"}
                                                 </span>
                                             </div>
@@ -215,19 +222,23 @@ export default function ReviewMemberStatsClient({
                     </aside>
 
                     <section className="space-y-6">
-                        <div className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-xl shadow-slate-950/25 backdrop-blur">
+                        <div className="rounded-[2rem] border border-[color:var(--border)] bg-[linear-gradient(180deg,rgba(255,251,247,0.88),rgba(244,236,230,0.82))] p-6 shadow-[0_24px_60px_rgba(63,44,35,0.1)] backdrop-blur">
                             {selectedMember ? (
                                 <>
                                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                                         <div>
-                                            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-300/80">Selected member</p>
-                                            <h2 className="mt-2 text-2xl font-semibold text-white">{selectedMember.name ?? "Unnamed member"}</h2>
-                                            <p className="mt-1 text-sm text-slate-300">{selectedMember.illinois_email ?? "No email on file"}</p>
+                                            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[color:var(--accent)]">Selected member</p>
+                                            <h2 className="mt-2 text-2xl font-semibold text-[color:var(--foreground)]">{selectedMember.name ?? "Unnamed member"}</h2>
+                                            <p className="mt-1 text-sm text-[color:var(--muted)]">{selectedMember.illinois_email ?? "No email on file"}</p>
                                         </div>
 
-                                        <div className="rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-3 text-sm text-slate-300">
-                                            <span className="block text-xs uppercase tracking-[0.28em] text-slate-400">Status</span>
-                                            <span className={`mt-1 block text-lg font-semibold ${thresholdReached ? "text-rose-300" : "text-emerald-300"}`}>
+                                        <div className={`rounded-2xl border px-4 py-3 text-sm ${
+                                            thresholdReached
+                                                ? "border-[rgba(154,59,49,0.2)] bg-[rgba(154,59,49,0.1)] text-[#7d2d25]"
+                                                : "border-[rgba(47,107,70,0.18)] bg-[rgba(47,107,70,0.1)] text-[#29583b]"
+                                        }`}>
+                                            <span className="block text-xs uppercase tracking-[0.28em] opacity-80">Status</span>
+                                            <span className="mt-1 block text-lg font-semibold">
                                                 {thresholdReached ? "3+ unexcused misses" : "Below threshold"}
                                             </span>
                                         </div>
@@ -236,10 +247,10 @@ export default function ReviewMemberStatsClient({
                                     {selectedStats ? (
                                         <>
                                             <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                                                <StatCard label="Attendance percentage" value={formatPercentage(selectedStats.attendancePercentage)} tone="cyan" />
-                                                <StatCard label="Attended events" value={String(selectedStats.attendedEvents.length)} tone="emerald" />
-                                                <StatCard label="Excused absences" value={String(selectedStats.excusedAbsenceCount)} tone="amber" />
-                                                <StatCard label="Unexcused misses" value={String(selectedStats.unexcusedMissedEvents)} tone={thresholdReached ? "rose" : "slate"} />
+                                                <StatCard label="Attendance percentage" value={formatPercentage(selectedStats.attendancePercentage)} tone="accent" />
+                                                <StatCard label="Attended events" value={String(selectedStats.attendedEvents.length)} tone="success" />
+                                                <StatCard label="Excused absences" value={String(selectedStats.excusedAbsenceCount)} tone="soft" />
+                                                <StatCard label="Unexcused misses" value={String(selectedStats.unexcusedMissedEvents)} tone={thresholdReached ? "danger" : "muted"} />
                                             </div>
 
                                             <div className="mt-6 grid gap-4 lg:grid-cols-2">
@@ -251,15 +262,15 @@ export default function ReviewMemberStatsClient({
 
                                                 <InfoPanel title="Risk check" description="Members with 3 or more unexcused misses are highlighted here.">
                                                     {thresholdReached ? (
-                                                        <div className="rounded-2xl border border-rose-400/30 bg-rose-500/10 p-4 text-sm text-rose-100">
+                                                        <div className="message-error">
                                                             This member has missed three or more events unexcused.
                                                         </div>
                                                     ) : (
-                                                        <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm text-emerald-100">
+                                                        <div className="message-success">
                                                             This member is below the unexcused miss threshold.
                                                         </div>
                                                     )}
-                                                    <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
+                                                    <div className="message">
                                                         Members without an auth-linked profile cannot be matched to attendance rows.
                                                     </div>
                                                 </InfoPanel>
@@ -267,22 +278,22 @@ export default function ReviewMemberStatsClient({
 
                                             <div className="mt-6 grid gap-4 xl:grid-cols-2">
                                                 <InfoPanel title="Attended events" description={`${selectedStats.attendedEvents.length} event(s) attended`}>
-                                                    <EventList events={selectedStats.attendedEvents} emptyText="No attended events found for this member yet." tone="emerald" />
+                                                    <EventList events={selectedStats.attendedEvents} emptyText="No attended events found for this member yet." tone="success" />
                                                 </InfoPanel>
 
                                                 <InfoPanel title="Missed events" description={`${selectedStats.missedEvents.length} event(s) missed in total`}>
-                                                    <EventList events={selectedStats.missedEvents} emptyText="No missed events found for this member yet." tone={thresholdReached ? "rose" : "amber"} />
+                                                    <EventList events={selectedStats.missedEvents} emptyText="No missed events found for this member yet." tone={thresholdReached ? "danger" : "soft"} />
                                                 </InfoPanel>
                                             </div>
                                         </>
                                     ) : (
-                                        <div className="mt-6 rounded-2xl border border-dashed border-white/15 bg-white/5 p-6 text-sm text-slate-300">
+                                        <div className="mt-6 rounded-2xl border border-dashed border-[color:var(--border-strong)] bg-[rgba(255,251,247,0.55)] p-6 text-sm text-[color:var(--muted)]">
                                             This member does not have a linked auth account yet, so attendance cannot be matched from the attendance table.
                                         </div>
                                     )}
                                 </>
                             ) : (
-                                <div className="rounded-2xl border border-dashed border-white/15 bg-white/5 p-6 text-sm text-slate-300">
+                                <div className="rounded-2xl border border-dashed border-[color:var(--border-strong)] bg-[rgba(255,251,247,0.55)] p-6 text-sm text-[color:var(--muted)]">
                                     Search for a member to see their attendance summary.
                                 </div>
                             )}
@@ -322,20 +333,20 @@ function StatCard({
 }: {
     label: string;
     value: string;
-    tone: "cyan" | "emerald" | "amber" | "rose" | "slate";
+    tone: "accent" | "success" | "soft" | "danger" | "muted";
 }) {
     const toneClasses = {
-        cyan: "from-cyan-400/20 to-cyan-500/5 text-cyan-100 border-cyan-400/20",
-        emerald: "from-emerald-400/20 to-emerald-500/5 text-emerald-100 border-emerald-400/20",
-        amber: "from-amber-400/20 to-amber-500/5 text-amber-100 border-amber-400/20",
-        rose: "from-rose-400/20 to-rose-500/5 text-rose-100 border-rose-400/20",
-        slate: "from-slate-400/20 to-slate-500/5 text-slate-100 border-white/10",
+        accent: "from-[rgba(106,68,51,0.18)] to-[rgba(106,68,51,0.04)] text-[color:var(--foreground)] border-[rgba(106,68,51,0.16)]",
+        success: "from-[rgba(47,107,70,0.16)] to-[rgba(47,107,70,0.04)] text-[color:var(--foreground)] border-[rgba(47,107,70,0.16)]",
+        soft: "from-[rgba(215,196,183,0.45)] to-[rgba(215,196,183,0.12)] text-[color:var(--foreground)] border-[rgba(106,68,51,0.12)]",
+        danger: "from-[rgba(154,59,49,0.16)] to-[rgba(154,59,49,0.04)] text-[color:var(--foreground)] border-[rgba(154,59,49,0.16)]",
+        muted: "from-[rgba(100,86,78,0.14)] to-[rgba(100,86,78,0.04)] text-[color:var(--foreground)] border-[color:var(--border)]",
     } as const;
 
     return (
         <article className={`rounded-2xl border bg-gradient-to-br p-4 ${toneClasses[tone]}`}>
-            <p className="text-xs uppercase tracking-[0.25em] text-slate-300/80">{label}</p>
-            <p className="mt-3 text-3xl font-semibold tracking-tight text-white">{value}</p>
+            <p className="text-xs uppercase tracking-[0.25em] text-[color:var(--muted)]">{label}</p>
+            <p className="mt-3 text-3xl font-semibold tracking-tight text-[color:var(--foreground)]">{value}</p>
         </article>
     );
 }
@@ -350,10 +361,10 @@ function InfoPanel({
     children: ReactNode;
 }) {
     return (
-        <article className="rounded-3xl border border-white/10 bg-slate-950/45 p-5">
+        <article className="rounded-3xl border border-[color:var(--border)] bg-[rgba(255,251,247,0.62)] p-5">
             <div className="space-y-1">
-                <h3 className="text-lg font-semibold text-white">{title}</h3>
-                <p className="text-sm text-slate-400">{description}</p>
+                <h3 className="text-lg font-semibold text-[color:var(--foreground)]">{title}</h3>
+                <p className="text-sm text-[color:var(--muted)]">{description}</p>
             </div>
 
             <div className="mt-4 space-y-3">{children}</div>
@@ -363,9 +374,9 @@ function InfoPanel({
 
 function SummaryRow({ label, value }: { label: string; value: string }) {
     return (
-        <div className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm">
-            <span className="text-slate-300">{label}</span>
-            <span className="font-medium text-white">{value}</span>
+        <div className="flex items-center justify-between gap-4 rounded-2xl border border-[color:var(--border)] bg-[rgba(255,251,247,0.65)] px-4 py-3 text-sm">
+            <span className="text-[color:var(--muted)]">{label}</span>
+            <span className="font-medium text-[color:var(--foreground)]">{value}</span>
         </div>
     );
 }
@@ -377,12 +388,12 @@ function EventList({
 }: {
     events: EventRecord[];
     emptyText: string;
-    tone: "emerald" | "amber" | "rose";
+    tone: "success" | "soft" | "danger";
 }) {
     const emptyToneClasses = {
-        emerald: "text-emerald-100 border-emerald-400/20 bg-emerald-500/10",
-        amber: "text-amber-100 border-amber-400/20 bg-amber-500/10",
-        rose: "text-rose-100 border-rose-400/20 bg-rose-500/10",
+        success: "text-[#29583b] border-[rgba(47,107,70,0.18)] bg-[rgba(47,107,70,0.1)]",
+        soft: "text-[color:var(--accent-strong)] border-[rgba(106,68,51,0.14)] bg-[rgba(215,196,183,0.28)]",
+        danger: "text-[#7d2d25] border-[rgba(154,59,49,0.18)] bg-[rgba(154,59,49,0.1)]",
     } as const;
 
     if (events.length === 0) {
@@ -392,12 +403,12 @@ function EventList({
     return (
         <ul className="space-y-2">
             {events.slice(0, 8).map((event) => (
-                <li key={event.id} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                    <p className="font-medium text-white">{event.name ?? "Unnamed event"}</p>
-                    <p className="mt-1 text-sm text-slate-400">{formatDate(event.date)}</p>
+                <li key={event.id} className="rounded-2xl border border-[color:var(--border)] bg-[rgba(255,251,247,0.65)] px-4 py-3">
+                    <p className="font-medium text-[color:var(--foreground)]">{event.name ?? "Unnamed event"}</p>
+                    <p className="mt-1 text-sm text-[color:var(--muted)]">{formatDate(event.date)}</p>
                 </li>
             ))}
-            {events.length > 8 ? <li className="text-xs text-slate-400">+{events.length - 8} more</li> : null}
+            {events.length > 8 ? <li className="text-xs text-[color:var(--muted)]">+{events.length - 8} more</li> : null}
         </ul>
     );
 }

@@ -1,4 +1,5 @@
 import { createClient } from "@/app/utils/supabase/server";
+import Link from "next/link";
 import AdminGuard from "../AdminGuard";
 import ReviewAbsenceClient, { type ReviewAbsenceItem } from "./reviewAbsenceClient";
 
@@ -64,21 +65,29 @@ export default async function ReviewAbsence() {
 
   return (
     <AdminGuard>
-      <main className="mx-auto max-w-6xl p-6 space-y-6">
-        <header className="space-y-1">
-          <h1 className="text-2xl font-semibold">Review Absences</h1>
-          <p className="text-sm opacity-80">
+      <main className="app-shell">
+        <div className="page-frame page-stack">
+        <header>
+          <p className="eyebrow">Administration</p>
+          <h1 className="page-title" style={{ fontSize: "2.7rem" }}>Review absences</h1>
+          <p className="page-subtitle">
             Review submitted absence requests, send a response, and update request status.
           </p>
+          <div style={{ marginTop: "16px" }}>
+            <Link href="/users/admin" className="btn-secondary">
+              Back to Admin
+            </Link>
+          </div>
         </header>
 
         {error ? (
-          <section className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          <section className="message-error">
             Failed to load absence requests: {error.message}
           </section>
         ) : (
           <ReviewAbsenceClient items={items} />
         )}
+        </div>
       </main>
     </AdminGuard>
   );

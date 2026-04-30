@@ -154,7 +154,8 @@ export default async function AdminPage() {
 
   return (
     <AdminGuard>
-      <div style={{ maxWidth: 520, margin: "40px auto" }}>
+      <div className="app-shell">
+        <div className="page-frame page-stack">
         <AdminDashboard
           totalMembers={totalMembers}
           totalAttendanceRecords={totalAttendanceRecords}
@@ -164,17 +165,46 @@ export default async function AdminPage() {
           recentAttendance={recentAttendance}
           attendanceError={attendanceError}
         />
-        <div className="mx-auto max-w-6xl px-6 pb-10">
-          <div className="rounded-lg border border-black/10 dark:border-white/20 p-6">
+          <section className="panel">
+            <div className="panel-header">
+              <div>
+                <p className="eyebrow">Admin</p>
+                <h2 className="section-title">Admin tools</h2>
+                <p className="section-copy"></p>
+              </div>
+            </div>
+            <div className="admin-link-grid">
+              <Link href="/users/admin/bulkAdd" className="admin-link-card">
+                <strong>Bulk Add</strong>
+                <span>Import or create many members at once.</span>
+              </Link>
+              <Link href="/users/admin/createEvent" className="admin-link-card">
+                <strong>Create Event</strong>
+                <span>Set up an event with scheduling and QR check-in.</span>
+              </Link>
+              <Link href="/users/admin/reviewAbsence" className="admin-link-card">
+                <strong>Review Absences</strong>
+                <span>Approve or deny submitted absence requests.</span>
+              </Link>
+              <Link href="/users/admin/reviewMemberStats" className="admin-link-card">
+                <strong>Member Stats</strong>
+                <span>Inspect attendance and point health for members.</span>
+              </Link>
+              <Link href="/users/admin/viewAllEvents" className="admin-link-card">
+                <strong>View Events</strong>
+                <span>Browse event records and attendance summaries.</span>
+              </Link>
+            </div>
+          </section>
+          <section className="panel">
+            <div className="panel-header">
+              <div>
+                <p className="eyebrow">Account</p>
+                <h2 className="section-title">Account actions</h2>
+              </div>
+            </div>
             <LogoutButton />
-          </div>
-        </div>
-        <div className="flex flex-col  justify-center space-y-4">
-          <Link href="/users/admin/bulkAdd">Go to Bulk Add</Link>
-          <Link href="/users/admin/createEvent">Go to create event</Link>
-          <Link href="/users/admin/reviewAbsence">Go to review absence</Link>
-          <Link href="/users/admin/reviewMemberStats">Go to member stats</Link>
-          <Link href="/users/admin/viewAllEvents">Go to view events</Link>
+          </section>
         </div>
       </div>
     </AdminGuard>

@@ -25,7 +25,15 @@ export default function RequireAuth({ children, requireAdmin = false }: Props) {
   }, [loading, profile, requireAdmin, router]);
 
   if (loading) {
-    return <p className="text-center mt-20 text-gray-500">Loading...</p>;
+    return (
+      <div className="app-shell">
+        <div className="page-frame">
+          <div className="panel">
+            <p className="section-copy">Loading your access...</p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (!profile) return null;
