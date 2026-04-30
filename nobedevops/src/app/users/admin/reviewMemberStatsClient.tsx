@@ -137,7 +137,7 @@ export default function ReviewMemberStatsClient({
     return (
         <main className="app-shell">
             <div className="page-frame flex w-full flex-col gap-6">
-                <header className="rounded-[2rem] border border-[color:var(--border)] bg-[linear-gradient(145deg,rgba(106,68,51,0.16),rgba(255,251,247,0.88))] p-6 shadow-[0_28px_80px_rgba(63,44,35,0.12)] backdrop-blur">
+                <header className="rounded-[2rem] border border-[color:var(--border)] bg-[linear-gradient(145deg,rgba(229,138,39,0.12),rgba(255,251,247,0.88))] p-6 shadow-[0_28px_80px_rgba(79,80,82,0.12)] backdrop-blur">
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                         <div className="space-y-2">
                             <p className="eyebrow">Administration</p>
@@ -168,7 +168,7 @@ export default function ReviewMemberStatsClient({
                 ) : null}
 
                 <section className="grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
-                    <aside className="rounded-[2rem] border border-[color:var(--border)] bg-[rgba(255,251,247,0.7)] p-5 shadow-[0_24px_60px_rgba(63,44,35,0.1)] backdrop-blur">
+                    <aside className="rounded-[2rem] border border-[color:var(--border)] bg-[rgba(255,251,247,0.7)] p-5 shadow-[0_24px_60px_rgba(79,80,82,0.1)] backdrop-blur">
                         <label className="block space-y-2">
                             <span className="text-sm font-medium text-[color:var(--foreground)]">Search member</span>
                             <input
@@ -176,7 +176,7 @@ export default function ReviewMemberStatsClient({
                                 value={search}
                                 onChange={(event) => setSearch(event.target.value)}
                                 placeholder="Search name or email"
-                                className="w-full rounded-2xl border border-[color:var(--border)] bg-[rgba(255,251,247,0.92)] px-4 py-3 text-sm text-[color:var(--foreground)] outline-none transition placeholder:text-[color:var(--muted)] focus:border-[rgba(106,68,51,0.4)] focus:shadow-[0_0_0_4px_rgba(106,68,51,0.12)]"
+                                className="w-full rounded-2xl border border-[color:var(--border)] bg-[rgba(255,251,247,0.92)] px-4 py-3 text-sm text-[color:var(--foreground)] outline-none transition placeholder:text-[color:var(--muted)] focus:border-[rgba(229,138,39,0.4)] focus:shadow-[0_0_0_4px_rgba(229,138,39,0.12)]"
                             />
                         </label>
 
@@ -201,8 +201,8 @@ export default function ReviewMemberStatsClient({
                                             onClick={() => setSelectedMemberId(member.id)}
                                             className={`w-full rounded-2xl border px-4 py-3 text-left transition ${
                                                 isSelected
-                                                    ? "border-[rgba(106,68,51,0.35)] bg-[rgba(106,68,51,0.12)] shadow-[0_12px_30px_rgba(63,44,35,0.08)]"
-                                                    : "border-[color:var(--border)] bg-[rgba(255,251,247,0.58)] hover:border-[rgba(106,68,51,0.22)] hover:bg-[rgba(255,251,247,0.88)]"
+                                                    ? "border-[rgba(229,138,39,0.35)] bg-[rgba(229,138,39,0.12)] shadow-[0_12px_30px_rgba(79,80,82,0.08)]"
+                                                    : "border-[color:var(--border)] bg-[rgba(255,251,247,0.58)] hover:border-[rgba(229,138,39,0.22)] hover:bg-[rgba(255,251,247,0.88)]"
                                             }`}
                                         >
                                             <div className="flex items-start justify-between gap-3">
@@ -210,7 +210,7 @@ export default function ReviewMemberStatsClient({
                                                     <p className="font-medium text-[color:var(--foreground)]">{member.name ?? "Unnamed member"}</p>
                                                     <p className="mt-1 text-sm text-[color:var(--muted)]">{member.illinois_email ?? "No email on file"}</p>
                                                 </div>
-                                                <span className="rounded-full bg-[rgba(106,68,51,0.1)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-[color:var(--accent-strong)]">
+                                                <span className="rounded-full bg-[rgba(229,138,39,0.12)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-[color:var(--accent-strong)]">
                                                     {member.role ?? "Member"}
                                                 </span>
                                             </div>
@@ -222,7 +222,7 @@ export default function ReviewMemberStatsClient({
                     </aside>
 
                     <section className="space-y-6">
-                        <div className="rounded-[2rem] border border-[color:var(--border)] bg-[linear-gradient(180deg,rgba(255,251,247,0.88),rgba(244,236,230,0.82))] p-6 shadow-[0_24px_60px_rgba(63,44,35,0.1)] backdrop-blur">
+                        <div className="rounded-[2rem] border border-[color:var(--border)] bg-[linear-gradient(180deg,rgba(255,251,247,0.88),rgba(244,236,230,0.82))] p-6 shadow-[0_24px_60px_rgba(79,80,82,0.1)] backdrop-blur">
                             {selectedMember ? (
                                 <>
                                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -336,9 +336,9 @@ function StatCard({
     tone: "accent" | "success" | "soft" | "danger" | "muted";
 }) {
     const toneClasses = {
-        accent: "from-[rgba(106,68,51,0.18)] to-[rgba(106,68,51,0.04)] text-[color:var(--foreground)] border-[rgba(106,68,51,0.16)]",
+        accent: "from-[rgba(229,138,39,0.18)] to-[rgba(229,138,39,0.04)] text-[color:var(--foreground)] border-[rgba(229,138,39,0.16)]",
         success: "from-[rgba(47,107,70,0.16)] to-[rgba(47,107,70,0.04)] text-[color:var(--foreground)] border-[rgba(47,107,70,0.16)]",
-        soft: "from-[rgba(215,196,183,0.45)] to-[rgba(215,196,183,0.12)] text-[color:var(--foreground)] border-[rgba(106,68,51,0.12)]",
+        soft: "from-[rgba(229,221,213,0.45)] to-[rgba(229,221,213,0.12)] text-[color:var(--foreground)] border-[rgba(229,138,39,0.12)]",
         danger: "from-[rgba(154,59,49,0.16)] to-[rgba(154,59,49,0.04)] text-[color:var(--foreground)] border-[rgba(154,59,49,0.16)]",
         muted: "from-[rgba(100,86,78,0.14)] to-[rgba(100,86,78,0.04)] text-[color:var(--foreground)] border-[color:var(--border)]",
     } as const;
@@ -392,7 +392,7 @@ function EventList({
 }) {
     const emptyToneClasses = {
         success: "text-[#29583b] border-[rgba(47,107,70,0.18)] bg-[rgba(47,107,70,0.1)]",
-        soft: "text-[color:var(--accent-strong)] border-[rgba(106,68,51,0.14)] bg-[rgba(215,196,183,0.28)]",
+        soft: "text-[color:var(--accent-strong)] border-[rgba(229,138,39,0.14)] bg-[rgba(229,221,213,0.28)]",
         danger: "text-[#7d2d25] border-[rgba(154,59,49,0.18)] bg-[rgba(154,59,49,0.1)]",
     } as const;
 

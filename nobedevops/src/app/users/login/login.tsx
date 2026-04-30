@@ -15,6 +15,7 @@ export default function LoginForm() {
     searchParams.get('redirect') || searchParams.get('next');
 
   const [mode, setMode] = useState<'signin' | 'forgot'>('signin');
+  const [testingMode, setTestingMode] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(
@@ -60,7 +61,7 @@ export default function LoginForm() {
     setError(null);
     setMessage(null);
 
-    if (!email.endsWith('@illinois.edu')) {
+    if (!testingMode && !email.endsWith('@illinois.edu')) {
       setError('Please use your @illinois.edu email address.');
       return;
     }
@@ -161,6 +162,15 @@ export default function LoginForm() {
               className="field-input"
             />
           </div>
+
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', color: 'var(--muted)', cursor: 'pointer', marginTop: '4px' }}>
+            <input
+              type="checkbox"
+              checked={testingMode}
+              onChange={e => setTestingMode(e.target.checked)}
+            />
+            Testing features (allow non-illinois emails)
+          </label>
 
           <button
             type="submit"

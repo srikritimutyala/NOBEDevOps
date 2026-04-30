@@ -784,11 +784,14 @@ textarea {
 .calendar-compact .calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-auto-rows: 140px;
   gap: 0;
 }
 
 .calendar-compact .calendar-day {
-  min-height: 140px;
+  min-height: 0;
+  height: 140px;
+  overflow: hidden;
   border-radius: 0;
   border: none;
   border-right: 1px solid rgba(79, 80, 82, 0.12);
@@ -848,8 +851,11 @@ textarea {
 }
 
 @media (max-width: 900px) {
+  .calendar-compact .calendar-grid {
+    grid-auto-rows: 100px;
+  }
   .calendar-compact .calendar-day {
-    min-height: 100px;
+    height: 100px;
   }
 }
 
