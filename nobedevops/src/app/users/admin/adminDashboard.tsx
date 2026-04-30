@@ -27,6 +27,7 @@ export default function AdminDashboard({
     return (
         <section className="page-stack">
             <header>
+                <img src="/nobe_logo_f.svg" alt="NOBE Illinois" style={{ width: '52px', height: '52px', marginBottom: '12px' }} />
                 <p className="eyebrow">Administration</p>
                 <h1 className="page-title" style={{ fontSize: '2.7rem' }}>Admin dashboard</h1>
                 <p className="page-subtitle"></p>
@@ -68,6 +69,9 @@ export default function AdminDashboard({
                         <p className="eyebrow">Recent Activity</p>
                         <h2 className="section-title">Attendance activity</h2>
                     </div>
+                    <a href="/users/admin/reviewMemberStats" className="btn-secondary" style={{ fontSize: '0.85rem', minHeight: '36px', padding: '0 14px' }}>
+                        View more
+                    </a>
                 </div>
                 {attendanceError ? (
                     <p className="message-error">{attendanceError}</p>

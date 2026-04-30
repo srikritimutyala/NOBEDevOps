@@ -64,7 +64,7 @@ export default async function AdminPage() {
       .from("attendance")
       .select("id, user_id, event_id, timestamp")
       .order("timestamp", { ascending: false })
-      .limit(8),
+      .limit(3),
   ]);
 
   attendanceError =

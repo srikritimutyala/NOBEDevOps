@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { createClient } from '../../../utils/supabase/client';
 
@@ -15,16 +15,24 @@ interface AbsenceRecord {
     status: string | null;
 }
 
+interface Event {
+    id: string;
+    name: string;
+    date: string;
+}
+
 export default function AbsencePage() {
     const supabase = createClient();
     const [formData, setFormData] = useState({
-        eventMissed: '',
+        eventId: '',
         reason: '',
     });
     const [submitted, setSubmitted] = useState(false);
     const [absences, setAbsences] = useState<AbsenceRecord[]>([]);
     const [absencesLoading, setAbsencesLoading] = useState(true);
     const [absencesError, setAbsencesError] = useState<string | null>(null);
+    const [events, setEvents] = useState<Event[]>([]);
+    const [eventsLoading, setEventsLoading] = useState(true);
 
     const fetchAbsences = async () => {
         const {
@@ -57,10 +65,20 @@ export default function AbsencePage() {
 
     useEffect(() => {
         fetchAbsences();
+
+        const fetchEvents = async () => {
+            const { data } = await supabase
+                .from('events')
+                .select('id, name, date')
+                .order('date', { ascending: false });
+            setEvents(data || []);
+            setEventsLoading(false);
+        };
+        fetchEvents();
     }, []);
 
     const handleChange = (
-        e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+        e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
     ) => {
         const { name, value } = e.target;
         setFormData((prev) => ({
@@ -69,8 +87,18 @@ export default function AbsencePage() {
         }));
     };
 
+    const eventsMap = Object.fromEntries(events.map(e => [e.id, e]));
+
     const pathname = usePathname();
     const currentPath = pathname?.replace(/\/$/, '') || '';
+    const searchParams = useSearchParams();
+
+    useEffect(() => {
+        const eventId = searchParams.get('eventId');
+        if (eventId) {
+            setFormData((prev) => ({ ...prev, eventId }));
+        }
+    }, [searchParams]);
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -86,12 +114,15 @@ export default function AbsencePage() {
             return;
         }
 
-        const { data, error } = await supabase
+        const selectedEvent = eventsMap[formData.eventId];
+
+        const { error } = await supabase
             .from('excused_absences')
             .insert([
                 {
                     user_id: user.id,
-                    reason: `${formData.eventMissed ? `Event: ${formData.eventMissed} — ` : ''}${formData.reason}`,
+                    event_id: formData.eventId || null,
+                    reason: formData.reason,
                     submitted_at: new Date().toISOString(),
                     status: 'PENDING',
                 },
@@ -112,7 +143,7 @@ export default function AbsencePage() {
                 body: JSON.stringify({
                     to: 'vinaysanjeev77@gmail.com',
                     subject: 'New Absence Form Submission',
-                    message: `An absence form has been submitted.\n\nEvent Missed: ${formData.eventMissed}\n\nReason: ${formData.reason}`,
+                    message: `An absence form has been submitted.\n\nEvent Missed: ${selectedEvent?.name ?? 'Unknown'}\n\nReason: ${formData.reason}`,
                 }),
             });
         } catch (emailError) {
@@ -120,7 +151,7 @@ export default function AbsencePage() {
         }
 
         setSubmitted(true);
-        setFormData({ eventMissed: '', reason: '' });
+        setFormData({ eventId: '', reason: '' });
         setTimeout(() => setSubmitted(false), 3000);
         await fetchAbsences();
     };
@@ -162,17 +193,25 @@ export default function AbsencePage() {
 
                         <form onSubmit={handleSubmit} className="field-group">
                             <div className="field-group">
-                                <label htmlFor="eventMissed" className="field-label">Event missed</label>
-                                <input
-                                    type="text"
-                                    id="eventMissed"
-                                    name="eventMissed"
-                                    value={formData.eventMissed}
+                                <label htmlFor="eventId" className="field-label">Event missed</label>
+                                <select
+                                    id="eventId"
+                                    name="eventId"
+                                    value={formData.eventId}
                                     onChange={handleChange}
                                     required
-                                    placeholder="e.g., Team Meeting, Project Deadline"
-                                    className="field-input"
-                                />
+                                    className="field-select"
+                                    disabled={eventsLoading}
+                                >
+                                    <option value="">
+                                        {eventsLoading ? 'Loading events...' : 'Select an event'}
+                                    </option>
+                                    {events.map((event) => (
+                                        <option key={event.id} value={event.id}>
+                                            {event.name} — {new Date(event.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                        </option>
+                                    ))}
+                                </select>
                             </div>
 
                             <div className="field-group">
@@ -228,6 +267,11 @@ export default function AbsencePage() {
                                                 </strong></p>
                                             </div>
                                         </div>
+                                        {absence.event_id && eventsMap[absence.event_id] && (
+                                            <p className="field-label" style={{ marginBottom: '8px' }}>
+                                                {eventsMap[absence.event_id].name} — {new Date(eventsMap[absence.event_id].date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                            </p>
+                                        )}
                                         <div className="message">
                                             {absence.reason || 'No reason provided.'}
                                         </div>

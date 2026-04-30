@@ -88,8 +88,13 @@ export default function LoginForm() {
   return (
     <div className="auth-shell">
       <div className="auth-card">
-        <p className="eyebrow"></p>
-        <h1 className="page-title" style={{ fontSize: '2.5rem' }}>NOBE Attendance Portal</h1>
+        <img
+          src="/nobe_logo_f.svg"
+          alt="NOBE Illinois"
+          className="brand-logo brand-logo-header"
+          style={{ width: '150px', height: '150px' }}
+        />
+        <h1 className="page-title" style={{ fontSize: '2.5rem' }}>Attendance Portal</h1>
         <p className="page-subtitle">
           Sign in to view events, points, attendance, and admin tools
         </p>

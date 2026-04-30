@@ -193,6 +193,7 @@ export default function EventList() {
         <section className="hero-card">
           <div className="page-header">
             <div>
+              {/* <img src="/nobe_logo_f.svg" alt="NOBE Illinois" width={140} height={140} style={{ marginBottom: '12px' }} /> */}
               <div className="pill-nav">
                 <span className={currentPath === '/users/member' ? 'pill-link-active' : 'pill-link'}>
                   Event Calendar
@@ -333,7 +334,7 @@ export default function EventList() {
             </div>
           </div>
 
-          <div className="calendar-shell">
+          <div className="calendar-compact">
             <div className="calendar-header">
               {weekDays.map((day) => (
                 <div key={day} className="calendar-header-cell">
@@ -375,7 +376,13 @@ export default function EventList() {
                         </p>
                       ) : (
                         dayEvents.slice(0, 3).map((event) => (
-                          <div key={event.id} className="calendar-event" title={event.name}>
+                          <Link
+                            key={event.id}
+                            href={`/users/member/absence?eventId=${event.id}`}
+                            className="calendar-event"
+                            title={`Request absence for ${event.name}`}
+                            style={{ display: 'block', textDecoration: 'none' }}
+                          >
                             <div className="calendar-event-topline">
                               <div className="calendar-event-time">
                                 {new Date(event.date).toLocaleTimeString('en-US', {
@@ -392,7 +399,7 @@ export default function EventList() {
                               <span>{event.location || 'TBD'}</span>
                               <span>{event.points} pt</span>
                             </div>
-                          </div>
+                          </Link>
                         ))
                       )}
                       {dayEvents.length > 3 && (
