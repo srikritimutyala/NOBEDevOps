@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import QRCode from "react-qr-code";
 
@@ -8,6 +8,72 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY!
 );
+
+function InviteMember() {
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteError, setInviteError] = useState('');
+  const [inviting, setInviting] = useState(false);
+  const [result, setResult] = useState<{ email: string; tempPassword?: string; emailSent: boolean } | null>(null);
+
+  async function handleInvite(e: React.FormEvent) {
+    e.preventDefault();
+    setInviteError('');
+    setResult(null);
+    setInviting(true);
+
+    const res = await fetch('/api/admin/invite-user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: inviteEmail }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      setInviteError(data.error ?? 'Something went wrong.');
+    } else {
+      setResult({
+        email: inviteEmail,
+        tempPassword: data.tempPassword,
+        emailSent: data.tempPassword === undefined,
+      });
+      setInviteEmail('');
+    }
+    setInviting(false);
+  }
+
+  return (
+    <div style={{ marginBottom: '2rem' }}>
+      <h2>Invite Member</h2>
+      <form onSubmit={handleInvite} style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+        <div>
+          <label>Illinois Email</label><br />
+          <input
+            type="email"
+            value={inviteEmail}
+            onChange={e => setInviteEmail(e.target.value)}
+            placeholder="netid@illinois.edu"
+            required
+          />
+        </div>
+        <button type="submit" disabled={inviting}>
+          {inviting ? 'Sending...' : 'Send invite'}
+        </button>
+      </form>
+      {inviteError && <p style={{ color: 'red' }}>{inviteError}</p>}
+      {result && result.emailSent && (
+        <p style={{ color: 'green' }}>Invite email sent to {result.email}.</p>
+      )}
+      {result && result.tempPassword && (
+        <div style={{ marginTop: '8px', padding: '12px', background: '#fffbe6', border: '1px solid #f0c040', borderRadius: '6px' }}>
+          <p style={{ margin: '0 0 6px', fontWeight: 'bold' }}>Account created. Share these credentials with {result.email}:</p>
+          <p style={{ margin: '0 0 4px' }}>Email: <code>{result.email}</code></p>
+          <p style={{ margin: '0 0 8px' }}>Temporary password: <code>{result.tempPassword}</code></p>
+          <p style={{ margin: 0, fontSize: '0.85em', color: '#666' }}>They can change their password after logging in via Forgot Password.</p>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function AdminUI() {
     const PUBLIC_URL = " http://10.192.204.178:3000";
@@ -113,6 +179,7 @@ export default function AdminUI() {
     }
     return (
         <div>
+            <InviteMember />
             <h2>Create Event</h2>
             <form onSubmit={handleSubmit}>
                 <div>
