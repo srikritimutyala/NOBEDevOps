@@ -17,6 +17,20 @@ interface Event {
   location?: string;
 }
 
+// Event type colors and configuration
+const EVENT_TYPE_CONFIG: Record<string, { label: string; color: string; borderColor: string }> = {
+  PROFESSIONAL: { label: 'Professional', color: '#FF7043', borderColor: '#E64A19' },
+  SOCIAL: { label: 'Social', color: '#FF9999', borderColor: '#FF6666' },
+  'SERVICE / PHILANTHROPY': { label: 'Service/Philanthropy', color: '#9FBB9F', borderColor: '#7A9B7A' },
+  GENERAL_MEETING: { label: 'General Meeting', color: '#424242', borderColor: '#212121' },
+  MANDATORY: { label: 'Mandatory', color: '#FFEBEE', borderColor: '#EF5350' },
+  GOOGLE_CALENDAR: { label: 'Google Calendar', color: '#B3E5FC', borderColor: '#0288D1' },
+  PROJECT_MEETING: { label: 'Project Meeting', color: '#FFD54F', borderColor: '#FBC02D' },
+  NEW_MEMBER_WORKSHOP: { label: 'New Member Workshop', color: '#CE93D8', borderColor: '#AF2CC5' },
+};
+
+const EVENT_TYPES = Object.keys(EVENT_TYPE_CONFIG);
+
 interface MemberProfile {
   name: string | null;
   year: string | null;
@@ -29,7 +43,7 @@ interface MemberProfile {
 
 export default function EventList() {
   const { session } = useAuth();
-  const [events, setEvents] = useState<Event[]>([]);
+  const [nobeEvents, setNobeEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [member, setMember] = useState<MemberProfile | null>(null);
@@ -37,9 +51,31 @@ export default function EventList() {
   const [memberError, setMemberError] = useState<string | null>(null);
   const [authId, setAuthId] = useState<string | null>(null);
   const [displayMonth, setDisplayMonth] = useState(new Date());
+  const [googleEvents, setGoogleEvents] = useState<Event[]>([]);
+  const [selectedFilters, setSelectedFilters] = useState<Set<string>>(new Set(EVENT_TYPES));
+  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+  const [addedEvents, setAddedEvents] = useState<Set<string>>(new Set());
 
   const pathname = usePathname();
   const currentPath = pathname?.replace(/\/$/, '') || '';
+
+
+  useEffect(() => {
+    const fetchGoogleEvents = async () => {
+      try {
+        const res = await fetch('/api/gcal-personal/events');
+
+        if (!res.ok) return;
+
+        const data = await res.json();
+        setGoogleEvents(data.events || []);
+      } catch {
+        // user may not have connected Google yet
+      }
+    };
+
+    fetchGoogleEvents();
+  }, []);
 
   useEffect(() => {
     const fetchEvents = async () => {
@@ -55,7 +91,7 @@ export default function EventList() {
           .order('date', { ascending: false });
 
         if (fetchError) throw fetchError;
-        setEvents(data || []);
+        setNobeEvents(data || []);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to fetch events');
       } finally {
@@ -103,6 +139,103 @@ export default function EventList() {
     }
   }, [session]);
 
+  const toggleFilter = (eventType: string) => {
+    const newFilters = new Set(selectedFilters);
+    if (newFilters.has(eventType)) {
+      newFilters.delete(eventType);
+    } else {
+      newFilters.add(eventType);
+    }
+    setSelectedFilters(newFilters);
+  };
+
+  const toggleAllFilters = () => {
+    if (selectedFilters.size === EVENT_TYPES.length) {
+      setSelectedFilters(new Set());
+    } else {
+      setSelectedFilters(new Set(EVENT_TYPES));
+    }
+  };
+
+  // Check if two events have time conflicts
+  const hasTimeConflict = (event1: Event, event2: Event): boolean => {
+    // Only check conflicts between NOBE events and Google Calendar events
+    if (event1.event_type === event2.event_type || 
+        (event1.event_type !== 'GOOGLE_CALENDAR' && event2.event_type !== 'GOOGLE_CALENDAR')) {
+      return false;
+    }
+
+    const date1 = new Date(event1.date);
+    const date2 = new Date(event2.date);
+
+    // Different days = no conflict
+    if (date1.toDateString() !== date2.toDateString()) {
+      return false;
+    }
+
+    // Assume events are 1 hour long
+    const event1End = new Date(date1.getTime() + 60 * 60 * 1000);
+    const event2End = new Date(date2.getTime() + 60 * 60 * 1000);
+
+    // Check if times overlap
+    return date1 < event2End && date2 < event1End;
+  };
+
+  const addEventToGoogleCalendar = async (event: Event) => {
+    try {
+      setAddedEvents((prev) => new Set(prev).add(event.id));
+      
+      const res = await fetch('/api/gcal-personal/add-event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event }),
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to add event');
+      }
+
+      alert('Added to Google Calendar!');
+    } catch (err) {
+      alert('Could not add event to Google Calendar.');
+    }
+  };
+  
+  const events = useMemo(
+    () => {
+      // Create a set of NOBE event identifiers (name + date) to filter out duplicates
+      const nobeEventKeys = new Set(
+        nobeEvents.map((e) => `${e.name}|${new Date(e.date).toDateString()}`)
+      );
+
+      // Combine NOBE events with Google Calendar events, but exclude duplicates
+      const combined = [
+        ...nobeEvents,
+        ...googleEvents.filter((gEvent) => {
+          const eventKey = `${gEvent.name}|${new Date(gEvent.date).toDateString()}`;
+          return !nobeEventKeys.has(eventKey);
+        }),
+      ];
+
+      return combined.filter((event) => selectedFilters.has(event.event_type));
+    },
+    [nobeEvents, googleEvents, selectedFilters]
+  );
+
+  // Find conflicts for each event
+  const eventConflicts = useMemo(() => {
+    const conflicts = new Map<string, boolean>();
+    
+    events.forEach((event) => {
+      const hasConflict = events.some((otherEvent) => 
+        event.id !== otherEvent.id && hasTimeConflict(event, otherEvent)
+      );
+      conflicts.set(event.id, hasConflict);
+    });
+
+    return conflicts;
+  }, [events]);
+
   const eventDateKey = (date: Date) =>
     `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 
@@ -121,6 +254,8 @@ export default function EventList() {
   const monthStart = new Date(displayMonth.getFullYear(), displayMonth.getMonth(), 1);
   const firstDayOfCalendar = new Date(monthStart);
   firstDayOfCalendar.setDate(monthStart.getDate() - monthStart.getDay());
+
+
 
   const calendarDays = useMemo(
     () =>
@@ -285,24 +420,68 @@ export default function EventList() {
               <div className="empty-state">No upcoming events are scheduled right now.</div>
             ) : (
               <div className="list-stack">
-                {upcomingEvents.map((event) => (
-                  <div key={event.id} className="calendar-list-event">
-                    <div className="calendar-list-event-date">
-                      <span>{formatEventDay(event.date)}</span>
-                      <strong>{formatEventDayNumber(event.date)}</strong>
+                {upcomingEvents.map((event) => {
+                  const config = EVENT_TYPE_CONFIG[event.event_type] || {
+                    color: '#757575',
+                    borderColor: '#616161',
+                    label: event.event_type.replaceAll('_', ' '),
+                  };
+                  return (
+                    <div
+                      key={event.id}
+                      className="calendar-list-event"
+                      style={{
+                        borderLeftColor: config.borderColor,
+                        borderLeftWidth: '4px',
+                        paddingLeft: '8px',
+                        position: 'relative',
+                      }}
+                    >
+                      {event.event_type !== 'GOOGLE_CALENDAR' && (
+                        <button
+                          type="button"
+                          className="event-add-button"
+                          disabled={addedEvents.has(event.id)}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            if (!addedEvents.has(event.id)) {
+                              addEventToGoogleCalendar(event);
+                            }
+                          }}
+                          title={addedEvents.has(event.id) ? 'Added to Google Calendar' : 'Add to Google Calendar'}
+                        >
+                          {addedEvents.has(event.id) ? '✓' : '+'}
+                        </button>
+                      )}
+
+                      <div className="calendar-list-event-date">
+                        <span>{formatEventDay(event.date)}</span>
+                        <strong>{formatEventDayNumber(event.date)}</strong>
+                      </div>
+                      <div className="calendar-list-event-body">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <strong>{event.name}</strong>
+                          {event.event_type !== 'GOOGLE_CALENDAR' && eventConflicts.get(event.id) && (
+                            <span title="Time conflict with another event" style={{ fontSize: '1.2rem' }}>⚠️</span>
+                          )}
+                        </div>
+                        <p className="section-copy">
+                          {formatEventDate(event.date)} · {event.location || 'Location TBD'}
+                        </p>
+                        <p className="field-help">
+                          <span style={{ color: config.borderColor, fontWeight: '600' }}>{config.label}</span>
+                          {' · '}
+                          {event.points} point{event.points === 1 ? '' : 's'}
+                          {event.is_mandatory ? (
+                            <span style={{ marginLeft: '8px', backgroundColor: '#EF5350', color: 'white', padding: '2px 6px', borderRadius: '3px', fontSize: '10px', fontWeight: '600' }}>
+                              Mandatory
+                            </span>
+                          ) : null}
+                        </p>
+                      </div>
                     </div>
-                    <div className="calendar-list-event-body">
-                      <strong>{event.name}</strong>
-                      <p className="section-copy">
-                        {formatEventDate(event.date)} · {event.location || 'Location TBD'}
-                      </p>
-                      <p className="field-help">
-                        {event.event_type.replaceAll('_', ' ')} · {event.points} point{event.points === 1 ? '' : 's'}
-                        {event.is_mandatory ? ' · Mandatory' : ''}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </section>
@@ -322,6 +501,10 @@ export default function EventList() {
               </p>
             </div>
             <div className="action-row">
+
+              <a href="/api/gcal-personal/auth" className="btn-secondary">
+                Import Google Calendar
+              </a>
               <button type="button" onClick={() => changeMonth(-1)} className="btn-secondary">
                 Previous
               </button>
@@ -332,6 +515,99 @@ export default function EventList() {
                 Next
               </button>
             </div>
+          </div>
+
+          <div className="filter-section" style={{ marginBottom: '24px', padding: '16px', backgroundColor: '#f5f5f5', borderRadius: '8px', position: 'relative' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <p style={{ fontWeight: '600', fontSize: '14px', margin: 0 }}>
+                Events: {selectedFilters.size}/{EVENT_TYPES.length} types
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowFilterDropdown(!showFilterDropdown)}
+                style={{
+                  padding: '8px 16px',
+                  fontSize: '14px',
+                  backgroundColor: '#424242',
+                  color: 'white',
+                  border: '1px solid #212121',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontWeight: '500',
+                }}
+              >
+                {showFilterDropdown ? '▼ Hide Filters' : '▶ Show Filters'}
+              </button>
+            </div>
+
+            {showFilterDropdown && (
+              <div style={{ marginTop: '16px', padding: '12px', backgroundColor: '#ffffff', borderRadius: '4px', border: '1px solid #e0e0e0' }}>
+                <div style={{ marginBottom: '12px', display: 'flex', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={toggleAllFilters}
+                    style={{
+                      padding: '6px 12px',
+                      fontSize: '12px',
+                      backgroundColor: selectedFilters.size === EVENT_TYPES.length ? '#424242' : '#f0f0f0',
+                      color: selectedFilters.size === EVENT_TYPES.length ? 'white' : '#424242',
+                      border: '1px solid #e0e0e0',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontWeight: '500',
+                    }}
+                  >
+                    {selectedFilters.size === EVENT_TYPES.length ? 'Deselect All' : 'Select All'}
+                  </button>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '8px' }}>
+                  {EVENT_TYPES.map((type) => {
+                    const config = EVENT_TYPE_CONFIG[type];
+                    const isSelected = selectedFilters.has(type);
+                    return (
+                      <label
+                        key={type}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          padding: '8px',
+                          borderRadius: '4px',
+                          backgroundColor: isSelected ? '#f0f0f0' : '#ffffff',
+                          cursor: 'pointer',
+                          userSelect: 'none',
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleFilter(type)}
+                          style={{
+                            marginRight: '8px',
+                            cursor: 'pointer',
+                            width: '16px',
+                            height: '16px',
+                          }}
+                        />
+                        <span
+                          style={{
+                            display: 'inline-block',
+                            width: '12px',
+                            height: '12px',
+                            backgroundColor: config.color,
+                            borderRadius: '2px',
+                            marginRight: '8px',
+                            border: `1px solid ${config.borderColor}`,
+                          }}
+                        />
+                        <span style={{ fontSize: '13px', fontWeight: '500', color: '#333' }}>
+                          {config.label}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="calendar-compact">
@@ -375,32 +651,97 @@ export default function EventList() {
                           {inMonth ? 'Open day' : ''}
                         </p>
                       ) : (
-                        dayEvents.slice(0, 3).map((event) => (
-                          <Link
-                            key={event.id}
-                            href={`/users/member/absence?eventId=${event.id}`}
-                            className="calendar-event"
-                            title={`Request absence for ${event.name}`}
-                            style={{ display: 'block', textDecoration: 'none' }}
-                          >
-                            <div className="calendar-event-topline">
-                              <div className="calendar-event-time">
-                                {new Date(event.date).toLocaleTimeString('en-US', {
-                                  hour: 'numeric',
-                                  minute: '2-digit',
-                                })}
+                        dayEvents.slice(0, 3).map((event) => {
+                          const config = EVENT_TYPE_CONFIG[event.event_type] || {
+                            color: '#757575',
+                            borderColor: '#616161',
+                          };
+                          
+                          if (event.is_mandatory) {
+                            return (
+                              <Link
+                                key={event.id}
+                                href={`/users/member/absence?eventId=${event.id}`}
+                                className="calendar-event"
+                                title={`Request absence for ${event.name}`}
+                                style={{
+                                  display: 'block',
+                                  textDecoration: 'none',
+                                  borderLeftColor: config.borderColor,
+                                  borderLeftWidth: '4px',
+                                  paddingLeft: '8px',
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                <div className="calendar-event-topline">
+                                  <div className="calendar-event-time">
+                                    {new Date(event.date).toLocaleTimeString('en-US', {
+                                      hour: 'numeric',
+                                      minute: '2-digit',
+                                    })}
+                                  </div>
+                                  {event.is_mandatory ? (
+                                    <span className="calendar-event-chip" style={{ backgroundColor: '#EF5350', color: 'white', fontSize: '8px', padding: '1px 6px' }}>
+                                      Mandatory
+                                    </span>
+                                  ) : null}
+                                </div>
+                                <div className="calendar-event-name" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  {event.name}
+                                  {event.event_type !== 'GOOGLE_CALENDAR' && eventConflicts.get(event.id) && (
+                                    <span title="Time conflict with another event" style={{ fontSize: '0.9rem' }}>⚠️</span>
+                                  )}
+                                </div>
+                                <div className="calendar-event-meta">
+                                  <span>{event.location || 'TBD'}</span>
+                                  <span>{event.points} pt</span>
+                                </div>
+                                <div style={{ fontSize: '11px', color: config.borderColor, fontWeight: '600', marginTop: '4px' }}>
+                                  {config.label || event.event_type.replaceAll('_', ' ')}
+                                </div>
+                              </Link>
+                            );
+                          } else {
+                            return (
+                              <div
+                                key={event.id}
+                                className="calendar-event"
+                                style={{
+                                  display: 'block',
+                                  borderLeftColor: config.borderColor,
+                                  borderLeftWidth: '4px',
+                                  paddingLeft: '8px',
+                                  opacity: 0.7,
+                                  backgroundColor: '#fafafa',
+                                  borderRadius: '4px',
+                                  padding: '8px',
+                                }}
+                              >
+                                <div className="calendar-event-topline">
+                                  <div className="calendar-event-time">
+                                    {new Date(event.date).toLocaleTimeString('en-US', {
+                                      hour: 'numeric',
+                                      minute: '2-digit',
+                                    })}
+                                  </div>
+                                </div>
+                                <div className="calendar-event-name" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  {event.name}
+                                  {event.event_type !== 'GOOGLE_CALENDAR' && eventConflicts.get(event.id) && (
+                                    <span title="Time conflict with another event" style={{ fontSize: '0.9rem' }}>⚠️</span>
+                                  )}
+                                </div>
+                                <div className="calendar-event-meta">
+                                  <span>{event.location || 'TBD'}</span>
+                                  <span>{event.points} pt</span>
+                                </div>
+                                <div style={{ fontSize: '11px', color: config.borderColor, fontWeight: '600', marginTop: '4px' }}>
+                                  {config.label || event.event_type.replaceAll('_', ' ')}
+                                </div>
                               </div>
-                              {event.is_mandatory ? (
-                                <span className="calendar-event-chip">Mandatory</span>
-                              ) : null}
-                            </div>
-                            <div className="calendar-event-name">{event.name}</div>
-                            <div className="calendar-event-meta">
-                              <span>{event.location || 'TBD'}</span>
-                              <span>{event.points} pt</span>
-                            </div>
-                          </Link>
-                        ))
+                            );
+                          }
+                        })
                       )}
                       {dayEvents.length > 3 && (
                         <div className="calendar-more-events">+{dayEvents.length - 3} more events</div>
