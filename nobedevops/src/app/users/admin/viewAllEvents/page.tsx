@@ -11,6 +11,7 @@ type EventItem = {
   date: string;
   qr_code_secret: string | null;
   event_type: string;
+  dresscode?: string;
   is_mandatory: boolean | null;
   created_at: string;
 };
@@ -41,13 +42,19 @@ export default function ViewAllEvents() {
   const [eventStats, setEventStats] = useState<EventStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
 
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   useEffect(() => {
     async function fetchEvents() {
       setLoading(true);
       setError("");
       const { data, error } = await supabase
         .from("events")
-        .select("id, name, points, date, qr_code_secret, event_type, is_mandatory, created_at")
+        .select("id, name, points, date, qr_code_secret, event_type, dresscode, is_mandatory, created_at")
         .order("date", { ascending: true });
       if (error) {
         setError(error.message);
@@ -152,6 +159,7 @@ export default function ViewAllEvents() {
         );
       });
       const isToday =
+        mounted &&
         today.getFullYear() === cellDate.getFullYear() &&
         today.getMonth() === cellDate.getMonth() &&
         today.getDate() === cellDate.getDate();
@@ -380,12 +388,17 @@ export default function ViewAllEvents() {
                 <div className="action-row">
                   {selectedEvent.is_mandatory && <span className="calendar-event-chip">Mandatory</span>}
                   <span className="calendar-event-chip">{selectedEvent.event_type.replaceAll("_", " ")}</span>
+                  {selectedEvent.dresscode && <span className="calendar-event-chip">{selectedEvent.dresscode}</span>}
                 </div>
 
                 <div className="subtle-card list-stack">
                   <div className="metric-pair">
                     <span>Date &amp; Time</span>
                     <span>{formatDate(selectedEvent.date)}</span>
+                  </div>
+                  <div className="metric-pair">
+                    <span>Dress Code</span>
+                    <span>{selectedEvent.dresscode ?? "N/A"}</span>
                   </div>
                   <div className="metric-pair">
                     <span>Points</span>

@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     requestBody: {
       summary: event.name,
       location: event.location || '',
-      description: `NOBE event\nType: ${event.event_type}\nPoints: ${event.points}`,
+      description: `NOBE event\nType: ${event.event_type}\nPoints: ${event.points}${event.dresscode ? `\nDress Code: ${event.dresscode}` : ''}`,
       start: {
         dateTime: start.toISOString(),
       },

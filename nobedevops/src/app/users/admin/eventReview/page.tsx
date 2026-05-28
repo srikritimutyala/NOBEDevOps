@@ -16,6 +16,7 @@ type EventRecord = {
   date: string;
   is_mandatory: boolean | null;
   event_type: string | null;
+  dresscode: string | null;
   points: number | null;
 };
 
@@ -67,7 +68,7 @@ export default async function EventReviewPage({
 
     supabase
       .from("events")
-      .select("id, name, date, is_mandatory, event_type, points")
+      .select("id, name, date, is_mandatory, event_type, dresscode, points")
       .order("date", { ascending: true }),
 
     supabase
@@ -209,6 +210,13 @@ export default async function EventReviewPage({
                   <div style={styles.cardLabel}>Type</div>
                   <div style={styles.cardValueSmall}>
                     {selectedEvent.event_type ?? "N/A"}
+                  </div>
+                </div>
+
+                <div style={styles.card}>
+                  <div style={styles.cardLabel}>Dress Code</div>
+                  <div style={styles.cardValueSmall}>
+                    {selectedEvent.dresscode ?? "N/A"}
                   </div>
                 </div>
               </div>

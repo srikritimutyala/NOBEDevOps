@@ -11,6 +11,7 @@ interface Event {
   id: string;
   name: string;
   event_type: string;
+  dresscode?: string;
   date: string;
   points: number;
   is_mandatory: boolean;
@@ -55,6 +56,11 @@ export default function EventList() {
   const [selectedFilters, setSelectedFilters] = useState<Set<string>>(new Set(EVENT_TYPES));
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const [addedEvents, setAddedEvents] = useState<Set<string>>(new Set());
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const pathname = usePathname();
   const currentPath = pathname?.replace(/\/$/, '') || '';
@@ -467,6 +473,7 @@ export default function EventList() {
                         </div>
                         <p className="section-copy">
                           {formatEventDate(event.date)} · {event.location || 'Location TBD'}
+                          {event.dresscode && ` · ${event.dresscode}`}
                         </p>
                         <p className="field-help">
                           <span style={{ color: config.borderColor, fontWeight: '600' }}>{config.label}</span>
@@ -624,7 +631,7 @@ export default function EventList() {
                 const inMonth = date.getMonth() === displayMonth.getMonth();
                 const dateKey = eventDateKey(date);
                 const dayEvents = eventsByDate[dateKey] || [];
-                const isToday = isSameDay(date, today);
+                const isToday = mounted && isSameDay(date, today);
 
                 return (
                   <div
@@ -696,9 +703,6 @@ export default function EventList() {
                                   <span>{event.location || 'TBD'}</span>
                                   <span>{event.points} pt</span>
                                 </div>
-                                <div style={{ fontSize: '11px', color: config.borderColor, fontWeight: '600', marginTop: '4px' }}>
-                                  {config.label || event.event_type.replaceAll('_', ' ')}
-                                </div>
                               </Link>
                             );
                           } else {
@@ -734,9 +738,6 @@ export default function EventList() {
                                 <div className="calendar-event-meta">
                                   <span>{event.location || 'TBD'}</span>
                                   <span>{event.points} pt</span>
-                                </div>
-                                <div style={{ fontSize: '11px', color: config.borderColor, fontWeight: '600', marginTop: '4px' }}>
-                                  {config.label || event.event_type.replaceAll('_', ' ')}
                                 </div>
                               </div>
                             );
