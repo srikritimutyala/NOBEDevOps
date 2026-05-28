@@ -4,14 +4,15 @@ services:
   app:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: nobedevops/Dockerfile
     container_name: dev-env
     volumes:
       - .:/app
-    working_dir: /app
+      - /app/nobedevops/node_modules
+    working_dir: /app/nobedevops
     tty: true
     stdin_open: true
     environment:
-      - ENV=development
+      - NODE_ENV=development
     ports:
-      - "3000:3000"   # change/remove as needed
+      - "3000:3000"

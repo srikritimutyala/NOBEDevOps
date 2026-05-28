@@ -50,10 +50,14 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 
-RUN apk add --no-cache git
+# Install git and bash for better dev experience and shell access
+RUN apk add --no-cache git bash
 
 # Create a non-root user
 RUN addgroup -S nextjs && adduser -S nextjs -G nextjs
+
+# Set up git to trust the /app directory (fixes "dubious ownership" errors)
+RUN git config --system --add safe.directory /app
 
 # If using Next "standalone" output:
 # - .next/standalone contains server + minimal node_modules
@@ -63,10 +67,13 @@ COPY --from=build /app/public ./public
 COPY --from=build /app/.next/static ./.next/static
 COPY --from=build /app/.next/standalone ./
 
-USER nextjs
+# Ensure the nextjs user owns the files
+RUN chown -R nextjs:nextjs /app
 
+USER nextjs
 
 EXPOSE 3000
 
 # Next standalone server entrypoint:
-CMD ["node", "server.js"]
+# Use a script or conditional to allow dev mode if needed
+CMD ["sh", "-c", "if [ \"$NODE_ENV\" = \"development\" ]; then npm install && npm run dev; else node server.js; fi"]
