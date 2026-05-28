@@ -21,6 +21,13 @@ const eventTypes = [
   "OTHER_MANDATORY",
 ];
 
+const dressCodes = [
+  "Casual",
+  "Business Casual",
+  "Business Professional",
+  "Formal",
+];
+
 function combineDateTime(date: string, time: string) {
   if (!date || !time) return null;
   const combined = new Date(`${date}T${time}`);
@@ -33,6 +40,7 @@ export default function CreateEventPage() {
   const [form, setForm] = useState({
     name: "",
     event_type: "PROFESSIONAL",
+    dresscode: "Casual",
     points: 0,
     is_mandatory: false,
     date: "",
@@ -85,7 +93,7 @@ export default function CreateEventPage() {
 
       const { data, error } = await supabase
         .from("events")
-        .select("id, name, event_type, points, is_mandatory, date, location, created_at, qr_code_secret, check_in_starts_at, check_in_ends_at")
+        .select("id, name, event_type, dresscode, points, is_mandatory, date, location, created_at, qr_code_secret, check_in_starts_at, check_in_ends_at")
         .eq("id", eventId)
         .single();
 
@@ -115,6 +123,7 @@ export default function CreateEventPage() {
       setForm({
         name: data.name ?? "",
         event_type: data.event_type ?? "PROFESSIONAL",
+        dresscode: data.dresscode ?? "Casual",
         points: data.points ?? 0,
         is_mandatory: data.is_mandatory ?? false,
         date: hasValidStart ? toDateInputValue(eventStart) : "",
@@ -257,6 +266,7 @@ export default function CreateEventPage() {
       const payload = {
         name: form.name.trim(),
         event_type: form.event_type,
+        dresscode: form.dresscode,
         points: Number(form.points),
         is_mandatory: form.is_mandatory,
         date: eventStart.toISOString(),
@@ -407,15 +417,31 @@ export default function CreateEventPage() {
             </div>
 
             <div className="field-group">
-              <label className="field-label">Points</label>
-              <input
-                type="number"
-                name="points"
-                value={form.points}
+              <label className="field-label">Dress Code</label>
+              <select
+                name="dresscode"
+                value={form.dresscode}
                 onChange={handleChange}
-                className="field-input"
-              />
+                className="field-select"
+              >
+                {dressCodes.map((code) => (
+                  <option key={code} value={code}>
+                    {code}
+                  </option>
+                ))}
+              </select>
             </div>
+          </div>
+
+          <div className="field-group">
+            <label className="field-label">Points</label>
+            <input
+              type="number"
+              name="points"
+              value={form.points}
+              onChange={handleChange}
+              className="field-input"
+            />
           </div>
 
           <div className="toggle-row">
