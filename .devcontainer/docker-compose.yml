@@ -3,7 +3,7 @@ services:
     image: node:20-alpine
     working_dir: /workspaces/NOBEDevOps/nobedevops
     volumes:
-      - ..:/workspaces/NOBEDevOps:cached
+      - ..:/workspaces/NOBEDevOps
       - nobedevops_node_modules:/workspaces/NOBEDevOps/nobedevops/node_modules
     command: sleep infinity
     ports:

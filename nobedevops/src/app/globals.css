@@ -831,6 +831,10 @@ textarea {
 .calendar-compact .calendar-day {
   min-height: 0;
   height: 140px;
+
+  display: flex;
+  flex-direction: column;
+
   overflow: hidden;
   border-radius: 0;
   border: none;
@@ -862,15 +866,25 @@ textarea {
 }
 
 .calendar-compact .calendar-events {
+  display: flex;
+  flex-direction: column;
   gap: 6px;
+
+  flex: 1;
+  overflow-y: auto;
+
+  max-height: 80px; /* adjust this */
+  padding-right: 4px;
 }
 
 .calendar-compact .calendar-event {
   border-radius: 12px;
   padding: 6px 8px;
-  height: 46px;
-  max-height: 46px;
-  overflow: hidden;
+  min-height: 46px;
+  height: auto;
+  max-height: none;
+  overflow: visible;
+  flex-shrink: 0;
 }
 
 .calendar-compact .calendar-event-time {
@@ -963,5 +977,8 @@ textarea {
     align-items: stretch;
   }
 
+
+
   
 }
+
