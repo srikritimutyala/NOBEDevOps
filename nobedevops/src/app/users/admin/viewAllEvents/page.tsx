@@ -14,6 +14,10 @@ type EventItem = {
   dresscode?: string;
   is_mandatory: boolean | null;
   created_at: string;
+  // Google Calendar fields
+  location?: string | null;
+  description?: string | null;
+  end_date?: string | null;
 };
 
 type EventStats = {
@@ -29,10 +33,17 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY!
 );
 
+function isGcalEvent(event: EventItem) {
+  return event.event_type === "GCAL_CLUB";
+}
+
 export default function ViewAllEvents() {
   const [events, setEvents] = useState<EventItem[]>([]);
+  const [gcalEvents, setGcalEvents] = useState<EventItem[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [gcalLoading, setGcalLoading] = useState(true);
+  const [gcalError, setGcalError] = useState("");
   const [error, setError] = useState("");
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null);
@@ -66,9 +77,30 @@ export default function ViewAllEvents() {
     fetchEvents();
   }, []);
 
+  async function fetchGcalEvents() {
+    setGcalLoading(true);
+    setGcalError("");
+    try {
+      const res = await fetch("/api/gcal-club/events");
+      const json = await res.json();
+      if (json.error) {
+        setGcalError(json.error);
+      } else {
+        setGcalEvents(json.events || []);
+      }
+    } catch {
+      setGcalError("Failed to load Google Calendar events.");
+    }
+    setGcalLoading(false);
+  }
+
+  useEffect(() => {
+    fetchGcalEvents();
+  }, []);
+
   useEffect(() => {
     async function fetchEventStats() {
-      if (!selectedEvent || !isPastEvent(selectedEvent.date)) {
+      if (!selectedEvent || isGcalEvent(selectedEvent) || !isPastEvent(selectedEvent.date)) {
         setEventStats(null);
         return;
       }
@@ -105,17 +137,19 @@ export default function ViewAllEvents() {
     fetchEventStats();
   }, [selectedEvent]);
 
+  const allEvents = useMemo(() => [...events, ...gcalEvents], [events, gcalEvents]);
+
   const filteredEvents = useMemo(() => {
-    return events.filter((event) => {
+    return allEvents.filter((event) => {
       const matchesSearch = event.name.toLowerCase().includes(search.toLowerCase().trim());
       const matchesEventType = selectedEventType === "ALL" || event.event_type === selectedEventType;
       const matchesMandatory =
         mandatoryFilter === "ALL" ||
         (mandatoryFilter === "MANDATORY" && event.is_mandatory === true) ||
-        (mandatoryFilter === "OPTIONAL" && event.is_mandatory !== true);
+        (mandatoryFilter === "OPTIONAL" && event.is_mandatory !== true && !isGcalEvent(event));
       return matchesSearch && matchesEventType && matchesMandatory;
     });
-  }, [events, search, selectedEventType, mandatoryFilter]);
+  }, [allEvents, search, selectedEventType, mandatoryFilter]);
 
   const shownEvents = useMemo(() => {
     const now = new Date();
@@ -255,6 +289,7 @@ export default function ViewAllEvents() {
                   <option value="NEW_MEMBER_WORKSHOP">New Member Workshop</option>
                   <option value="PROJECT_MEETING">Project Meeting</option>
                   <option value="OTHER_MANDATORY">Other Mandatory</option>
+                  <option value="GCAL_CLUB">Google Calendar</option>
                 </select>
               </div>
               <div className="field-group">
@@ -278,6 +313,12 @@ export default function ViewAllEvents() {
                   Clear Filters
                 </button>
               </div>
+            </div>
+          )}
+
+          {gcalError && (
+            <div className="message-error" style={{ marginTop: "12px" }}>
+              Google Calendar sync failed: {gcalError}
             </div>
           )}
         </section>
@@ -340,13 +381,22 @@ export default function ViewAllEvents() {
                                   width: "100%",
                                   textAlign: "left",
                                   cursor: "pointer",
-                                  outline: selectedEvent?.id === event.id ? "2px solid var(--accent)" : "none",
+                                  boxShadow: selectedEvent?.id === event.id
+                                    ? isGcalEvent(event)
+                                      ? "inset 3px 0 0 #4285F4, 0 0 0 2px #4285F4"
+                                      : "0 0 0 2px var(--accent)"
+                                    : isGcalEvent(event)
+                                      ? "inset 3px 0 0 #4285F4"
+                                      : "none",
                                 }}
                                 title={`${event.name} — ${formatTime(event.date)}`}
                               >
                                 <div className="calendar-event-topline">
                                   <div className="calendar-event-time">{formatTime(event.date)}</div>
                                   {event.is_mandatory && <span className="calendar-event-chip">Mandatory</span>}
+                                  {isGcalEvent(event) && (
+                                    <span className="calendar-event-chip" style={{ background: "#4285F4", color: "#fff", fontSize: "0.6rem" }}>G</span>
+                                  )}
                                 </div>
                                 <div className="calendar-event-name">{event.name}</div>
                               </button>
@@ -362,6 +412,21 @@ export default function ViewAllEvents() {
                 ))}
               </div>
             </div>
+
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "8px" }}>
+              <p className="section-copy" style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
+                {gcalLoading ? "Syncing Google Calendar..." : "Blue-bordered events are from the NOBE Google Calendar."}
+              </p>
+              <button
+                type="button"
+                onClick={fetchGcalEvents}
+                disabled={gcalLoading}
+                className="btn-secondary"
+                style={{ fontSize: "0.75rem", padding: "4px 10px" }}
+              >
+                {gcalLoading ? "Syncing..." : "Sync GCal"}
+              </button>
+            </div>
           </section>
 
           <section className="panel">
@@ -372,23 +437,29 @@ export default function ViewAllEvents() {
               <div className="page-stack">
                 <div className="panel-header">
                   <div>
-                    <p className="eyebrow">Selected Event</p>
+                    <p className="eyebrow">{isGcalEvent(selectedEvent) ? "Google Calendar Event" : "Selected Event"}</p>
                     <h2 className="section-title">{selectedEvent.name}</h2>
                   </div>
                   <div className="action-row">
                     <button type="button" onClick={() => setSelectedEvent(null)} className="btn-secondary">
                       ← Back
                     </button>
-                    <Link href={`/users/admin/createEvent?eventId=${selectedEvent.id}`} className="btn">
-                      Edit
-                    </Link>
+                    {!isGcalEvent(selectedEvent) && (
+                      <Link href={`/users/admin/createEvent?eventId=${selectedEvent.id}`} className="btn">
+                        Edit
+                      </Link>
+                    )}
                   </div>
                 </div>
 
                 <div className="action-row">
                   {selectedEvent.is_mandatory && <span className="calendar-event-chip">Mandatory</span>}
-                  <span className="calendar-event-chip">{selectedEvent.event_type.replaceAll("_", " ")}</span>
-                  {selectedEvent.dresscode && <span className="calendar-event-chip">{selectedEvent.dresscode}</span>}
+                  <span className="calendar-event-chip">
+                    {isGcalEvent(selectedEvent) ? "Google Calendar" : selectedEvent.event_type.replaceAll("_", " ")}
+                  </span>
+                  {!isGcalEvent(selectedEvent) && selectedEvent.dresscode && (
+                    <span className="calendar-event-chip">{selectedEvent.dresscode}</span>
+                  )}
                 </div>
 
                 <div className="subtle-card list-stack">
@@ -396,53 +467,85 @@ export default function ViewAllEvents() {
                     <span>Date &amp; Time</span>
                     <span>{formatDate(selectedEvent.date)}</span>
                   </div>
-                  <div className="metric-pair">
-                    <span>Dress Code</span>
-                    <span>{selectedEvent.dresscode ?? "N/A"}</span>
-                  </div>
-                  <div className="metric-pair">
-                    <span>Points</span>
-                    <span>{selectedEvent.points ?? 0}</span>
-                  </div>
-                  <div className="metric-pair">
-                    <span>Requirement</span>
-                    <span>{selectedEvent.is_mandatory ? "Mandatory" : "Optional"}</span>
-                  </div>
-                  <div className="metric-pair">
-                    <span>Created</span>
-                    <span>{formatDate(selectedEvent.created_at)}</span>
-                  </div>
+                  {selectedEvent.end_date && (
+                    <div className="metric-pair">
+                      <span>End Time</span>
+                      <span>{formatTime(selectedEvent.end_date)}</span>
+                    </div>
+                  )}
+                  {selectedEvent.location && (
+                    <div className="metric-pair">
+                      <span>Location</span>
+                      <span>{selectedEvent.location}</span>
+                    </div>
+                  )}
+                  {!isGcalEvent(selectedEvent) && (
+                    <>
+                      <div className="metric-pair">
+                        <span>Dress Code</span>
+                        <span>{selectedEvent.dresscode ?? "N/A"}</span>
+                      </div>
+                      <div className="metric-pair">
+                        <span>Points</span>
+                        <span>{selectedEvent.points ?? 0}</span>
+                      </div>
+                      <div className="metric-pair">
+                        <span>Requirement</span>
+                        <span>{selectedEvent.is_mandatory ? "Mandatory" : "Optional"}</span>
+                      </div>
+                      <div className="metric-pair">
+                        <span>Created</span>
+                        <span>{formatDate(selectedEvent.created_at)}</span>
+                      </div>
+                    </>
+                  )}
+                  {isGcalEvent(selectedEvent) && selectedEvent.description && (
+                    <div className="metric-pair" style={{ flexDirection: "column", alignItems: "flex-start", gap: "4px" }}>
+                      <span>Description</span>
+                      <span style={{ whiteSpace: "pre-wrap", color: "var(--muted)" }}>{selectedEvent.description}</span>
+                    </div>
+                  )}
                 </div>
 
-                <div className="subtle-card">
-                  <p className="eyebrow" style={{ marginBottom: "12px" }}>Attendance</p>
-                  <div className="list-stack">
-                    <div className="metric-pair">
-                      <span>Attended</span>
-                      <span>{statValue("attendance")}</span>
-                    </div>
-                    <div className="metric-pair">
-                      <span>Rate</span>
-                      <span>{statValue("rate")}</span>
-                    </div>
-                    {selectedEvent.is_mandatory && (
-                      <>
+                {!isGcalEvent(selectedEvent) && (
+                  <>
+                    <div className="subtle-card">
+                      <p className="eyebrow" style={{ marginBottom: "12px" }}>Attendance</p>
+                      <div className="list-stack">
                         <div className="metric-pair">
-                          <span>Excused</span>
-                          <span>{statValue("excused")}</span>
+                          <span>Attended</span>
+                          <span>{statValue("attendance")}</span>
                         </div>
                         <div className="metric-pair">
-                          <span>Unexcused</span>
-                          <span>{statValue("unexcused")}</span>
+                          <span>Rate</span>
+                          <span>{statValue("rate")}</span>
                         </div>
-                      </>
-                    )}
-                  </div>
-                </div>
+                        {selectedEvent.is_mandatory && (
+                          <>
+                            <div className="metric-pair">
+                              <span>Excused</span>
+                              <span>{statValue("excused")}</span>
+                            </div>
+                            <div className="metric-pair">
+                              <span>Unexcused</span>
+                              <span>{statValue("unexcused")}</span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
 
-                <Link href={`/users/admin/eventReview?eventId=${selectedEvent.id}`} className="btn-secondary" style={{ textAlign: "center" }}>
-                  Open Full Review Page
-                </Link>
+                    <Link href={`/users/admin/eventReview?eventId=${selectedEvent.id}`} className="btn-secondary" style={{ textAlign: "center" }}>
+                      Open Full Review Page
+                    </Link>
+                  </>
+                )}
+
+                {isGcalEvent(selectedEvent) && (
+                  <p className="section-copy" style={{ fontSize: "0.8rem", color: "var(--muted)", textAlign: "center" }}>
+                    This event is sourced from the NOBE club Google Calendar and is read-only.
+                  </p>
+                )}
               </div>
             ) : (
               !loading && !error && (
@@ -458,17 +561,22 @@ export default function ViewAllEvents() {
                   ) : (
                     <div className="list-stack">
                       {shownEvents.map((event) => (
-                        <div key={event.id} className="subtle-card">
+                        <div key={event.id} className="subtle-card" style={{ boxShadow: isGcalEvent(event) ? "inset 3px 0 0 #4285F4" : undefined }}>
                           <div className="panel-header" style={{ marginBottom: "10px" }}>
                             <strong>{event.name}</strong>
                             <span className="calendar-event-chip">
-                              {event.is_mandatory ? "Mandatory" : "Optional"}
+                              {isGcalEvent(event) ? "Google Calendar" : event.is_mandatory ? "Mandatory" : "Optional"}
                             </span>
                           </div>
                           <p className="section-copy">{formatDate(event.date)}</p>
-                          <p className="section-copy">
-                            {event.event_type.replaceAll("_", " ")} · {event.points ?? 0} pts
-                          </p>
+                          {!isGcalEvent(event) && (
+                            <p className="section-copy">
+                              {event.event_type.replaceAll("_", " ")} · {event.points ?? 0} pts
+                            </p>
+                          )}
+                          {event.location && (
+                            <p className="section-copy">{event.location}</p>
+                          )}
                           <button
                             type="button"
                             onClick={() => setSelectedEvent(event)}
