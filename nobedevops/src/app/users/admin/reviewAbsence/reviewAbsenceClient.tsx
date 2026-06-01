@@ -12,6 +12,7 @@ export type ReviewAbsenceItem = {
   reviewedAt: string | null;
   emailSent: boolean | null;
   emailError: string | null;
+  imageUrl: string | null;
 };
 
 type ReviewFormState = {
@@ -191,6 +192,24 @@ export default function ReviewAbsenceClient({ items }: Props) {
                       <span className="font-medium">Reason:</span>{" "}
                       {item.reason?.trim() ? item.reason : "No reason provided"}
                     </p>
+                    {item.imageUrl && (
+                      <div style={{ marginTop: "16px" }}>
+                        <p className="text-sm font-medium" style={{ marginBottom: "8px" }}>
+                          Uploaded Documentation
+                        </p>
+
+                        <img
+                          src={item.imageUrl}
+                          alt="Absence documentation"
+                          style={{
+                            maxWidth: "400px",
+                            width: "100%",
+                            borderRadius: "12px",
+                            border: "1px solid #ddd",
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -274,6 +293,24 @@ export default function ReviewAbsenceClient({ items }: Props) {
                   <span className="font-medium">Reason:</span>{" "}
                   {item.reason?.trim() ? item.reason : "No reason provided"}
                 </p>
+                {item.imageUrl && (
+                  <div style={{ marginTop: "16px", marginBottom: "12px" }}>
+                    <p className="text-sm font-medium" style={{ marginBottom: "8px" }}>
+                      Uploaded Documentation
+                    </p>
+
+                    <img
+                      src={item.imageUrl}
+                      alt="Absence documentation"
+                      style={{
+                        maxWidth: "400px",
+                        width: "100%",
+                        borderRadius: "12px",
+                        border: "1px solid #ddd",
+                      }}
+                    />
+                  </div>
+                )}
                 <p className="text-sm whitespace-pre-wrap">
                   <span className="font-medium">Response message:</span>{" "}
                   {item.adminResponse?.trim() ? item.adminResponse : "No response saved"}

@@ -23,16 +23,25 @@ interface Event {
 
 export default function AbsencePage() {
     const supabase = createClient();
+
     const [formData, setFormData] = useState({
         eventId: '',
         reason: '',
     });
+
     const [submitted, setSubmitted] = useState(false);
     const [absences, setAbsences] = useState<AbsenceRecord[]>([]);
     const [absencesLoading, setAbsencesLoading] = useState(true);
     const [absencesError, setAbsencesError] = useState<string | null>(null);
     const [events, setEvents] = useState<Event[]>([]);
     const [eventsLoading, setEventsLoading] = useState(true);
+    const [imageFile, setImageFile] = useState<File | null>(null);
+
+    const pathname = usePathname();
+    const currentPath = pathname?.replace(/\/$/, '') || '';
+    const searchParams = useSearchParams();
+
+    const eventsMap = Object.fromEntries(events.map((e) => [e.id, e]));
 
     const fetchAbsences = async () => {
         const {
@@ -60,6 +69,7 @@ export default function AbsencePage() {
             setAbsences(data || []);
             setAbsencesError(null);
         }
+
         setAbsencesLoading(false);
     };
 
@@ -71,34 +81,32 @@ export default function AbsencePage() {
                 .from('events')
                 .select('id, name, date')
                 .order('date', { ascending: false });
+
             setEvents(data || []);
             setEventsLoading(false);
         };
+
         fetchEvents();
     }, []);
+
+    useEffect(() => {
+        const eventId = searchParams.get('eventId');
+
+        if (eventId) {
+            setFormData((prev) => ({ ...prev, eventId }));
+        }
+    }, [searchParams]);
 
     const handleChange = (
         e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
     ) => {
         const { name, value } = e.target;
+
         setFormData((prev) => ({
             ...prev,
             [name]: value,
         }));
     };
-
-    const eventsMap = Object.fromEntries(events.map(e => [e.id, e]));
-
-    const pathname = usePathname();
-    const currentPath = pathname?.replace(/\/$/, '') || '';
-    const searchParams = useSearchParams();
-
-    useEffect(() => {
-        const eventId = searchParams.get('eventId');
-        if (eventId) {
-            setFormData((prev) => ({ ...prev, eventId }));
-        }
-    }, [searchParams]);
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -116,6 +124,28 @@ export default function AbsencePage() {
 
         const selectedEvent = eventsMap[formData.eventId];
 
+        let imageUrl: string | null = null;
+
+        if (imageFile) {
+            const filePath = `${user.id}/${Date.now()}-${imageFile.name}`;
+
+            const { error: uploadError } = await supabase.storage
+                .from('absence-images')
+                .upload(filePath, imageFile);
+
+            if (uploadError) {
+                console.error('Image upload error:', uploadError);
+                alert(`Image upload failed: ${uploadError.message}`);
+                return;
+            }
+
+            const { data } = supabase.storage
+                .from('absence-images')
+                .getPublicUrl(filePath);
+
+            imageUrl = data.publicUrl;
+        }
+
         const { error } = await supabase
             .from('excused_absences')
             .insert([
@@ -125,6 +155,7 @@ export default function AbsencePage() {
                     reason: formData.reason,
                     submitted_at: new Date().toISOString(),
                     status: 'PENDING',
+                    image_url: imageUrl,
                 },
             ]);
 
@@ -133,7 +164,6 @@ export default function AbsencePage() {
             return;
         }
 
-        // Send email notification
         try {
             await fetch('/api/send-email', {
                 method: 'POST',
@@ -152,6 +182,7 @@ export default function AbsencePage() {
 
         setSubmitted(true);
         setFormData({ eventId: '', reason: '' });
+        setImageFile(null);
         setTimeout(() => setSubmitted(false), 3000);
         await fetchAbsences();
     };
@@ -161,17 +192,19 @@ export default function AbsencePage() {
             <div className="page-frame page-stack">
                 <section className="hero-card">
                     <div className="pill-nav">
-                        <Link
-                            href="/users/member"
-                            className="pill-link"
-                        >
+                        <Link href="/users/member" className="pill-link">
                             Event Calendar
                         </Link>
+
                         <span className={currentPath === '/users/member/absence' ? 'pill-link-active' : 'pill-link'}>
                             Absence Form
                         </span>
                     </div>
-                    <p className="eyebrow" style={{ marginTop: '20px' }}>Member</p>
+
+                    <p className="eyebrow" style={{ marginTop: '20px' }}>
+                        Member
+                    </p>
+
                     <h1 className="page-title">Absence requests</h1>
                     <p className="page-subtitle">Submit a request and review your excused absences.</p>
                 </section>
@@ -193,7 +226,10 @@ export default function AbsencePage() {
 
                         <form onSubmit={handleSubmit} className="field-group">
                             <div className="field-group">
-                                <label htmlFor="eventId" className="field-label">Event missed</label>
+                                <label htmlFor="eventId" className="field-label">
+                                    Event missed
+                                </label>
+
                                 <select
                                     id="eventId"
                                     name="eventId"
@@ -206,16 +242,24 @@ export default function AbsencePage() {
                                     <option value="">
                                         {eventsLoading ? 'Loading events...' : 'Select an event'}
                                     </option>
+
                                     {events.map((event) => (
                                         <option key={event.id} value={event.id}>
-                                            {event.name} — {new Date(event.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                            {event.name} — {new Date(event.date).toLocaleDateString('en-US', {
+                                                month: 'short',
+                                                day: 'numeric',
+                                                year: 'numeric',
+                                            })}
                                         </option>
                                     ))}
                                 </select>
                             </div>
 
                             <div className="field-group">
-                                <label htmlFor="reason" className="field-label">Reason for absence</label>
+                                <label htmlFor="reason" className="field-label">
+                                    Reason for absence
+                                </label>
+
                                 <textarea
                                     id="reason"
                                     name="reason"
@@ -226,12 +270,66 @@ export default function AbsencePage() {
                                     rows={6}
                                     className="field-textarea"
                                 />
+
+                                <div style={{ marginTop: '10px' }}>
+                                    <input
+                                        id="image"
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={(e) => setImageFile(e.target.files?.[0] ?? null)}
+                                        hidden
+                                    />
+
+                                    <label
+                                        htmlFor="image"
+                                        title="Upload image"
+                                        style={{
+                                            cursor: "pointer",
+                                            display: "inline-flex",
+                                            alignItems: "center",
+                                            gap: "8px",
+                                        }}
+                                    >
+                                        <img
+                                            src="/upload-icon.png"
+                                            alt="Upload"
+                                            style={{
+                                                width: "24px",
+                                                height: "24px",
+                                            }}
+                                        />
+                                    </label>
+                                </div>
                             </div>
 
-                            <button
-                                type="submit"
-                                className="btn button-full"
-                            >
+                            {imageFile && (
+                                <div className="subtle-card" style={{ marginBottom: '4px' }}>
+                                    <p className="eyebrow" style={{ marginBottom: '6px' }}>
+                                        Uploaded image
+                                    </p>
+
+                                    <p className="section-copy" style={{ margin: 0 }}>
+                                        {imageFile.name}
+                                    </p>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setImageFile(null)}
+                                        className="field-help"
+                                        style={{
+                                            marginTop: '10px',
+                                            border: 'none',
+                                            background: 'transparent',
+                                            padding: 0,
+                                            cursor: 'pointer',
+                                        }}
+                                    >
+                                        Remove image
+                                    </button>
+                                </div>
+                            )}
+
+                            <button type="submit" className="btn button-full">
                                 Submit Absence
                             </button>
                         </form>
@@ -246,7 +344,9 @@ export default function AbsencePage() {
                         </div>
 
                         {absencesLoading ? (
-                            <div className="subtle-card"><p className="section-copy">Loading your absences...</p></div>
+                            <div className="subtle-card">
+                                <p className="section-copy">Loading your absences...</p>
+                            </div>
                         ) : absencesError ? (
                             <div className="message-error">{absencesError}</div>
                         ) : absences.length === 0 ? (
@@ -257,24 +357,43 @@ export default function AbsencePage() {
                                     <div key={absence.id} className="subtle-card">
                                         <div className="panel-header" style={{ marginBottom: '16px' }}>
                                             <div>
-                                                <p className="eyebrow" style={{ marginBottom: '4px' }}>Status</p>
-                                                <p><strong>{absence.status || 'PENDING'}</strong></p>
+                                                <p className="eyebrow" style={{ marginBottom: '4px' }}>
+                                                    Status
+                                                </p>
+                                                <p>
+                                                    <strong>{absence.status || 'PENDING'}</strong>
+                                                </p>
                                             </div>
+
                                             <div style={{ textAlign: 'right' }}>
-                                                <p className="eyebrow" style={{ marginBottom: '4px' }}>Submitted</p>
-                                                <p><strong>
-                                                    {absence.submitted_at ? new Date(absence.submitted_at).toLocaleDateString() : 'N/A'}
-                                                </strong></p>
+                                                <p className="eyebrow" style={{ marginBottom: '4px' }}>
+                                                    Submitted
+                                                </p>
+                                                <p>
+                                                    <strong>
+                                                        {absence.submitted_at
+                                                            ? new Date(absence.submitted_at).toLocaleDateString()
+                                                            : 'N/A'}
+                                                    </strong>
+                                                </p>
                                             </div>
                                         </div>
+
                                         {absence.event_id && eventsMap[absence.event_id] && (
                                             <p className="field-label" style={{ marginBottom: '8px' }}>
-                                                {eventsMap[absence.event_id].name} — {new Date(eventsMap[absence.event_id].date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                                {eventsMap[absence.event_id].name} —{' '}
+                                                {new Date(eventsMap[absence.event_id].date).toLocaleDateString('en-US', {
+                                                    month: 'short',
+                                                    day: 'numeric',
+                                                    year: 'numeric',
+                                                })}
                                             </p>
                                         )}
+
                                         <div className="message">
                                             {absence.reason || 'No reason provided.'}
                                         </div>
+
                                         {absence.reviewed_at && (
                                             <p className="field-help" style={{ marginTop: '14px' }}>
                                                 Reviewed on {new Date(absence.reviewed_at).toLocaleDateString()}
