@@ -16,6 +16,7 @@ type ExcusedAbsenceRow = {
   reviewed_at: string | null;
   email_sent: boolean | null;
   email_error: string | null;
+  image_url: string | null;
 };
 
 type PersonRow = {
@@ -30,7 +31,7 @@ export default async function ReviewAbsence() {
   const [absencesRes, peopleRes] = await Promise.all([
     supabase
       .from("excused_absences")
-      .select("id, user_id, reason, status, submitted_at, admin_response, reviewed_at, email_sent, email_error")
+      .select("id, user_id, reason, status, submitted_at, admin_response, reviewed_at, email_sent, email_error, image_url")
       .order("submitted_at", { ascending: false }),
     supabase
       .from("People")
@@ -61,6 +62,7 @@ export default async function ReviewAbsence() {
     reviewedAt: absence.reviewed_at,
     emailSent: absence.email_sent,
     emailError: absence.email_error,
+    imageUrl: absence.image_url,
   }));
 
   return (
