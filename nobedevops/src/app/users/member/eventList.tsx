@@ -40,6 +40,7 @@ interface MemberProfile {
   social_points: number | null;
   professional_points: number | null;
   service_points: number | null;
+  strikes: number | null;
 }
 
 export default function EventList() {
@@ -126,7 +127,7 @@ export default function EventList() {
 
       const { data, error: fetchError } = await supabase
         .from('People')
-        .select('name, year, college, committee, social_points, professional_points, service_points')
+        .select('name, year, college, committee, social_points, professional_points, service_points, strikes')
         .eq('auth_id', session.user.id)
         .single();
 
@@ -376,6 +377,13 @@ export default function EventList() {
                   <p className="stat-label">Total points</p>
                   <p className="stat-value">{totalPoints}</p>
                 </div>
+
+                {member.strikes ? (
+                  <div className="stat-card" style={{ backgroundColor: 'rgba(239, 83, 80, 0.1)', borderColor: '#EF5350' }}>
+                    <p className="stat-label" style={{ color: '#D32F2F' }}>Strikes</p>
+                    <p className="stat-value" style={{ color: '#D32F2F' }}>{member.strikes}</p>
+                  </div>
+                ) : null}
 
                 <div className="stats-grid">
                   <div className="stat-card">

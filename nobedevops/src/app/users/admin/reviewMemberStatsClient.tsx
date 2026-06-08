@@ -10,6 +10,7 @@ export type MemberRecord = {
     role: string | null;
     auth_id: string | null;
     illinois_email: string | null;
+    strikes?: number | null;
 };
 
 export type EventRecord = {
@@ -210,9 +211,16 @@ export default function ReviewMemberStatsClient({
                                                     <p className="font-medium text-[color:var(--foreground)]">{member.name ?? "Unnamed member"}</p>
                                                     <p className="mt-1 text-sm text-[color:var(--muted)]">{member.illinois_email ?? "No email on file"}</p>
                                                 </div>
-                                                <span className="rounded-full bg-[rgba(229,138,39,0.12)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-[color:var(--accent-strong)]">
-                                                    {member.role ?? "Member"}
-                                                </span>
+                                                <div className="flex flex-col items-end gap-1">
+                                                    <span className="rounded-full bg-[rgba(229,138,39,0.12)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-[color:var(--accent-strong)]">
+                                                        {member.role ?? "Member"}
+                                                    </span>
+                                                    {member.strikes ? (
+                                                        <span className="rounded-full bg-[rgba(154,59,49,0.12)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#9a3b31]">
+                                                            {member.strikes} {member.strikes === 1 ? 'Strike' : 'Strikes'}
+                                                        </span>
+                                                    ) : null}
+                                                </div>
                                             </div>
                                         </button>
                                     );
@@ -232,15 +240,27 @@ export default function ReviewMemberStatsClient({
                                             <p className="mt-1 text-sm text-[color:var(--muted)]">{selectedMember.illinois_email ?? "No email on file"}</p>
                                         </div>
 
-                                        <div className={`rounded-2xl border px-4 py-3 text-sm ${
-                                            thresholdReached
-                                                ? "border-[rgba(154,59,49,0.2)] bg-[rgba(154,59,49,0.1)] text-[#7d2d25]"
-                                                : "border-[rgba(47,107,70,0.18)] bg-[rgba(47,107,70,0.1)] text-[#29583b]"
-                                        }`}>
-                                            <span className="block text-xs uppercase tracking-[0.28em] opacity-80">Status</span>
-                                            <span className="mt-1 block text-lg font-semibold">
-                                                {thresholdReached ? "3+ unexcused misses" : "Below threshold"}
-                                            </span>
+                                        <div className="flex gap-4">
+                                            <div className={`rounded-2xl border px-4 py-3 text-sm ${
+                                                (selectedMember.strikes ?? 0) > 0
+                                                    ? "border-[rgba(154,59,49,0.2)] bg-[rgba(154,59,49,0.1)] text-[#7d2d25]"
+                                                    : "border-[rgba(47,107,70,0.18)] bg-[rgba(47,107,70,0.1)] text-[#29583b]"
+                                            }`}>
+                                                <span className="block text-xs uppercase tracking-[0.28em] opacity-80">Strikes</span>
+                                                <span className="mt-1 block text-lg font-semibold">
+                                                    {selectedMember.strikes ?? 0} {selectedMember.strikes === 1 ? 'strike' : 'strikes'}
+                                                </span>
+                                            </div>
+                                            <div className={`rounded-2xl border px-4 py-3 text-sm ${
+                                                thresholdReached
+                                                    ? "border-[rgba(154,59,49,0.2)] bg-[rgba(154,59,49,0.1)] text-[#7d2d25]"
+                                                    : "border-[rgba(47,107,70,0.18)] bg-[rgba(47,107,70,0.1)] text-[#29583b]"
+                                            }`}>
+                                                <span className="block text-xs uppercase tracking-[0.28em] opacity-80">Status</span>
+                                                <span className="mt-1 block text-lg font-semibold">
+                                                    {thresholdReached ? "3+ unexcused misses" : "Below threshold"}
+                                                </span>
+                                            </div>
                                         </div>
                                     </div>
 
@@ -426,3 +446,4 @@ function formatDate(value: string | null) {
         year: "numeric",
     }).format(date);
 }
+

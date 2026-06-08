@@ -243,16 +243,27 @@ export default function AbsencePage() {
                                         {eventsLoading ? 'Loading events...' : 'Select an event'}
                                     </option>
 
-                                    {events.map((event) => (
-                                        <option key={event.id} value={event.id}>
-                                            {event.name} — {new Date(event.date).toLocaleDateString('en-US', {
-                                                month: 'short',
-                                                day: 'numeric',
-                                                year: 'numeric',
-                                            })}
-                                        </option>
-                                    ))}
+                                    {events.map((event) => {
+                                        const eventTime = new Date(event.date).getTime();
+                                        const twentyFourHoursFromNow = Date.now() + 24 * 60 * 60 * 1000;
+                                        const isTooLate = eventTime <= twentyFourHoursFromNow;
+                                        return (
+                                            <option 
+                                                key={event.id} 
+                                                value={event.id}
+                                                disabled={isTooLate}
+                                            >
+                                                {event.name} — {new Date(event.date).toLocaleDateString('en-US', {
+                                                    month: 'short',
+                                                    day: 'numeric',
+                                                    year: 'numeric',
+                                                })} {isTooLate ? '(Too late to submit)' : ''}
+                                            </option>
+                                        );
+                                    })}
                                 </select>
+                                <p className="text-xs text-[color:var(--muted)] mt-1">Note: You must submit an absence request at least 24 hours before the event starts.</p>
+
                             </div>
 
                             <div className="field-group">

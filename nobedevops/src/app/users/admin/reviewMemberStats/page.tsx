@@ -13,7 +13,7 @@ export default async function ReviewMemberStats() {
     const [membersRes, eventsRes, attendanceRes, absencesRes] = await Promise.all([
         supabase
             .from("People")
-            .select("id, name, role, auth_id, illinois_email")
+            .select("id, name, role, auth_id, illinois_email, strikes")
             .order("name", { ascending: true }),
         supabase
             .from("events")
