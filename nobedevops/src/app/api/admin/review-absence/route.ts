@@ -53,7 +53,7 @@ export async function POST(request: Request) {
 
     const { data: absence, error: absenceError } = await supabase
       .from("excused_absences")
-      .select("id, user_id, reason, status")
+      .select("id, user_id, event_id, reason, status")
       .eq("id", absenceId)
       .single();
 
@@ -71,13 +71,37 @@ export async function POST(request: Request) {
       );
     }
 
+    const adminClient = createAdminClient();
+
+    // If APPROVED, mark them as present by adding an attendance record
+    if (status === "APPROVED" && absence.event_id) {
+      const { data: existingAttendance } = await adminClient
+        .from("attendance")
+        .select("id")
+        .eq("user_id", absence.user_id)
+        .eq("event_id", absence.event_id)
+        .single();
+
+      if (!existingAttendance) {
+        const { error: insertError } = await adminClient
+          .from("attendance")
+          .insert({
+            user_id: absence.user_id,
+            event_id: absence.event_id,
+          });
+
+        if (insertError) {
+          console.error("Failed to insert attendance record for approved absence:", insertError);
+        }
+      }
+    }
+
     const emailStatus = status === "APPROVED" ? "approved" : "disapproved";
     let emailSent = false;
     let emailError: string | null = null;
     let reviewRecipient: string | null = null;
 
     try {
-      const adminClient = createAdminClient();
       const { data: authUserData, error: authUserError } =
         await adminClient.auth.admin.getUserById(absence.user_id);
 
@@ -206,3 +230,4 @@ function escapeHtml(value: string) {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 }
+

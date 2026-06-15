@@ -1,3 +1,5 @@
+import ProcessStrikesButton from "./processStrikesButton"
+
 export type AttendanceRow = {
     id?: string | number
     member_name?: string | null
@@ -26,11 +28,16 @@ export default function AdminDashboard({
 }: AdminDashboardProps) {
     return (
         <section className="page-stack">
-            <header>
-                <img src="/nobe_logo_f.svg" alt="NOBE Illinois" style={{ width: '52px', height: '52px', marginBottom: '12px' }} />
-                <p className="eyebrow">Administration</p>
-                <h1 className="page-title" style={{ fontSize: '2.7rem' }}>Admin dashboard</h1>
-                <p className="page-subtitle"></p>
+            <header className="flex justify-between items-start">
+                <div>
+                    <img src="/nobe_logo_f.svg" alt="NOBE Illinois" style={{ width: '52px', height: '52px', marginBottom: '12px' }} />
+                    <p className="eyebrow">Administration</p>
+                    <h1 className="page-title" style={{ fontSize: '2.7rem' }}>Admin dashboard</h1>
+                    <p className="page-subtitle"></p>
+                </div>
+                <div className="mt-8">
+                    <ProcessStrikesButton />
+                </div>
             </header>
 
             <section className="stats-grid">

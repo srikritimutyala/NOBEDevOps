@@ -3,6 +3,7 @@ import AdminDashboard, { AttendanceRow } from "./adminDashboard";
 import AdminGuard from "./AdminGuard";
 import LogoutButton from "../login/logout";
 import Link from "next/link";
+import ProcessStrikesButton from "./processStrikesButton";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -11,6 +12,7 @@ type MemberRow = {
   id: number;
   name: string | null;
   auth_id: string | null;
+  strikes: number | null;
 };
 
 type EventRow = {
@@ -50,7 +52,7 @@ export default async function AdminPage() {
   const [membersRes, eventsRes, attendanceRes, absencesRes, recentRes] = await Promise.all([
     supabase
       .from("People")
-      .select("id, name, auth_id"),
+      .select("id, name, auth_id, strikes"),
     supabase
       .from("events")
       .select("id, name, date"),

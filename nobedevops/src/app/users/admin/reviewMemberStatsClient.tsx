@@ -11,6 +11,7 @@ export type MemberRecord = {
     role: string | null;
     auth_id: string | null;
     illinois_email: string | null;
+    strikes?: number | null;
 };
 
 export type EventRecord = {
@@ -244,9 +245,16 @@ export default function ReviewMemberStatsClient({
                                                         {member.illinois_email ?? "No email on file"}
                                                     </p>
                                                 </div>
-                                                <span className="rounded-full bg-[rgba(229,138,39,0.12)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-[color:var(--accent-strong)]">
-                                                    {member.role ?? "Member"}
-                                                </span>
+                                                <div className="flex flex-col items-end gap-1">
+                                                    <span className="rounded-full bg-[rgba(229,138,39,0.12)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-[color:var(--accent-strong)]">
+                                                        {member.role ?? "Member"}
+                                                    </span>
+                                                    {member.strikes ? (
+                                                        <span className="rounded-full bg-[rgba(154,59,49,0.12)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#9a3b31]">
+                                                            {member.strikes} {member.strikes === 1 ? 'Strike' : 'Strikes'}
+                                                        </span>
+                                                    ) : null}
+                                                </div>
                                             </div>
                                         </button>
                                     );
