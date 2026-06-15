@@ -2,7 +2,7 @@ import { google } from 'googleapis';
 import { NextResponse } from 'next/server';
 
 const CLUB_CALENDAR_ID =
-  'c_2487c0bc3a9c7383b716813d0f8531e5b9d356d83754436bc837acece9b6f1ee@group.calendar.google.com';
+  'f4953a68bd3b75e409d7490b65356747c22af1e3fc89b177d6bad1b93a88e097@group.calendar.google.com';
 
 export async function GET() {
   try {
@@ -30,19 +30,26 @@ export async function GET() {
     });
 
     const events =
-      result.data.items?.map((event) => ({
-        id: `gcal-${event.id}`,
-        name: event.summary || 'Untitled Event',
-        event_type: 'GCAL_CLUB',
-        date: event.start?.dateTime || event.start?.date || new Date().toISOString(),
-        end_date: event.end?.dateTime || event.end?.date || null,
-        points: null,
-        is_mandatory: null,
-        qr_code_secret: null,
-        created_at: event.created || new Date().toISOString(),
-        location: event.location || null,
-        description: event.description || null,
-      })) || [];
+      result.data.items?.map((event) => {
+        const description = event.description || null;
+        // Parse event type embedded by the webapp when pushing to GCal
+        const nobeTypeMatch = description?.match(/Type:\s*(.+)/);
+        const eventType = nobeTypeMatch ? nobeTypeMatch[1].trim() : 'GCAL_UNSPECIFIED';
+
+        return {
+          id: `gcal-${event.id}`,
+          name: event.summary || 'Untitled Event',
+          event_type: eventType,
+          date: event.start?.dateTime || event.start?.date || new Date().toISOString(),
+          end_date: event.end?.dateTime || event.end?.date || null,
+          points: null,
+          is_mandatory: null,
+          qr_code_secret: null,
+          created_at: event.created || new Date().toISOString(),
+          location: event.location || null,
+          description,
+        };
+      }) || [];
 
     return NextResponse.json({ events });
   } catch (err: unknown) {

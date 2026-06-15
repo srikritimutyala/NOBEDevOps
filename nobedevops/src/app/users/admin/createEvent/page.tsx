@@ -277,18 +277,54 @@ export default function CreateEventPage() {
         qr_code_secret: secret,
       };
 
-      const { error } = eventId
-        ? await supabase.from("events").update(payload).eq("id", eventId)
-        : await supabase.from("events").insert(payload);
+      let newEventId: string | null = null;
+      if (eventId) {
+        const { error } = await supabase.from("events").update(payload).eq("id", eventId);
+        if (error) { setMessage(error.message); return; }
+      } else {
+        const { data: inserted, error } = await supabase.from("events").insert(payload).select("id").single();
+        if (error) { setMessage(error.message); return; }
+        newEventId = inserted?.id ?? null;
+      }
 
-      if (error) {
-        setMessage(error.message);
-        return;
+      // Push new events to the NOBE Google Calendar (skip on update to avoid duplicates)
+      let gcalWarning = "";
+      if (!eventId) {
+        try {
+          const gcalRes = await fetch("/api/gcal-club/create-event", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              event: {
+                name: payload.name,
+                event_type: payload.event_type,
+                date: payload.date,
+                end_date: checkInEndsAt.toISOString(),
+                location: payload.location,
+                points: payload.points,
+                dresscode: payload.dresscode,
+                is_mandatory: payload.is_mandatory,
+              },
+            }),
+          });
+          const gcalData = await gcalRes.json().catch(() => ({}));
+          if (!gcalRes.ok) {
+            gcalWarning = ` (Google Calendar sync failed: ${gcalData.error ?? gcalRes.statusText})`;
+          } else if (gcalData.googleEventId && newEventId) {
+            await supabase.from("events").update({ gcal_event_id: gcalData.googleEventId }).eq("id", newEventId);
+          }
+        } catch (gcalErr: any) {
+          gcalWarning = ` (Google Calendar sync failed: ${gcalErr?.message ?? "network error"})`;
+        }
       }
 
       const url = `${window.location.origin}/check-in/${secret}`;
       setQrLink(url);
-      setMessage(eventId ? "Event updated successfully." : "Event created successfully.");
+      setMessage(
+        eventId
+          ? "Event updated successfully."
+          : `Event created successfully.${gcalWarning}`
+      );
     } catch (err: any) {
       setMessage(err?.message ?? "Unable to create event.");
     } finally {

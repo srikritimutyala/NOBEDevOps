@@ -14,10 +14,10 @@ type EventItem = {
   dresscode?: string;
   is_mandatory: boolean | null;
   created_at: string;
-  // Google Calendar fields
   location?: string | null;
   description?: string | null;
   end_date?: string | null;
+  gcal_event_id?: string | null;
 };
 
 type EventStats = {
@@ -34,12 +34,11 @@ const supabase = createClient(
 );
 
 function isGcalEvent(event: EventItem) {
-  return event.event_type === "GCAL_CLUB";
+  return !!event.gcal_event_id && !event.qr_code_secret;
 }
 
 export default function ViewAllEvents() {
   const [events, setEvents] = useState<EventItem[]>([]);
-  const [gcalEvents, setGcalEvents] = useState<EventItem[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [gcalLoading, setGcalLoading] = useState(true);
@@ -59,43 +58,41 @@ export default function ViewAllEvents() {
     setMounted(true);
   }, []);
 
-  useEffect(() => {
-    async function fetchEvents() {
-      setLoading(true);
-      setError("");
-      const { data, error } = await supabase
-        .from("events")
-        .select("id, name, points, date, qr_code_secret, event_type, dresscode, is_mandatory, created_at")
-        .order("date", { ascending: true });
-      if (error) {
-        setError(error.message);
-      } else {
-        setEvents((data as EventItem[]) || []);
-      }
-      setLoading(false);
+  async function fetchEvents() {
+    setLoading(true);
+    setError("");
+    const { data, error } = await supabase
+      .from("events")
+      .select("id, name, points, date, qr_code_secret, event_type, dresscode, is_mandatory, created_at, gcal_event_id")
+      .order("date", { ascending: true });
+    if (error) {
+      setError(error.message);
+    } else {
+      setEvents((data as EventItem[]) || []);
     }
-    fetchEvents();
-  }, []);
+    setLoading(false);
+  }
 
-  async function fetchGcalEvents() {
+  async function syncAndRefetch() {
     setGcalLoading(true);
     setGcalError("");
     try {
-      const res = await fetch("/api/gcal-club/events");
+      const res = await fetch("/api/gcal-club/sync", { method: "POST" });
       const json = await res.json();
       if (json.error) {
         setGcalError(json.error);
       } else {
-        setGcalEvents(json.events || []);
+        await fetchEvents();
       }
     } catch {
-      setGcalError("Failed to load Google Calendar events.");
+      setGcalError("Failed to sync Google Calendar events.");
     }
     setGcalLoading(false);
   }
 
   useEffect(() => {
-    fetchGcalEvents();
+    fetchEvents();
+    syncAndRefetch();
   }, []);
 
   useEffect(() => {
@@ -137,7 +134,7 @@ export default function ViewAllEvents() {
     fetchEventStats();
   }, [selectedEvent]);
 
-  const allEvents = useMemo(() => [...events, ...gcalEvents], [events, gcalEvents]);
+  const allEvents = useMemo(() => events, [events]);
 
   const filteredEvents = useMemo(() => {
     return allEvents.filter((event) => {
@@ -289,7 +286,7 @@ export default function ViewAllEvents() {
                   <option value="NEW_MEMBER_WORKSHOP">New Member Workshop</option>
                   <option value="PROJECT_MEETING">Project Meeting</option>
                   <option value="OTHER_MANDATORY">Other Mandatory</option>
-                  <option value="GCAL_CLUB">Google Calendar</option>
+                  <option value="GCAL_UNSPECIFIED">Google Calendar</option>
                 </select>
               </div>
               <div className="field-group">
@@ -419,7 +416,7 @@ export default function ViewAllEvents() {
               </p>
               <button
                 type="button"
-                onClick={fetchGcalEvents}
+                onClick={syncAndRefetch}
                 disabled={gcalLoading}
                 className="btn-secondary"
                 style={{ fontSize: "0.75rem", padding: "4px 10px" }}
@@ -565,7 +562,7 @@ export default function ViewAllEvents() {
                           <div className="panel-header" style={{ marginBottom: "10px" }}>
                             <strong>{event.name}</strong>
                             <span className="calendar-event-chip">
-                              {isGcalEvent(event) ? "Google Calendar" : event.is_mandatory ? "Mandatory" : "Optional"}
+                              {event.is_mandatory ? "Mandatory" : isGcalEvent(event) ? "Unspecified" : "Optional"}
                             </span>
                           </div>
                           <p className="section-copy">{formatDate(event.date)}</p>
