@@ -1,7 +1,8 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { deleteMember } from "./reviewMemberStats/actions";
 import Link from "next/link";
 
 export type MemberRecord = {
@@ -62,6 +63,8 @@ export default function ReviewMemberStatsClient({
 }: ReviewMemberStatsClientProps) {
     const [search, setSearch] = useState("");
     const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
+    const [isPending, startTransition] = useTransition();
+    const [deleteError, setDeleteError] = useState<string | null>(null);
 
     const filteredMembers = useMemo(() => {
         const query = search.trim().toLowerCase();
@@ -92,6 +95,29 @@ export default function ReviewMemberStatsClient({
         () => members.find((member) => member.id === selectedMemberId) ?? null,
         [members, selectedMemberId]
     );
+
+    function handleDeleteMember() {
+        if (!selectedMember) return;
+
+        const confirmed = window.confirm(
+            `Are you sure you want to delete ${
+                selectedMember.name ?? "this member"
+            }? This action cannot be undone.`
+        );
+
+        if (!confirmed) return;
+
+        setDeleteError(null);
+
+        startTransition(async () => {
+            try {
+                await deleteMember(selectedMember.id, selectedMember.auth_id);
+                window.location.reload();
+            } catch (error) {
+                setDeleteError(error instanceof Error ? error.message : "Failed to delete member.");
+            }
+        });
+    }
 
     const selectedStats = useMemo<MemberStats | null>(() => {
         if (!selectedMember?.auth_id) {
@@ -142,7 +168,9 @@ export default function ReviewMemberStatsClient({
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                         <div className="space-y-2">
                             <p className="eyebrow">Administration</p>
-                            <h1 className="page-title" style={{ fontSize: "clamp(2.2rem,4vw,3.4rem)" }}>Member attendance stats</h1>
+                            <h1 className="page-title" style={{ fontSize: "clamp(2.2rem,4vw,3.4rem)" }}>
+                                Member attendance stats
+                            </h1>
                             <p className="max-w-2xl text-sm leading-6 text-[color:var(--muted)]">
                                 Search a member by name or Illinois email to review attended events, unexcused misses, and overall attendance percentage.
                             </p>
@@ -153,7 +181,9 @@ export default function ReviewMemberStatsClient({
                                 Back to Admin
                             </Link>
                             <div className="rounded-2xl border border-[color:var(--border)] bg-[rgba(255,251,247,0.7)] px-4 py-3 text-sm text-[color:var(--muted)]">
-                                <span className="block text-xs uppercase tracking-[0.28em] text-[color:var(--muted)]">Loaded records</span>
+                                <span className="block text-xs uppercase tracking-[0.28em] text-[color:var(--muted)]">
+                                    Loaded records
+                                </span>
                                 <span className="mt-1 block text-lg font-semibold text-[color:var(--foreground)]">
                                     {members.length} members · {events.length} events
                                 </span>
@@ -208,8 +238,12 @@ export default function ReviewMemberStatsClient({
                                         >
                                             <div className="flex items-start justify-between gap-3">
                                                 <div>
-                                                    <p className="font-medium text-[color:var(--foreground)]">{member.name ?? "Unnamed member"}</p>
-                                                    <p className="mt-1 text-sm text-[color:var(--muted)]">{member.illinois_email ?? "No email on file"}</p>
+                                                    <p className="font-medium text-[color:var(--foreground)]">
+                                                        {member.name ?? "Unnamed member"}
+                                                    </p>
+                                                    <p className="mt-1 text-sm text-[color:var(--muted)]">
+                                                        {member.illinois_email ?? "No email on file"}
+                                                    </p>
                                                 </div>
                                                 <div className="flex flex-col items-end gap-1">
                                                     <span className="rounded-full bg-[rgba(229,138,39,0.12)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-[color:var(--accent-strong)]">
@@ -235,32 +269,30 @@ export default function ReviewMemberStatsClient({
                                 <>
                                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                                         <div>
-                                            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[color:var(--accent)]">Selected member</p>
-                                            <h2 className="mt-2 text-2xl font-semibold text-[color:var(--foreground)]">{selectedMember.name ?? "Unnamed member"}</h2>
-                                            <p className="mt-1 text-sm text-[color:var(--muted)]">{selectedMember.illinois_email ?? "No email on file"}</p>
+                                            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[color:var(--accent)]">
+                                                Selected member
+                                            </p>
+                                            <h2 className="mt-2 text-2xl font-semibold text-[color:var(--foreground)]">
+                                                {selectedMember.name ?? "Unnamed member"}
+                                            </h2>
+                                            <p className="mt-1 text-sm text-[color:var(--muted)]">
+                                                {selectedMember.illinois_email ?? "No email on file"}
+                                            </p>
                                         </div>
 
-                                        <div className="flex gap-4">
-                                            <div className={`rounded-2xl border px-4 py-3 text-sm ${
-                                                (selectedMember.strikes ?? 0) > 0
-                                                    ? "border-[rgba(154,59,49,0.2)] bg-[rgba(154,59,49,0.1)] text-[#7d2d25]"
-                                                    : "border-[rgba(47,107,70,0.18)] bg-[rgba(47,107,70,0.1)] text-[#29583b]"
-                                            }`}>
-                                                <span className="block text-xs uppercase tracking-[0.28em] opacity-80">Strikes</span>
-                                                <span className="mt-1 block text-lg font-semibold">
-                                                    {selectedMember.strikes ?? 0} {selectedMember.strikes === 1 ? 'strike' : 'strikes'}
-                                                </span>
-                                            </div>
-                                            <div className={`rounded-2xl border px-4 py-3 text-sm ${
+                                        <div
+                                            className={`rounded-2xl border px-4 py-3 text-sm ${
                                                 thresholdReached
                                                     ? "border-[rgba(154,59,49,0.2)] bg-[rgba(154,59,49,0.1)] text-[#7d2d25]"
                                                     : "border-[rgba(47,107,70,0.18)] bg-[rgba(47,107,70,0.1)] text-[#29583b]"
-                                            }`}>
-                                                <span className="block text-xs uppercase tracking-[0.28em] opacity-80">Status</span>
-                                                <span className="mt-1 block text-lg font-semibold">
-                                                    {thresholdReached ? "3+ unexcused misses" : "Below threshold"}
-                                                </span>
-                                            </div>
+                                            }`}
+                                        >
+                                            <span className="block text-xs uppercase tracking-[0.28em] opacity-80">
+                                                Status
+                                            </span>
+                                            <span className="mt-1 block text-lg font-semibold">
+                                                {thresholdReached ? "3+ unexcused misses" : "Below threshold"}
+                                            </span>
                                         </div>
                                     </div>
 
@@ -311,6 +343,23 @@ export default function ReviewMemberStatsClient({
                                             This member does not have a linked auth account yet, so attendance cannot be matched from the attendance table.
                                         </div>
                                     )}
+
+                                    <div className="mt-8 flex justify-end">
+                                        <button
+                                            type="button"
+                                            onClick={handleDeleteMember}
+                                            disabled={isPending}
+                                            className="rounded-2xl border border-red-500 bg-red-100 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-200 disabled:opacity-50"
+                                        >
+                                            {isPending ? "Deleting..." : "Delete Member"}
+                                        </button>
+                                    </div>
+
+                                    {deleteError ? (
+                                        <p className="mt-2 text-right text-sm text-red-600">
+                                            {deleteError}
+                                        </p>
+                                    ) : null}
                                 </>
                             ) : (
                                 <div className="rounded-2xl border border-dashed border-[color:var(--border-strong)] bg-[rgba(255,251,247,0.55)] p-6 text-sm text-[color:var(--muted)]">
@@ -446,4 +495,3 @@ function formatDate(value: string | null) {
         year: "numeric",
     }).format(date);
 }
-
