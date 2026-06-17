@@ -99,9 +99,19 @@ export default function EventList() {
 
         if (fetchError) throw fetchError;
         setNobeEvents(data || []);
+        setLoading(false);
+
+        // Sync club GCal in background, then refresh events with latest data
+        fetch('/api/gcal-club/sync', { method: 'POST' })
+          .then(() =>
+            supabase.from('events').select('*').order('date', { ascending: false })
+          )
+          .then(({ data: fresh }) => {
+            if (fresh) setNobeEvents(fresh);
+          })
+          .catch(() => {});
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to fetch events');
-      } finally {
         setLoading(false);
       }
     };
