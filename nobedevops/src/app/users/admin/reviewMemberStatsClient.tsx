@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 export type MemberRecord = {
     id: number;
@@ -60,8 +61,18 @@ export default function ReviewMemberStatsClient({
     absences,
     loadError,
 }: ReviewMemberStatsClientProps) {
+    const router = useRouter();
     const [search, setSearch] = useState("");
     const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
+
+    // Strike form state
+    const [isStrikeFormOpen, setIsStrikeFormOpen] = useState(false);
+    const [strikeType, setStrikeType] = useState<"MISSED_MANDATORY_EVENT" | "MANUAL_ADJUSTMENT">("MANUAL_ADJUSTMENT");
+    const [reason, setReason] = useState("");
+    const [selectedEventId, setSelectedEventId] = useState<string>("");
+    const [adminNote, setAdminNote] = useState("");
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [submitError, setSubmitError] = useState<string | null>(null);
 
     const filteredMembers = useMemo(() => {
         const query = search.trim().toLowerCase();
@@ -135,6 +146,41 @@ export default function ReviewMemberStatsClient({
 
     const thresholdReached = (selectedStats?.unexcusedMissedEvents ?? 0) >= 3;
 
+    const handleAddStrike = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedMember?.auth_id) return;
+
+        setIsSubmitting(true);
+        setSubmitError(null);
+
+        try {
+            const res = await fetch("/api/admin/strikes", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    user_id: selectedMember.auth_id,
+                    event_id: selectedEventId || null,
+                    strike_type: strikeType,
+                    reason,
+                    admin_note: adminNote,
+                }),
+            });
+
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Failed to add strike");
+
+            setIsStrikeFormOpen(false);
+            setReason("");
+            setSelectedEventId("");
+            setAdminNote("");
+            router.refresh();
+        } catch (err: any) {
+            setSubmitError(err.message);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
     return (
         <main className="app-shell">
             <div className="page-frame flex w-full flex-col gap-6">
@@ -199,7 +245,10 @@ export default function ReviewMemberStatsClient({
                                         <button
                                             key={member.id}
                                             type="button"
-                                            onClick={() => setSelectedMemberId(member.id)}
+                                            onClick={() => {
+                                                setSelectedMemberId(member.id);
+                                                setIsStrikeFormOpen(false);
+                                            }}
                                             className={`w-full rounded-2xl border px-4 py-3 text-left transition ${
                                                 isSelected
                                                     ? "border-[rgba(229,138,39,0.35)] bg-[rgba(229,138,39,0.12)] shadow-[0_12px_30px_rgba(79,80,82,0.08)]"
@@ -240,7 +289,7 @@ export default function ReviewMemberStatsClient({
                                             <p className="mt-1 text-sm text-[color:var(--muted)]">{selectedMember.illinois_email ?? "No email on file"}</p>
                                         </div>
 
-                                        <div className="flex gap-4">
+                                        <div className="flex flex-wrap gap-4">
                                             <div className={`rounded-2xl border px-4 py-3 text-sm ${
                                                 (selectedMember.strikes ?? 0) > 0
                                                     ? "border-[rgba(154,59,49,0.2)] bg-[rgba(154,59,49,0.1)] text-[#7d2d25]"
@@ -261,8 +310,105 @@ export default function ReviewMemberStatsClient({
                                                     {thresholdReached ? "3+ unexcused misses" : "Below threshold"}
                                                 </span>
                                             </div>
+                                            <button 
+                                                onClick={() => setIsStrikeFormOpen(!isStrikeFormOpen)}
+                                                disabled={!selectedMember.auth_id}
+                                                className={`rounded-2xl border px-6 py-3 text-sm font-semibold transition ${
+                                                    isStrikeFormOpen 
+                                                    ? "border-[color:var(--border-strong)] bg-[color:var(--background)] text-[color:var(--foreground)]"
+                                                    : "border-[rgba(229,138,39,0.2)] bg-[rgba(229,138,39,0.1)] text-[color:var(--accent-strong)] hover:bg-[rgba(229,138,39,0.18)]"
+                                                } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                            >
+                                                {isStrikeFormOpen ? "Cancel" : "Add manual strike"}
+                                            </button>
                                         </div>
                                     </div>
+
+                                    {isStrikeFormOpen && selectedMember.auth_id && (
+                                        <div className="mt-8 rounded-3xl border border-[rgba(229,138,39,0.2)] bg-[rgba(229,138,39,0.04)] p-6 shadow-sm">
+                                            <h3 className="text-lg font-semibold text-[color:var(--foreground)]">Manual strike form</h3>
+                                            <p className="mt-1 text-sm text-[color:var(--muted)]">Add a manual strike record for {selectedMember.name}.</p>
+                                            
+                                            <form onSubmit={handleAddStrike} className="mt-6 grid gap-6 md:grid-cols-2">
+                                                <div className="space-y-4">
+                                                    <label className="block space-y-2">
+                                                        <span className="text-sm font-medium text-[color:var(--foreground)]">Strike Type</span>
+                                                        <select
+                                                            value={strikeType}
+                                                            onChange={(e) => setStrikeType(e.target.value as any)}
+                                                            className="w-full rounded-2xl border border-[color:var(--border)] bg-[color:var(--background)] px-4 py-3 text-sm outline-none focus:border-[color:var(--accent)]"
+                                                            required
+                                                        >
+                                                            <option value="MANUAL_ADJUSTMENT">Manual Adjustment</option>
+                                                            <option value="MISSED_MANDATORY_EVENT">Missed Mandatory Event</option>
+                                                        </select>
+                                                    </label>
+
+                                                    <label className="block space-y-2">
+                                                        <span className="text-sm font-medium text-[color:var(--foreground)]">Linked Event (Optional)</span>
+                                                        <select
+                                                            value={selectedEventId}
+                                                            onChange={(e) => setSelectedEventId(e.target.value)}
+                                                            className="w-full rounded-2xl border border-[color:var(--border)] bg-[color:var(--background)] px-4 py-3 text-sm outline-none focus:border-[color:var(--accent)]"
+                                                        >
+                                                            <option value="">None</option>
+                                                            {events.map(event => (
+                                                                <option key={event.id} value={event.id}>
+                                                                    {event.name} ({formatDate(event.date)})
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    </label>
+                                                </div>
+
+                                                <div className="space-y-4">
+                                                    <label className="block space-y-2">
+                                                        <span className="text-sm font-medium text-[color:var(--foreground)]">Reason</span>
+                                                        <textarea
+                                                            value={reason}
+                                                            onChange={(e) => setReason(e.target.value)}
+                                                            placeholder="Why is this strike being issued?"
+                                                            className="w-full h-[6.5rem] rounded-2xl border border-[color:var(--border)] bg-[color:var(--background)] px-4 py-3 text-sm outline-none focus:border-[color:var(--accent)] resize-none"
+                                                            required
+                                                        />
+                                                    </label>
+
+                                                    <label className="block space-y-2">
+                                                        <span className="text-sm font-medium text-[color:var(--foreground)]">Admin Note (Private)</span>
+                                                        <textarea
+                                                            value={adminNote}
+                                                            onChange={(e) => setAdminNote(e.target.value)}
+                                                            placeholder="Internal notes about this strike..."
+                                                            className="w-full h-[6.5rem] rounded-2xl border border-[color:var(--border)] bg-[color:var(--background)] px-4 py-3 text-sm outline-none focus:border-[color:var(--accent)] resize-none"
+                                                        />
+                                                    </label>
+                                                </div>
+
+                                                {submitError && (
+                                                    <div className="md:col-span-2 text-sm text-[#9a3b31] bg-[rgba(154,59,49,0.08)] p-4 rounded-2xl border border-[rgba(154,59,49,0.2)]">
+                                                        {submitError}
+                                                    </div>
+                                                )}
+
+                                                <div className="md:col-span-2 flex justify-end gap-3 mt-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setIsStrikeFormOpen(false)}
+                                                        className="px-6 py-2.5 rounded-2xl border border-[color:var(--border)] text-sm font-medium hover:bg-[color:var(--muted-soft)] transition"
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                    <button
+                                                        type="submit"
+                                                        disabled={isSubmitting}
+                                                        className="px-8 py-2.5 rounded-2xl bg-[color:var(--accent)] text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition shadow-sm"
+                                                    >
+                                                        {isSubmitting ? "Submitting..." : "Issue strike"}
+                                                    </button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    )}
 
                                     {selectedStats ? (
                                         <>
