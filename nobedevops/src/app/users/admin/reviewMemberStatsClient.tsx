@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { deleteMember } from "./reviewMemberStats/actions";
+import { deleteMember, deleteStrike } from "./reviewMemberStats/actions";
 import Link from "next/link";
 
 export type MemberRecord = {
@@ -30,9 +30,23 @@ export type AttendanceRecord = {
 export type AbsenceRecord = {
     id: string;
     user_id: string | null;
+    event_id?: string | null;
     status: string | null;
     reason: string | null;
     submitted_at: string | null;
+};
+
+export type StrikeRecord = {
+    id: string;
+    user_id: string | null;
+    event_id: string | null;
+    strike_type: string;
+    reason: string;
+    status: string;
+    source: string;
+    admin_note: string | null;
+    created_at: string | null;
+    created_by: string | null;
 };
 
 type ReviewMemberStatsClientProps = {
@@ -40,6 +54,7 @@ type ReviewMemberStatsClientProps = {
     events: EventRecord[];
     attendance: AttendanceRecord[];
     absences: AbsenceRecord[];
+    strikes: StrikeRecord[];
     loadError: string | null;
 };
 
@@ -59,6 +74,7 @@ export default function ReviewMemberStatsClient({
     events,
     attendance,
     absences,
+    strikes,
     loadError,
 }: ReviewMemberStatsClientProps) {
     const [search, setSearch] = useState("");
@@ -69,9 +85,7 @@ export default function ReviewMemberStatsClient({
     const filteredMembers = useMemo(() => {
         const query = search.trim().toLowerCase();
 
-        if (!query) {
-            return members;
-        }
+        if (!query) return members;
 
         return members.filter((member) => {
             const name = member.name?.toLowerCase() ?? "";
@@ -96,6 +110,16 @@ export default function ReviewMemberStatsClient({
         [members, selectedMemberId]
     );
 
+    const memberStrikes = useMemo(() => {
+        if (!selectedMember?.auth_id) return [];
+
+        return strikes.filter(
+            (strike) =>
+                strike.user_id === selectedMember.auth_id &&
+                strike.status === "ACTIVE"
+        );
+    }, [strikes, selectedMember]);
+
     function handleDeleteMember() {
         if (!selectedMember) return;
 
@@ -119,10 +143,25 @@ export default function ReviewMemberStatsClient({
         });
     }
 
+    function handleDeleteStrike(strikeId: string) {
+        const confirmed = window.confirm(
+            "Are you sure you want to delete this strike? This will mark it as removed."
+        );
+
+        if (!confirmed) return;
+
+        startTransition(async () => {
+            try {
+                await deleteStrike(strikeId);
+                window.location.reload();
+            } catch (error) {
+                setDeleteError(error instanceof Error ? error.message : "Failed to delete strike.");
+            }
+        });
+    }
+
     const selectedStats = useMemo<MemberStats | null>(() => {
-        if (!selectedMember?.auth_id) {
-            return null;
-        }
+        if (!selectedMember?.auth_id) return null;
 
         const now = Date.now();
         const pastEvents = events
@@ -159,7 +198,7 @@ export default function ReviewMemberStatsClient({
         };
     }, [attendance, events, absences, selectedMember]);
 
-    const thresholdReached = (selectedStats?.unexcusedMissedEvents ?? 0) >= 3;
+    const strikeThresholdReached = memberStrikes.length >= 3;
 
     return (
         <main className="app-shell">
@@ -172,7 +211,7 @@ export default function ReviewMemberStatsClient({
                                 Member attendance stats
                             </h1>
                             <p className="max-w-2xl text-sm leading-6 text-[color:var(--muted)]">
-                                Search a member by name or Illinois email to review attended events, unexcused misses, and overall attendance percentage.
+                                Search a member by name or Illinois email to review attended events, unexcused misses, strikes, and overall attendance percentage.
                             </p>
                         </div>
 
@@ -185,7 +224,7 @@ export default function ReviewMemberStatsClient({
                                     Loaded records
                                 </span>
                                 <span className="mt-1 block text-lg font-semibold text-[color:var(--foreground)]">
-                                    {members.length} members · {events.length} events
+                                    {members.length} members · {events.length} events · {strikes.length} strikes
                                 </span>
                             </div>
                         </div>
@@ -251,7 +290,7 @@ export default function ReviewMemberStatsClient({
                                                     </span>
                                                     {member.strikes ? (
                                                         <span className="rounded-full bg-[rgba(154,59,49,0.12)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#9a3b31]">
-                                                            {member.strikes} {member.strikes === 1 ? 'Strike' : 'Strikes'}
+                                                            {member.strikes} {member.strikes === 1 ? "Strike" : "Strikes"}
                                                         </span>
                                                     ) : null}
                                                 </div>
@@ -282,7 +321,7 @@ export default function ReviewMemberStatsClient({
 
                                         <div
                                             className={`rounded-2xl border px-4 py-3 text-sm ${
-                                                thresholdReached
+                                                strikeThresholdReached
                                                     ? "border-[rgba(154,59,49,0.2)] bg-[rgba(154,59,49,0.1)] text-[#7d2d25]"
                                                     : "border-[rgba(47,107,70,0.18)] bg-[rgba(47,107,70,0.1)] text-[#29583b]"
                                             }`}
@@ -291,35 +330,41 @@ export default function ReviewMemberStatsClient({
                                                 Status
                                             </span>
                                             <span className="mt-1 block text-lg font-semibold">
-                                                {thresholdReached ? "3+ unexcused misses" : "Below threshold"}
+                                                {strikeThresholdReached ? "3+ unexcused misses" : "Below threshold"}
                                             </span>
                                         </div>
                                     </div>
 
                                     {selectedStats ? (
                                         <>
-                                            <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                                            <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
                                                 <StatCard label="Attendance percentage" value={formatPercentage(selectedStats.attendancePercentage)} tone="accent" />
                                                 <StatCard label="Attended events" value={String(selectedStats.attendedEvents.length)} tone="success" />
                                                 <StatCard label="Excused absences" value={String(selectedStats.excusedAbsenceCount)} tone="soft" />
-                                                <StatCard label="Unexcused misses" value={String(selectedStats.unexcusedMissedEvents)} tone={thresholdReached ? "danger" : "muted"} />
+                                                <StatCard label="Unexcused misses" value={String(selectedStats.unexcusedMissedEvents)} tone={strikeThresholdReached ? "danger" : "muted"} />
+                                                <StatCard label="Active strikes" value={String(memberStrikes.length)} tone={memberStrikes.length > 0 ? "danger" : "success"} />
                                             </div>
 
                                             <div className="mt-6 grid gap-4 lg:grid-cols-2">
                                                 <InfoPanel title="Attendance summary" description="Computed from past events only.">
                                                     <SummaryRow label="Past events total" value={String(selectedStats.totalPastEvents)} />
                                                     <SummaryRow label="Attendance rate" value={formatPercentage(selectedStats.attendancePercentage)} />
-                                                    <SummaryRow label="Unexcused threshold" value={thresholdReached ? "Triggered" : "Not triggered"} />
+                                                    <SummaryRow label="Unexcused threshold" value={strikeThresholdReached ? "Triggered" : "Not triggered"} />
                                                 </InfoPanel>
 
-                                                <InfoPanel title="Risk check" description="Members with 3 or more unexcused misses are highlighted here.">
-                                                    {thresholdReached ? (
-                                                        <div className="message-error">
-                                                            This member has missed three or more events unexcused.
-                                                        </div>
+                                                <InfoPanel title="Strike status" description="Members with 3 or more active strikes may need follow-up.">
+                                                    {strikeThresholdReached ? (
+                                                        <>
+                                                            <div className="message-error">
+                                                                This member has three or more active strikes.
+                                                            </div>
+                                                            <button type="button" className="rounded-2xl border border-[color:var(--border)] bg-[rgba(229,138,39,0.12)] px-4 py-2 text-sm font-medium text-[color:var(--foreground)] transition hover:bg-[rgba(229,138,39,0.2)]">
+                                                                Send Email
+                                                            </button>
+                                                        </>
                                                     ) : (
                                                         <div className="message-success">
-                                                            This member is below the unexcused miss threshold.
+                                                            This member is below the strike follow-up threshold.
                                                         </div>
                                                     )}
                                                     <div className="message">
@@ -334,13 +379,83 @@ export default function ReviewMemberStatsClient({
                                                 </InfoPanel>
 
                                                 <InfoPanel title="Missed events" description={`${selectedStats.missedEvents.length} event(s) missed in total`}>
-                                                    <EventList events={selectedStats.missedEvents} emptyText="No missed events found for this member yet." tone={thresholdReached ? "danger" : "soft"} />
+                                                    <EventList events={selectedStats.missedEvents} emptyText="No missed events found for this member yet." tone={strikeThresholdReached ? "danger" : "soft"} />
+                                                </InfoPanel>
+                                            </div>
+
+                                            <div className="mt-6">
+                                                <div className="mb-3 flex justify-end">
+                                                    <Link
+                                                        href={`/users/admin/reviewMemberStats/${selectedMember.id}/addStrike`}
+                                                        className="rounded-2xl border border-[color:var(--border)] bg-[rgba(229,138,39,0.12)] px-4 py-2 text-sm font-medium text-[color:var(--foreground)] transition hover:bg-[rgba(229,138,39,0.2)]"
+                                                    >
+                                                        Add Strike
+                                                    </Link>
+                                                </div>
+                                                <InfoPanel title="Strike History" description={`${memberStrikes.length} active strike(s)`}>
+                                                    {memberStrikes.length === 0 ? (
+                                                        <div className="message-success">
+                                                            No active strikes.
+                                                        </div>
+                                                    ) : (
+                                                        <ul className="space-y-2">
+                                                            {memberStrikes.map((strike) => {
+                                                                const event = events.find((event) => event.id === strike.event_id);
+
+                                                                return (
+                                                                    <li
+                                                                        key={strike.id}
+                                                                        className="rounded-2xl border border-[color:var(--border)] bg-[rgba(255,251,247,0.65)] px-4 py-3"
+                                                                    >
+                                                                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                                                            <div>
+                                                                                <p className="font-medium text-[color:var(--foreground)]">
+                                                                                    {strike.reason}
+                                                                                </p>
+                                                                                <p className="mt-1 text-sm text-[color:var(--muted)]">
+                                                                                    Event: {event?.name ?? "No event linked"}
+                                                                                </p>
+                                                                            </div>
+
+                                                                            <div className="flex items-center gap-2">
+                                                                                <span className="rounded-full bg-[rgba(154,59,49,0.12)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#9a3b31]">
+                                                                                    {formatLabel(strike.source)}
+                                                                                </span>
+
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => handleDeleteStrike(strike.id)}
+                                                                                    disabled={isPending}
+                                                                                    className="rounded-full border border-red-300 bg-red-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-red-700 transition hover:bg-red-100 disabled:opacity-50"
+                                                                                >
+                                                                                    Delete Strike
+                                                                                </button>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div className="mt-3 grid gap-2 text-sm text-[color:var(--muted)] sm:grid-cols-2">
+                                                                            <p>Type: {formatLabel(strike.strike_type)}</p>
+                                                                            <p>Status: {formatLabel(strike.status)}</p>
+                                                                            <p>Issued: {formatDate(strike.created_at)}</p>
+                                                                            <p>Created by: {strike.created_by ?? "Unknown admin"}</p>
+                                                                        </div>
+
+                                                                        {strike.admin_note ? (
+                                                                            <div className="mt-3 rounded-2xl border border-[color:var(--border)] bg-[rgba(255,251,247,0.55)] px-4 py-3 text-sm text-[color:var(--foreground)]">
+                                                                                <span className="font-medium">Admin note:</span> {strike.admin_note}
+                                                                            </div>
+                                                                        ) : null}
+                                                                    </li>
+                                                                );
+                                                            })}
+                                                        </ul>
+                                                    )}
                                                 </InfoPanel>
                                             </div>
                                         </>
                                     ) : (
                                         <div className="mt-6 rounded-2xl border border-dashed border-[color:var(--border-strong)] bg-[rgba(255,251,247,0.55)] p-6 text-sm text-[color:var(--muted)]">
-                                            This member does not have a linked auth account yet, so attendance cannot be matched from the attendance table.
+                                            This member does not have a linked auth account yet, so attendance and strikes cannot be matched.
                                         </div>
                                     )}
 
@@ -375,9 +490,7 @@ export default function ReviewMemberStatsClient({
 }
 
 function parseDate(value: string | null) {
-    if (!value) {
-        return null;
-    }
+    if (!value) return null;
 
     const parsed = new Date(value);
     return Number.isNaN(parsed.getTime()) ? null : parsed;
@@ -388,11 +501,18 @@ function isExcusedStatus(status: string | null) {
 }
 
 function formatPercentage(value: number | null) {
-    if (value === null) {
-        return "N/A";
-    }
-
+    if (value === null) return "N/A";
     return `${value.toFixed(1)}%`;
+}
+
+function formatLabel(value: string | null) {
+    if (!value) return "Unknown";
+
+    return value
+        .toLowerCase()
+        .split("_")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ");
 }
 
 function StatCard({
@@ -485,9 +605,7 @@ function EventList({
 function formatDate(value: string | null) {
     const date = parseDate(value);
 
-    if (!date) {
-        return "Unknown date";
-    }
+    if (!date) return "Unknown date";
 
     return new Intl.DateTimeFormat("en-US", {
         month: "short",

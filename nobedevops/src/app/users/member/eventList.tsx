@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useAuth } from '../authprovider';
+import { getMemberStrikes } from './actions';
 import LogoutButton from '../login/logout';
 
 interface Event {
@@ -18,7 +19,17 @@ interface Event {
   location?: string;
 }
 
-// Event type colors and configuration
+interface Strike {
+  id: string;
+  event_id: string | null;
+  strike_type: string;
+  reason: string;
+  source: string;
+  status: string;
+  admin_note: string | null;
+  created_at: string | null;
+}
+
 const EVENT_TYPE_CONFIG: Record<string, { label: string; color: string; borderColor: string }> = {
   PROFESSIONAL: { label: 'Professional', color: '#FF7043', borderColor: '#E64A19' },
   SOCIAL: { label: 'Social', color: '#FF9999', borderColor: '#FF6666' },
@@ -41,6 +52,7 @@ interface MemberProfile {
   professional_points: number | null;
   service_points: number | null;
   strikes: number | null;
+  auth_id: string | null;
 }
 
 export default function EventList() {
@@ -58,6 +70,7 @@ export default function EventList() {
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const [addedEvents, setAddedEvents] = useState<Set<string>>(new Set());
   const [mounted, setMounted] = useState(false);
+  const [strikes, setStrikes] = useState<Strike[]>([]);
 
   useEffect(() => {
     setMounted(true);
@@ -65,7 +78,6 @@ export default function EventList() {
 
   const pathname = usePathname();
   const currentPath = pathname?.replace(/\/$/, '') || '';
-
 
   useEffect(() => {
     const fetchGoogleEvents = async () => {
@@ -101,11 +113,8 @@ export default function EventList() {
         setNobeEvents(data || []);
         setLoading(false);
 
-        // Sync club GCal in background, then refresh events with latest data
         fetch('/api/gcal-club/sync', { method: 'POST' })
-          .then(() =>
-            supabase.from('events').select('*').order('date', { ascending: false })
-          )
+          .then(() => supabase.from('events').select('*').order('date', { ascending: false }))
           .then(({ data: fresh }) => {
             if (fresh) setNobeEvents(fresh);
           })
@@ -137,15 +146,26 @@ export default function EventList() {
 
       const { data, error: fetchError } = await supabase
         .from('People')
-        .select('name, year, college, committee, social_points, professional_points, service_points, strikes')
+        .select(
+          'name, year, college, committee, social_points, professional_points, service_points, strikes, auth_id'
+        )
         .eq('auth_id', session.user.id)
         .single();
 
       if (fetchError) {
         setMemberError(fetchError.message);
         setMember(null);
+        setStrikes([]);
       } else {
         setMember(data as MemberProfile);
+
+        try {
+          const strikeData = await getMemberStrikes();
+          setStrikes(strikeData || []);
+        } catch (err) {
+          console.error('Failed to fetch strikes:', err);
+          setStrikes([]);
+        }
       }
 
       setMemberLoading(false);
@@ -174,34 +194,31 @@ export default function EventList() {
     }
   };
 
-  // Check if two events have time conflicts
   const hasTimeConflict = (event1: Event, event2: Event): boolean => {
-    // Only check conflicts between NOBE events and Google Calendar events
-    if (event1.event_type === event2.event_type || 
-        (event1.event_type !== 'GOOGLE_CALENDAR' && event2.event_type !== 'GOOGLE_CALENDAR')) {
+    if (
+      event1.event_type === event2.event_type ||
+      (event1.event_type !== 'GOOGLE_CALENDAR' && event2.event_type !== 'GOOGLE_CALENDAR')
+    ) {
       return false;
     }
 
     const date1 = new Date(event1.date);
     const date2 = new Date(event2.date);
 
-    // Different days = no conflict
     if (date1.toDateString() !== date2.toDateString()) {
       return false;
     }
 
-    // Assume events are 1 hour long
     const event1End = new Date(date1.getTime() + 60 * 60 * 1000);
     const event2End = new Date(date2.getTime() + 60 * 60 * 1000);
 
-    // Check if times overlap
     return date1 < event2End && date2 < event1End;
   };
 
   const addEventToGoogleCalendar = async (event: Event) => {
     try {
       setAddedEvents((prev) => new Set(prev).add(event.id));
-      
+
       const res = await fetch('/api/gcal-personal/add-event', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -213,40 +230,32 @@ export default function EventList() {
       }
 
       alert('Added to Google Calendar!');
-    } catch (err) {
+    } catch {
       alert('Could not add event to Google Calendar.');
     }
   };
-  
-  const events = useMemo(
-    () => {
-      // Create a set of NOBE event identifiers (name + date) to filter out duplicates
-      const nobeEventKeys = new Set(
-        nobeEvents.map((e) => `${e.name}|${new Date(e.date).toDateString()}`)
-      );
 
-      // Combine NOBE events with Google Calendar events, but exclude duplicates
-      const combined = [
-        ...nobeEvents,
-        ...googleEvents.filter((gEvent) => {
-          const eventKey = `${gEvent.name}|${new Date(gEvent.date).toDateString()}`;
-          return !nobeEventKeys.has(eventKey);
-        }),
-      ];
+  const events = useMemo(() => {
+    const nobeEventKeys = new Set(
+      nobeEvents.map((e) => `${e.name}|${new Date(e.date).toDateString()}`)
+    );
 
-      return combined.filter((event) => selectedFilters.has(event.event_type));
-    },
-    [nobeEvents, googleEvents, selectedFilters]
-  );
+    const combined = [
+      ...nobeEvents,
+      ...googleEvents.filter((gEvent) => {
+        const eventKey = `${gEvent.name}|${new Date(gEvent.date).toDateString()}`;
+        return !nobeEventKeys.has(eventKey);
+      }),
+    ];
 
-  // Find conflicts for each event
+    return combined.filter((event) => selectedFilters.has(event.event_type));
+  }, [nobeEvents, googleEvents, selectedFilters]);
+
   const eventConflicts = useMemo(() => {
     const conflicts = new Map<string, boolean>();
-    
+
     events.forEach((event) => {
-      const hasConflict = events.some((otherEvent) => 
-        event.id !== otherEvent.id && hasTimeConflict(event, otherEvent)
-      );
+      const hasConflict = events.some((otherEvent) => event.id !== otherEvent.id && hasTimeConflict(event, otherEvent));
       conflicts.set(event.id, hasConflict);
     });
 
@@ -271,8 +280,6 @@ export default function EventList() {
   const monthStart = new Date(displayMonth.getFullYear(), displayMonth.getMonth(), 1);
   const firstDayOfCalendar = new Date(monthStart);
   firstDayOfCalendar.setDate(monthStart.getDate() - monthStart.getDay());
-
-
 
   const calendarDays = useMemo(
     () =>
@@ -345,7 +352,6 @@ export default function EventList() {
         <section className="hero-card">
           <div className="page-header">
             <div>
-              {/* <img src="/nobe_logo_f.svg" alt="NOBE Illinois" width={140} height={140} style={{ marginBottom: '12px' }} /> */}
               <div className="pill-nav">
                 <span className={currentPath === '/users/member' ? 'pill-link-active' : 'pill-link'}>
                   Event Calendar
@@ -358,9 +364,7 @@ export default function EventList() {
               <h1 className="page-title">
                 {member?.name ? `${member.name.split(' ')[0]}'s schedule` : 'Your event schedule'}
               </h1>
-              <p className="page-subtitle">
-                View events and points
-              </p>
+              <p className="page-subtitle">View events and points</p>
             </div>
             <div className="action-row">
               <LogoutButton />
@@ -450,6 +454,7 @@ export default function EventList() {
                     borderColor: '#616161',
                     label: event.event_type.replaceAll('_', ' '),
                   };
+
                   return (
                     <div
                       key={event.id}
@@ -509,6 +514,42 @@ export default function EventList() {
                 })}
               </div>
             )}
+
+            <div style={{ marginTop: '32px' }}>
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">Strikes</p>
+                  <h2 className="section-title">Your strikes</h2>
+                </div>
+              </div>
+
+              {strikes.length === 0 ? (
+                <div className="empty-state">You have no active strikes.</div>
+              ) : (
+                <div className="list-stack">
+                  {strikes.map((strike) => (
+                    <div
+                      key={strike.id}
+                      className="subtle-card"
+                      style={{
+                        borderLeft: '4px solid #D32F2F',
+                        backgroundColor: 'rgba(239, 83, 80, 0.06)',
+                      }}
+                    >
+                      <p style={{ fontWeight: 700, color: '#D32F2F', marginBottom: '6px' }}>
+                        {strike.reason}
+                      </p>
+                      <p className="section-copy">Type: {formatStrikeLabel(strike.strike_type)}</p>
+                      <p className="section-copy">Source: {formatStrikeLabel(strike.source)}</p>
+                      <p className="section-copy">Issued: {formatMemberStrikeDate(strike.created_at)}</p>
+                      {strike.admin_note ? (
+                        <p className="section-copy">Note: {strike.admin_note}</p>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </section>
         </div>
 
@@ -526,7 +567,6 @@ export default function EventList() {
               </p>
             </div>
             <div className="action-row">
-
               <a href="/api/gcal-personal/auth" className="btn-secondary">
                 Import Google Calendar
               </a>
@@ -672,16 +712,14 @@ export default function EventList() {
 
                     <div className="calendar-events">
                       {dayEvents.length === 0 ? (
-                        <p className="calendar-empty-copy">
-                          {inMonth ? 'Open day' : ''}
-                        </p>
+                        <p className="calendar-empty-copy">{inMonth ? 'Open day' : ''}</p>
                       ) : (
                         dayEvents.slice(0, 3).map((event) => {
                           const config = EVENT_TYPE_CONFIG[event.event_type] || {
                             color: '#757575',
                             borderColor: '#616161',
                           };
-                          
+
                           if (event.is_mandatory) {
                             return (
                               <Link
@@ -705,11 +743,9 @@ export default function EventList() {
                                       minute: '2-digit',
                                     })}
                                   </div>
-                                  {event.is_mandatory ? (
-                                    <span className="calendar-event-chip" style={{ backgroundColor: '#EF5350', color: 'white', fontSize: '8px', padding: '1px 6px' }}>
-                                      Mandatory
-                                    </span>
-                                  ) : null}
+                                  <span className="calendar-event-chip" style={{ backgroundColor: '#EF5350', color: 'white', fontSize: '8px', padding: '1px 6px' }}>
+                                    Mandatory
+                                  </span>
                                 </div>
                                 <div className="calendar-event-name" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                   {event.name}
@@ -723,43 +759,43 @@ export default function EventList() {
                                 </div>
                               </Link>
                             );
-                          } else {
-                            return (
-                              <div
-                                key={event.id}
-                                className="calendar-event"
-                                style={{
-                                  display: 'block',
-                                  borderLeftColor: config.borderColor,
-                                  borderLeftWidth: '4px',
-                                  paddingLeft: '8px',
-                                  opacity: 0.7,
-                                  backgroundColor: '#fafafa',
-                                  borderRadius: '4px',
-                                  padding: '8px',
-                                }}
-                              >
-                                <div className="calendar-event-topline">
-                                  <div className="calendar-event-time">
-                                    {new Date(event.date).toLocaleTimeString('en-US', {
-                                      hour: 'numeric',
-                                      minute: '2-digit',
-                                    })}
-                                  </div>
-                                </div>
-                                <div className="calendar-event-name" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  {event.name}
-                                  {event.event_type !== 'GOOGLE_CALENDAR' && eventConflicts.get(event.id) && (
-                                    <span title="Time conflict with another event" style={{ fontSize: '0.9rem' }}>⚠️</span>
-                                  )}
-                                </div>
-                                <div className="calendar-event-meta">
-                                  <span>{event.location || 'TBD'}</span>
-                                  <span>{event.points} pt</span>
+                          }
+
+                          return (
+                            <div
+                              key={event.id}
+                              className="calendar-event"
+                              style={{
+                                display: 'block',
+                                borderLeftColor: config.borderColor,
+                                borderLeftWidth: '4px',
+                                paddingLeft: '8px',
+                                opacity: 0.7,
+                                backgroundColor: '#fafafa',
+                                borderRadius: '4px',
+                                padding: '8px',
+                              }}
+                            >
+                              <div className="calendar-event-topline">
+                                <div className="calendar-event-time">
+                                  {new Date(event.date).toLocaleTimeString('en-US', {
+                                    hour: 'numeric',
+                                    minute: '2-digit',
+                                  })}
                                 </div>
                               </div>
-                            );
-                          }
+                              <div className="calendar-event-name" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                {event.name}
+                                {event.event_type !== 'GOOGLE_CALENDAR' && eventConflicts.get(event.id) && (
+                                  <span title="Time conflict with another event" style={{ fontSize: '0.9rem' }}>⚠️</span>
+                                )}
+                              </div>
+                              <div className="calendar-event-meta">
+                                <span>{event.location || 'TBD'}</span>
+                                <span>{event.points} pt</span>
+                              </div>
+                            </div>
+                          );
                         })
                       )}
                       {dayEvents.length > 3 && (
@@ -784,9 +820,7 @@ export default function EventList() {
 function formatEventDate(value: string) {
   const date = new Date(value);
 
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
+  if (Number.isNaN(date.getTime())) return value;
 
   return date.toLocaleString('en-US', {
     month: 'short',
@@ -799,9 +833,7 @@ function formatEventDate(value: string) {
 function formatEventDay(value: string) {
   const date = new Date(value);
 
-  if (Number.isNaN(date.getTime())) {
-    return '--';
-  }
+  if (Number.isNaN(date.getTime())) return '--';
 
   return date.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
 }
@@ -809,9 +841,31 @@ function formatEventDay(value: string) {
 function formatEventDayNumber(value: string) {
   const date = new Date(value);
 
-  if (Number.isNaN(date.getTime())) {
-    return '--';
-  }
+  if (Number.isNaN(date.getTime())) return '--';
 
   return String(date.getDate());
+}
+
+function formatStrikeLabel(value: string | null) {
+  if (!value) return 'Unknown';
+
+  return value
+    .toLowerCase()
+    .split('_')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
+function formatMemberStrikeDate(value: string | null) {
+  if (!value) return 'Unknown date';
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return 'Unknown date';
+
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
 }

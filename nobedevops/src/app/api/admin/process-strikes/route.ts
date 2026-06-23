@@ -109,24 +109,49 @@ export async function POST(request: Request) {
           console.log(`User ${person.name} (${person.illinois_email}) missed event ${event.name}. Adding strike.`);
           
           // 5. Increment strike
-          const newStrikes = (person.strikes || 0) + 1;
-          
-          const { error: updateError } = await adminClient
-            .from("People")
-            .update({ strikes: newStrikes })
-            .eq("auth_id", person.auth_id);
+          const { data: existingStrike } = await adminClient
+            .from("strikes")
+            .select("id")
+            .eq("user_id", person.auth_id)
+            .eq("event_id", event.id)
+            .eq("strike_type", "MISSED_MANDATORY_EVENT")
+            .maybeSingle();
 
-          if (!updateError) {
+          if (existingStrike) {
+            console.log(`Strike already exists for ${person.name} and event ${event.name}. Skipping.`);
+            continue;
+          }
+
+          const { error: insertError } = await adminClient
+            .from("strikes")
+            .insert({
+              user_id: person.auth_id,
+              event_id: event.id,
+              strike_type: "MISSED_MANDATORY_EVENT",
+              reason: `Missed mandatory event: ${event.name || "Mandatory Event"}`,
+              status: "ACTIVE",
+              source: "AUTOMATIC",
+              admin_note: "Automatically generated because the member missed a mandatory event without an approved absence.",
+              created_by: null,
+            });
+
+          if (!insertError) {
             struckUsers.push(person);
-            
-            // 6. Send email via Resend
+
+            const newStrikes = (person.strikes || 0) + 1;
+
             if (person.illinois_email) {
-              await sendStrikeEmail(person.illinois_email, person.name || "Member", event.name || "Mandatory Event", newStrikes);
+              await sendStrikeEmail(
+                person.illinois_email,
+                person.name || "Member",
+                event.name || "Mandatory Event",
+                newStrikes
+              );
             } else {
-               console.log(`Warning: User ${person.name} has no illinois_email to send strike to.`);
+              console.log(`Warning: User ${person.name} has no illinois_email to send strike to.`);
             }
           } else {
-             console.error(`Failed to update strike for user ${person.name}`, updateError);
+            console.error(`Failed to insert strike for user ${person.name}`, insertError);
           }
         }
       }
