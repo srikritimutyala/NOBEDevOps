@@ -1,6 +1,6 @@
 "use client";
 
-import { Children, type ReactNode, useState } from "react";
+import { Children, type ReactNode, useEffect, useState } from "react";
 
 export type ReviewAbsenceItem = {
   id: string;
@@ -27,6 +27,12 @@ type Props = {
   items: ReviewAbsenceItem[];
 };
 
+type RetryState = {
+  retrying: boolean;
+  error: string;
+  success: string;
+};
+
 export default function ReviewAbsenceClient({ items }: Props) {
   const [rows, setRows] = useState(items);
   const [activeSection, setActiveSection] = useState<"PENDING" | "REVIEWED">("PENDING");
@@ -44,6 +50,54 @@ export default function ReviewAbsenceClient({ items }: Props) {
       ])
     )
   );
+  const [retryStates, setRetryStates] = useState<Record<string, RetryState>>({});
+
+  function getRetryState(id: string): RetryState {
+    return retryStates[id] ?? { retrying: false, error: "", success: "" };
+  }
+
+  function updateRetryState(id: string, patch: Partial<RetryState>) {
+    setRetryStates((current) => ({
+      ...current,
+      [id]: { ...getRetryState(id), ...patch },
+    }));
+  }
+
+  async function handleRetryEmail(absenceId: string) {
+    updateRetryState(absenceId, { retrying: true, error: "", success: "" });
+
+    try {
+      const response = await fetch("/api/admin/retry-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ absenceId }),
+      });
+
+      const payload = await response.json();
+
+      if (!response.ok || !payload.emailSent) {
+        updateRetryState(absenceId, {
+          retrying: false,
+          error: payload?.emailError ?? payload?.error ?? "Failed to send email.",
+          success: "",
+        });
+        return;
+      }
+
+      setRows((current) =>
+        current.map((row) =>
+          row.id === absenceId ? { ...row, emailSent: true, emailError: null } : row
+        )
+      );
+      updateRetryState(absenceId, { retrying: false, error: "", success: "Email sent." });
+    } catch {
+      updateRetryState(absenceId, {
+        retrying: false,
+        error: "Unexpected network error.",
+        success: "",
+      });
+    }
+  }
 
   function updateForm(id: string, patch: Partial<ReviewFormState>) {
     setForms((current) => ({
@@ -319,20 +373,91 @@ export default function ReviewAbsenceClient({ items }: Props) {
                   <span className="font-medium">Reviewed at:</span>{" "}
                   {formatTimestamp(item.reviewedAt)}
                 </p>
-                <p className="text-sm">
-                  <span className="font-medium">Email status:</span>{" "}
-                  {item.emailSent
-                    ? "Sent"
-                    : item.emailError?.trim()
-                      ? `Not sent - ${item.emailError}`
-                      : "Not sent"}
-                </p>
+                <EmailStatusRow
+                  item={item}
+                  retryState={getRetryState(item.id)}
+                  onRetry={() => handleRetryEmail(item.id)}
+                />
               </div>
             </article>
           ))}
         </ReviewSection>
       )}
     </section>
+  );
+}
+
+function EmailStatusRow({
+  item,
+  retryState,
+  onRetry,
+}: {
+  item: ReviewAbsenceItem;
+  retryState: RetryState;
+  onRetry: () => void;
+}) {
+  const [showError, setShowError] = useState(false);
+
+  const hasAnyError = !!item.emailError?.trim() || !!retryState.error;
+
+  // Auto-show errors when a retry fails
+  useEffect(() => {
+    if (retryState.error) setShowError(true);
+  }, [retryState.error]);
+
+  if (item.emailSent) {
+    return (
+      <p className="text-sm">
+        <span className="font-medium">Email status:</span> Sent
+      </p>
+    );
+  }
+
+  return (
+    <div className="text-sm">
+      <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+        <span>
+          <span className="font-medium">Email status:</span> Not sent
+        </span>
+        {hasAnyError && (
+          <button
+            type="button"
+            onClick={() => setShowError((v) => !v)}
+            style={{ fontSize: "11px", textDecoration: "underline", background: "none", border: "none", cursor: "pointer", padding: 0, color: "inherit", opacity: 0.7 }}
+          >
+            {showError ? "Hide error" : "Show error"}
+          </button>
+        )}
+        <button
+          type="button"
+          disabled={retryState.retrying}
+          onClick={onRetry}
+          className="btn"
+          style={{ padding: "2px 10px", fontSize: "12px" }}
+        >
+          {retryState.retrying ? "Retrying..." : "Retry"}
+        </button>
+      </div>
+      {showError && (
+        <>
+          {item.emailError?.trim() && (
+            <p className="message-error" style={{ marginTop: "4px" }}>
+              {item.emailError}
+            </p>
+          )}
+          {retryState.error && (
+            <p className="message-error" style={{ marginTop: "4px" }}>
+              {retryState.error}
+            </p>
+          )}
+        </>
+      )}
+      {retryState.success && (
+        <p className="message-success" style={{ marginTop: "4px" }}>
+          {retryState.success}
+        </p>
+      )}
+    </div>
   );
 }
 

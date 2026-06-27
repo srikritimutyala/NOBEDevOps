@@ -177,38 +177,40 @@ function createAdminClient() {
 
 
 async function sendStrikeEmail(to: string, name: string, eventName: string, strikeCount: number) {
-  const resendApiKey = process.env.RESEND_API_KEY;
-  const fromEmail = process.env.EMAIL_FROM_NAME || "onboarding@resend.dev";
-  
-  if (!resendApiKey) {
-    console.error("Resend API key not configured.");
+  const gasUrl = process.env.GAS_EMAIL_URL;
+  const gasSecret = process.env.GAS_EMAIL_SECRET;
+
+  if (!gasUrl || !gasSecret) {
+    console.error("GAS email service not configured.");
     return;
   }
 
   const message = `Hello ${name},\n\nYou are receiving this email because you did not check in to the mandatory event "${eventName}" and do not have an approved absence request.\n\nAs a result, a strike has been added to your account. Your total strike count is now: ${strikeCount}.\n\nPlease refer to the organization's policy regarding mandatory events and strikes.\n\nBest regards,\nNOBE Administration`;
 
   try {
-    console.log(`Attempting to send strike email to ${to} for event ${eventName} via Resend...`);
-    
-    const res = await fetch("https://api.resend.com/emails", {
+    console.log(`Attempting to send strike email to ${to} for event ${eventName} via GAS...`);
+
+    const res = await fetch(gasUrl, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${resendApiKey}`,
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        from: fromEmail, 
-        to: to,
+        to,
         subject: `Strike Notification: ${eventName}`,
         html: `<p>${message.replace(/\n/g, "<br>")}</p>`,
+        secret: gasSecret,
       }),
     });
 
     if (!res.ok) {
       const errorText = await res.text();
-      console.error(`Resend API Error (${res.status}):`, errorText);
+      console.error(`GAS email error (${res.status}):`, errorText);
     } else {
-      console.log(`Successfully sent strike email to ${to}`);
+      const data = await res.json();
+      if (!data.success) {
+        console.error(`GAS email failed:`, data.error);
+      } else {
+        console.log(`Successfully sent strike email to ${to}`);
+      }
     }
   } catch (error) {
     console.error("Failed to execute fetch for strike email:", error);

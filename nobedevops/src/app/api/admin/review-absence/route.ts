@@ -194,24 +194,19 @@ async function sendEmail({
   subject: string;
   message: string;
 }) {
-  const resendApiKey = process.env.RESEND_API_KEY;
+  const gasUrl = process.env.GAS_EMAIL_URL;
+  const gasSecret = process.env.GAS_EMAIL_SECRET;
 
-  if (!resendApiKey) {
+  if (!gasUrl || !gasSecret) {
     return { ok: false, error: "Email service not configured." };
   }
 
-  const response = await fetch("https://api.resend.com/emails", {
+  const html = `<p>${escapeHtml(message).replace(/\n/g, "<br>")}</p>`;
+
+  const response = await fetch(gasUrl, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${resendApiKey}`,
-    },
-    body: JSON.stringify({
-      from: "onboarding@resend.dev",
-      to,
-      subject,
-      html: `<p>${escapeHtml(message).replace(/\n/g, "<br>")}</p>`,
-    }),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ to, subject, html, secret: gasSecret }),
   });
 
   if (!response.ok) {
@@ -219,7 +214,8 @@ async function sendEmail({
     return { ok: false, error: errorBody || "Email send failed." };
   }
 
-  return { ok: true };
+  const data = await response.json();
+  return data.success ? { ok: true } : { ok: false, error: data.error || "Email send failed." };
 }
 
 function escapeHtml(value: string) {
