@@ -37,5 +37,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return NextResponse.redirect(new URL('/users/member', req.url));
+  const state = req.nextUrl.searchParams.get('state');
+  const redirectTo = state && state.startsWith('/') ? state : '/users/member';
+  return NextResponse.redirect(new URL(redirectTo, req.url));
 }

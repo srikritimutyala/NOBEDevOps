@@ -43,6 +43,11 @@ export default function ViewAllEvents() {
   const [loading, setLoading] = useState(true);
   const [gcalLoading, setGcalLoading] = useState(true);
   const [gcalError, setGcalError] = useState("");
+  const [gcalSuccess, setGcalSuccess] = useState("");
+  const [publicCalendarUrl, setPublicCalendarUrl] = useState("");
+  const [currentPublicCalendar, setCurrentPublicCalendar] = useState("");
+  const [publicGcalLoading, setPublicGcalLoading] = useState(false);
+  const [unsyncLoading, setUnsyncLoading] = useState(false);
   const [error, setError] = useState("");
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null);
@@ -76,11 +81,16 @@ export default function ViewAllEvents() {
   async function syncAndRefetch() {
     setGcalLoading(true);
     setGcalError("");
+    setGcalSuccess("");
     try {
       const res = await fetch("/api/gcal-club/sync", { method: "POST" });
       const json = await res.json();
       if (json.error) {
-        setGcalError(json.error);
+        setGcalError(
+          json.error.includes("Not Found")
+            ? "Club calendar not found. Check that the default calendar is configured correctly."
+            : json.error
+        );
       } else {
         await fetchEvents();
       }
@@ -88,6 +98,68 @@ export default function ViewAllEvents() {
       setGcalError("Failed to sync Google Calendar events.");
     }
     setGcalLoading(false);
+  }
+
+  async function syncPublicCalendar() {
+    if (!publicCalendarUrl.trim()) {
+      setGcalError("Enter a public Google Calendar link or ID.");
+      return;
+    }
+
+    setPublicGcalLoading(true);
+    setGcalError("");
+    setGcalSuccess("");
+
+    try {
+      const res = await fetch("/api/gcal-club/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ calendarId: publicCalendarUrl.trim() }),
+      });
+      const json = await res.json();
+
+      if (json.error) {
+        setGcalError(
+          json.error.includes("Not Found")
+            ? "Calendar not found or not public. Verify the link/ID and that the calendar is shared publicly."
+            : json.error
+        );
+      } else {
+        const importedLink = publicCalendarUrl.trim();
+        setGcalSuccess("Public Google Calendar imported successfully.");
+        setCurrentPublicCalendar(importedLink);
+        setPublicCalendarUrl("");
+        await fetchEvents();
+      }
+    } catch {
+      setGcalError("Failed to sync public Google Calendar.");
+    }
+
+    setPublicGcalLoading(false);
+  }
+
+  async function unsyncCalendar() {
+    setUnsyncLoading(true);
+    setGcalError("");
+    setGcalSuccess("");
+
+    try {
+      const res = await fetch("/api/gcal-club/unsync", {
+        method: "POST",
+      });
+      const json = await res.json();
+
+      if (json.error) {
+        setGcalError(json.error);
+      } else {
+        setGcalSuccess("Imported Google Calendar events have been unsynced.");
+        await fetchEvents();
+      }
+    } catch {
+      setGcalError("Failed to unsync imported Google Calendar events.");
+    }
+
+    setUnsyncLoading(false);
   }
 
   useEffect(() => {
@@ -318,6 +390,11 @@ export default function ViewAllEvents() {
               Google Calendar sync failed: {gcalError}
             </div>
           )}
+          {gcalSuccess && (
+            <div className="message-success" style={{ marginTop: "12px" }}>
+              {gcalSuccess}
+            </div>
+          )}
         </section>
 
         <div className="surface-grid two-up">
@@ -330,7 +407,52 @@ export default function ViewAllEvents() {
                   {currentMonth.toLocaleString("en-US", { month: "long", year: "numeric" })}
                 </h2>
               </div>
-              <div className="action-row">
+              <div className="action-row" style={{ flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: '1 1 320px', minWidth: '220px' }}>
+                  <input
+                    type="text"
+                    placeholder="Public Google Calendar link or ID"
+                    value={publicCalendarUrl}
+                    onChange={(e) => setPublicCalendarUrl(e.target.value)}
+                    className="field-input"
+                    style={{ width: '100%' }}
+                  />
+                  <p className="section-copy" style={{ margin: 0, fontSize: '0.8rem', color: 'var(--muted)' }}>
+                    Paste a public calendar URL or calendar ID, then import. If it fails, update the link and try again.
+                  </p>
+                  {currentPublicCalendar && (
+                    <p className="section-copy" style={{ margin: 0, fontSize: '0.8rem', color: 'var(--muted)' }}>
+                      Current calendar link: {currentPublicCalendar}
+                    </p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={syncPublicCalendar}
+                  className="btn"
+                  disabled={publicGcalLoading || unsyncLoading}
+                >
+                  {publicGcalLoading ? 'Importing...' : 'Import Public Calendar'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPublicCalendarUrl("");
+                    setCurrentPublicCalendar("");
+                    setGcalError("");
+                    setGcalSuccess("");
+                  }}
+                  className="btn-secondary"
+                  disabled={!currentPublicCalendar && !publicCalendarUrl}
+                >
+                  Clear Link
+                </button>
+                <button type="button" onClick={syncAndRefetch} className="btn-secondary" disabled={gcalLoading || unsyncLoading}>
+                  {gcalLoading ? 'Syncing...' : 'Sync Club Calendar'}
+                </button>
+                <button type="button" onClick={unsyncCalendar} className="btn-secondary" disabled={unsyncLoading || gcalLoading || publicGcalLoading}>
+                  {unsyncLoading ? 'Unsyncing...' : 'Unsync Calendar'}
+                </button>
                 <button type="button" onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1))} className="btn-secondary">
                   Previous
                 </button>

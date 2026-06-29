@@ -8,7 +8,7 @@ export async function POST(request: Request) {
     const authHeader = request.headers.get('authorization');
     const isCronJob = authHeader === `Bearer ${process.env.CRON_SECRET}`;
 
-    // If it's not a cron job, verify it's an admin user clicking the button
+    // If it's not a cron job, verifyn it's an admin user clicking the button
     if (!isCronJob) {
       const supabase = await createClient();
       const {

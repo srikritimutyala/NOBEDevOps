@@ -1,5 +1,5 @@
 import { google } from 'googleapis';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 const CLUB_CALENDAR_ID =
@@ -19,25 +19,89 @@ function parseDescription(description: string | null) {
   };
 }
 
-export async function POST() {
+function parseCalendarId(value: string | null) {
+  if (!value) return null;
+  let cleaned = value.trim();
   try {
-    const oauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      process.env.GOOGLE_REDIRECT_URI
-    );
+    cleaned = decodeURIComponent(cleaned);
+  } catch {
+    // Ignore decode errors and use raw value.
+  }
 
-    oauth2Client.setCredentials({
-      refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
+  const tryBase64 = (candidate: string) => {
+    try {
+      const decoded = Buffer.from(candidate, 'base64').toString('utf8');
+      return decoded.includes('@') ? decoded : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const srcMatch = cleaned.match(/[?&](?:src|cid)=([^&]+)/);
+  if (srcMatch?.[1]) {
+    const extracted = decodeURIComponent(srcMatch[1]);
+    if (extracted.includes('@')) {
+      return extracted;
+    }
+    return tryBase64(extracted) || extracted;
+  }
+
+  const icalMatch = cleaned.match(/\/ical\/([^\/]+)\//);
+  if (icalMatch?.[1]) {
+    const extracted = decodeURIComponent(icalMatch[1]);
+    if (extracted.includes('@')) {
+      return extracted;
+    }
+    return tryBase64(extracted) || extracted;
+  }
+
+  if (cleaned.includes('@') || cleaned.includes('%40')) {
+    return cleaned;
+  }
+
+  return tryBase64(cleaned);
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json().catch(() => ({} as { calendarId?: unknown }));
+    const requestedCalendarId = typeof body.calendarId === 'string' ? body.calendarId.trim() : undefined;
+    const customCalendarId = requestedCalendarId ? parseCalendarId(requestedCalendarId) : null;
+    const calendarId = requestedCalendarId && !customCalendarId ? null : customCalendarId || CLUB_CALENDAR_ID;
+    const isCustomCalendar = Boolean(customCalendarId);
+
+    if (requestedCalendarId && !calendarId) {
+      throw new Error('Invalid public calendar link or ID. Use a public Google Calendar link or calendar address.');
+    }
+
+    if (isCustomCalendar && !process.env.GOOGLE_API_KEY) {
+      throw new Error('Missing GOOGLE_API_KEY for public calendar sync.');
+    }
+
+    const calendar = google.calendar({
+      version: 'v3',
+      auth: isCustomCalendar
+        ? process.env.GOOGLE_API_KEY
+        : (() => {
+            const oauth2Client = new google.auth.OAuth2(
+              process.env.GOOGLE_CLIENT_ID,
+              process.env.GOOGLE_CLIENT_SECRET,
+              process.env.GOOGLE_REDIRECT_URI
+            );
+
+            oauth2Client.setCredentials({
+              refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
+            });
+
+            return oauth2Client;
+          })(),
     });
-
-    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
 
     const oneYearAgo = new Date();
     oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
 
     const result = await calendar.events.list({
-      calendarId: CLUB_CALENDAR_ID,
+      calendarId,
       timeMin: oneYearAgo.toISOString(),
       maxResults: 250,
       singleEvents: true,
@@ -46,21 +110,22 @@ export async function POST() {
 
     const gcalItems = result.data.items || [];
 
-    // Use service role key to bypass RLS for server-side sync
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    // Upsert each GCal event into Supabase
     for (const event of gcalItems) {
       if (!event.id) continue;
 
       const parsed = parseDescription(event.description || null);
+      const gcalEventId = isCustomCalendar
+        ? `imported:public:${calendarId}:${event.id}`
+        : `imported:club:${event.id}`;
 
       const { error } = await supabase.from('events').upsert(
         {
-          gcal_event_id: event.id,
+          gcal_event_id: gcalEventId,
           name: event.summary || 'Untitled Event',
           event_type: parsed.event_type,
           date: event.start?.dateTime || event.start?.date || new Date().toISOString(),
@@ -77,16 +142,18 @@ export async function POST() {
       }
     }
 
-    // Delete Supabase events whose GCal event no longer exists
     const gcalIds = gcalItems.map((e) => e.id).filter(Boolean) as string[];
 
     const { data: stale } = await supabase
       .from('events')
       .select('id, gcal_event_id')
-      .not('gcal_event_id', 'is', null);
+      .like('gcal_event_id', 'imported:%');
 
     if (stale) {
-      const toDelete = stale.filter((e) => !gcalIds.includes(e.gcal_event_id));
+      const toDelete = stale.filter((e) => {
+        const rawId = e.gcal_event_id?.replace(/^imported:(?:club|public):(?:[^:]+:)?/, '');
+        return rawId ? !gcalIds.includes(rawId) : !gcalIds.includes(e.gcal_event_id ?? '');
+      });
       for (const e of toDelete) {
         await supabase.from('events').delete().eq('id', e.id);
       }
