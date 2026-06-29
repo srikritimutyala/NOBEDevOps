@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { to, subject, message } = await request.json();
 
-    // Validate input
     if (!to || !subject || !message) {
       return NextResponse.json(
         { error: "Missing required fields: to, subject, message" },
@@ -12,34 +20,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Use Resend to send email
-    const resendApiKey = process.env.RESEND_API_KEY;
+    const gasUrl = process.env.GAS_EMAIL_URL;
+    const gasSecret = process.env.GAS_EMAIL_SECRET;
 
-    if (!resendApiKey) {
-      console.error("RESEND_API_KEY is not configured");
+    if (!gasUrl || !gasSecret) {
+      console.error("GAS email service not configured");
       return NextResponse.json(
         { error: "Email service not configured" },
         { status: 500 }
       );
     }
 
-    const response = await fetch("https://api.resend.com/emails", {
+    const html = `<p>${escapeHtml(message).replace(/\n/g, "<br>")}</p>`;
+
+    const response = await fetch(gasUrl, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${resendApiKey}`,
-      },
-      body: JSON.stringify({
-        from: "onboarding@resend.dev", // Replace with your verified domain
-        to: to,
-        subject: subject,
-        html: `<p>${message.replace(/\n/g, "<br>")}</p>`,
-      }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ to, subject, html, secret: gasSecret }),
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      console.error("Email send failed:", errorData);
+      const errorBody = await response.text();
+      console.error("GAS email send failed:", errorBody);
       return NextResponse.json(
         { error: "Failed to send email" },
         { status: 500 }
@@ -47,10 +49,16 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await response.json();
-    return NextResponse.json(
-      { success: true, messageId: data.id },
-      { status: 200 }
-    );
+
+    if (!data.success) {
+      console.error("GAS email error:", data.error);
+      return NextResponse.json(
+        { error: data.error || "Failed to send email" },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {
     console.error("Email API error:", error);
     return NextResponse.json(

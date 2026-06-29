@@ -124,6 +124,12 @@ export default function AbsencePage() {
 
         const selectedEvent = eventsMap[formData.eventId];
 
+        const alreadySubmitted = absences.some((a) => a.event_id === formData.eventId);
+        if (alreadySubmitted) {
+            alert('You have already submitted an absence request for this event.');
+            return;
+        }
+
         let imageUrl: string | null = null;
 
         if (imageFile) {
@@ -171,7 +177,7 @@ export default function AbsencePage() {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    to: 'vinaysanjeev77@gmail.com',
+                    to: process.env.NEXT_PUBLIC_ADMIN_NOTIFICATION_EMAIL ?? '',
                     subject: 'New Absence Form Submission',
                     message: `An absence form has been submitted.\n\nEvent Missed: ${selectedEvent?.name ?? 'Unknown'}\n\nReason: ${formData.reason}`,
                 }),
