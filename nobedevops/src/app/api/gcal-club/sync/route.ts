@@ -64,11 +64,29 @@ function parseCalendarId(value: string | null) {
 
 export async function POST(req: NextRequest) {
   try {
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
     const body = await req.json().catch(() => ({} as { calendarId?: unknown }));
     const requestedCalendarId = typeof body.calendarId === 'string' ? body.calendarId.trim() : undefined;
-    const customCalendarId = requestedCalendarId ? parseCalendarId(requestedCalendarId) : null;
-    const calendarId = requestedCalendarId && !customCalendarId ? null : customCalendarId || CLUB_CALENDAR_ID;
-    const isCustomCalendar = Boolean(customCalendarId);
+    const customCalendarId = requestedCalendarId ? (parseCalendarId(requestedCalendarId) || undefined) : undefined;
+
+    let finalCalendarId = customCalendarId;
+    if (!requestedCalendarId) {
+      const { data: dbSettings } = await supabase
+        .from('SystemSettings')
+        .select('value')
+        .eq('key', 'club_calendar_id')
+        .maybeSingle();
+      if (dbSettings?.value) {
+        finalCalendarId = dbSettings.value;
+      }
+    }
+
+    const calendarId = requestedCalendarId && !customCalendarId ? undefined : finalCalendarId || CLUB_CALENDAR_ID;
+    const isCustomCalendar = Boolean(finalCalendarId);
 
     if (requestedCalendarId && !calendarId) {
       throw new Error('Invalid public calendar link or ID. Use a public Google Calendar link or calendar address.');
@@ -108,12 +126,13 @@ export async function POST(req: NextRequest) {
       orderBy: 'startTime',
     });
 
-    const gcalItems = result.data.items || [];
+    if (isCustomCalendar && customCalendarId) {
+      await supabase
+        .from('SystemSettings')
+        .upsert({ key: 'club_calendar_id', value: customCalendarId });
+    }
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    const gcalItems = result.data.items || [];
 
     for (const event of gcalItems) {
       if (!event.id) continue;
@@ -144,10 +163,14 @@ export async function POST(req: NextRequest) {
 
     const gcalIds = gcalItems.map((e) => e.id).filter(Boolean) as string[];
 
+    const prefix = isCustomCalendar
+      ? `imported:public:${calendarId}:%`
+      : `imported:club:%`;
+
     const { data: stale } = await supabase
       .from('events')
       .select('id, gcal_event_id')
-      .like('gcal_event_id', 'imported:%');
+      .like('gcal_event_id', prefix);
 
     if (stale) {
       const toDelete = stale.filter((e) => {

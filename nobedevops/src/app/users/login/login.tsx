@@ -14,7 +14,8 @@ export default function LoginForm() {
   const redirectTo =
     searchParams.get('redirect') || searchParams.get('next');
 
-  const [mode, setMode] = useState<'signin' | 'forgot'>('signin');
+  const [mode, setMode] = useState<'signin' | 'signup' | 'forgot'>('signin');
+  const [name, setName] = useState('');
   const [testingMode, setTestingMode] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -50,7 +51,7 @@ export default function LoginForm() {
 
   if (profile) return null;
 
-  function switchMode(next: 'signin' | 'forgot') {
+  function switchMode(next: 'signin' | 'signup' | 'forgot') {
     setMode(next);
     setError(null);
     setMessage(null);
@@ -72,6 +73,22 @@ export default function LoginForm() {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) setError(error.message);
       // redirect handled by useEffect once profile loads
+    } else if (mode === 'signup') {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: name,
+          },
+        },
+      });
+      if (error) {
+        setError(error.message);
+      } else {
+        setMessage('Sign up successful! Please check your email or log in.');
+        setMode('signin');
+      }
     } else {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/auth/callback`,

@@ -67,7 +67,7 @@ export default function BulkAddPage() {
     }
   };
 
-  const preventDefault = (event: React.DragEvent<HTMLDivElement>) => {
+  const preventDefault = (event: React.DragEvent<HTMLElement>) => {
     event.preventDefault();
     event.stopPropagation();
   };
@@ -89,7 +89,7 @@ export default function BulkAddPage() {
     ]);
   };
 
-  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+  const handleDrop = (event: React.DragEvent<HTMLElement>) => {
     preventDefault(event);
     if (event.dataTransfer.files?.length) {
       addFiles(event.dataTransfer.files);

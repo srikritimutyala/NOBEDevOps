@@ -59,7 +59,7 @@ export async function POST(request: Request) {
     };
 
     // Parse CSV content into rows while preserving line structure
-    const rows = latestUpload.content
+    const rows = (latestUpload.content as string)
       .replace(/\r\n/g, "\n")
       .replace(/\r/g, "\n")
       .split("\n")

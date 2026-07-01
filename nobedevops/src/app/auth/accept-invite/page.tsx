@@ -1,8 +1,9 @@
 'use client';
 
+import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 
-export default function AcceptInvitePage() {
+function AcceptInviteContent() {
   const searchParams = useSearchParams();
   const encoded = searchParams.get('link');
 
@@ -38,5 +39,21 @@ export default function AcceptInvitePage() {
         </button>
       </div>
     </div>
+  );
+}
+
+export default function AcceptInvitePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-gray-100">
+          <div className="bg-white rounded-lg shadow p-8 w-full max-w-sm text-center space-y-4">
+            <p className="text-gray-600 text-sm">Loading invitation details...</p>
+          </div>
+        </div>
+      }
+    >
+      <AcceptInviteContent />
+    </Suspense>
   );
 }

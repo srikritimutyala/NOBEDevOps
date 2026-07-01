@@ -9,6 +9,7 @@ services:
     volumes:
       - .:/app
       - /app/nobedevops/node_modules
+      - ~/.gemini/antigravity-cli:/home/nextjs/.gemini/antigravity-cli
     working_dir: /app/nobedevops
     tty: true
     stdin_open: true

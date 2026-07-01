@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import QRCode from "react-qr-code";
@@ -34,7 +34,7 @@ function combineDateTime(date: string, time: string) {
   return Number.isNaN(combined.getTime()) ? null : combined;
 }
 
-export default function CreateEventPage() {
+function CreateEventContent() {
   const searchParams = useSearchParams();
   const eventId = searchParams.get("eventId");
   const [form, setForm] = useState({
@@ -648,4 +648,12 @@ function toTimeInputValue(date: Date) {
 
 function toDateTimeLocalInputValue(date: Date) {
   return `${toDateInputValue(date)}T${toTimeInputValue(date)}`;
+}
+
+export default function CreateEventPage() {
+  return (
+    <Suspense fallback={<p className="section-copy">Loading...</p>}>
+      <CreateEventContent />
+    </Suspense>
+  );
 }
