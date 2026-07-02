@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/app/utils/supabase/server";
+import { createAdminClient } from "@/app/utils/supabase/admin";
 
 export async function POST(request: Request) {
   try {
@@ -16,6 +17,7 @@ export async function POST(request: Request) {
       );
     }
 
+    const supabaseAdmin = createAdminClient();
     // Get the most recent CSV upload
     const { data: latestUpload, error: fetchError } = await supabase
       .from("csv_uploads")
@@ -99,7 +101,20 @@ export async function POST(request: Request) {
 
       if (missingFields.length > 0) {
         missingRows.push({ row: rowIndex + 1, missingFields });
+        continue;
       }
+
+      console.log("normalizedValues:", normalizedValues);
+      console.log({
+        fullName,
+        firstName,
+        lastName,
+        email,
+        year,
+        college,
+        major,
+        committee,
+      });
 
       peopleData.push({
         name: fullName?.trim() || "",
@@ -129,7 +144,7 @@ export async function POST(request: Request) {
       let existing = null;
 
       if (person.illinois_email) {
-        const result = await supabase
+        const result = await supabaseAdmin
           .from("People")
           .select("id, name, first_name, last_name, illinois_email, college, year, major, committee")
           .eq("illinois_email", person.illinois_email)
@@ -146,12 +161,56 @@ export async function POST(request: Request) {
         continue;
       }
 
-      const { error: insertError } = await supabase
-        .from("People")
-        .insert(person);
+      const authId = crypto.randomUUID();
+      
+      /*const { data: inviteData, error: inviteError } =
+        await supabaseAdmin.auth.admin.inviteUserByEmail(person.illinois_email, {
+          redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
+        });
 
-      if (insertError) {
-        throw insertError;
+      if (inviteError) {
+        console.error("Invite error:", inviteError);
+        return NextResponse.json(
+          {
+            error: inviteError.message,
+            details: inviteError,
+          },
+          { status: 500 }
+        );
+      }
+
+      const authId = inviteData.user?.id;*/
+
+      const { data: existingByAuth } = await supabaseAdmin
+        .from("People")
+        .select("id")
+        .eq("auth_id", authId)
+        .maybeSingle();
+
+      if (existingByAuth) {
+        const { error: updateError } = await supabaseAdmin
+          .from("People")
+          .update({
+            ...person,
+            role: "MEMBER",
+          })
+          .eq("id", existingByAuth.id);
+
+        if (updateError) {
+          throw updateError;
+        }
+      } else {
+        const { error: insertError } = await supabaseAdmin
+          .from("People")
+          .insert({
+            ...person,
+            auth_id: authId,
+            role: "MEMBER",
+          });
+
+        if (insertError) {
+          throw insertError;
+        }
       }
 
       insertedCount++;
