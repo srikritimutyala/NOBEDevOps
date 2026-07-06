@@ -300,12 +300,16 @@ export default function ViewAllEvents() {
 
   const filteredEvents = useMemo(() => {
     return allEvents.filter((event) => {
+      // Filter out pure Google Calendar events to declutter the calendar view
+      if (isGcalEvent(event)) {
+        return false;
+      }
       const matchesSearch = event.name.toLowerCase().includes(search.toLowerCase().trim());
       const matchesEventType = selectedEventType === "ALL" || event.event_type === selectedEventType;
       const matchesMandatory =
         mandatoryFilter === "ALL" ||
         (mandatoryFilter === "MANDATORY" && event.is_mandatory === true) ||
-        (mandatoryFilter === "OPTIONAL" && event.is_mandatory !== true && !isGcalEvent(event));
+        (mandatoryFilter === "OPTIONAL" && event.is_mandatory !== true);
       return matchesSearch && matchesEventType && matchesMandatory;
     });
   }, [allEvents, search, selectedEventType, mandatoryFilter]);
@@ -597,7 +601,7 @@ export default function ViewAllEvents() {
 
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "16px", flexWrap: "wrap", gap: "12px" }}>
               <p className="section-copy" style={{ margin: 0, fontSize: "0.75rem", color: "var(--muted)" }}>
-                {gcalLoading ? "Syncing Google Calendar..." : "Blue-bordered events are from the NOBE Google Calendar."}
+                {gcalLoading ? "Syncing Google Calendar..." : ""}
               </p>
               <div style={{ display: "flex", gap: "8px" }}>
                 <button
