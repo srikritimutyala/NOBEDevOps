@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/app/utils/supabase/server";
+import { getPointRequirements } from "@/app/utils/getPointRequirements";
 
 function formatChicagoTime(value: string) {
   return new Date(value).toLocaleString("en-US", {
@@ -167,13 +168,20 @@ export async function POST(req: Request) {
       );
     }
 
+    const goals = await getPointRequirements();
+
     return NextResponse.json({
       ok: true,
       message: `Checked in to ${event.name}!`,
       event_name: event.name,
       points_awarded: event.points,
       point_type: event.event_type,
-      progress: updatedProfile,
+      progress: {
+        ...updatedProfile,
+        professional_goal: goals.professional_goal,
+        service_goal: goals.service_goal,
+        social_goal: goals.social_goal,
+      },
     });
   } catch (error: any) {
     return NextResponse.json(

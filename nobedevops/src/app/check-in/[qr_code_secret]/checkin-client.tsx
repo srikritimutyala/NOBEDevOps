@@ -174,17 +174,17 @@ export default function CheckInClient() {
                 <ProgressRow
                   label="Professional"
                   value={checkInResult.progress.professional_points ?? 0}
-                  goal={10}
+                  goal={checkInResult.progress.professional_goal ?? 7}
                 />
                 <ProgressRow
                   label="Service"
                   value={checkInResult.progress.service_points ?? 0}
-                  goal={5}
+                  goal={checkInResult.progress.service_goal ?? 3}
                 />
                 <ProgressRow
                   label="Social"
                   value={checkInResult.progress.social_points ?? 0}
-                  goal={5}
+                  goal={checkInResult.progress.social_goal ?? 5}
                 />
               </div>
             )}

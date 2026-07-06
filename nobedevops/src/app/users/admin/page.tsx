@@ -196,6 +196,10 @@ export default async function AdminPage() {
                 <strong>View Events</strong>
                 <span>Browse event records and attendance summaries.</span>
               </Link>
+              <Link href="/users/admin/send-email" className="admin-link-card">
+                <strong>Send Weekly Digest</strong>
+                <span>Send points progress and upcoming events to all members.</span>
+              </Link>
             </div>
           </section>
           <section className="panel">
