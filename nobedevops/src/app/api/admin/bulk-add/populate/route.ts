@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/app/utils/supabase/server";
+import { createAdminClient } from "@/app/utils/supabase/admin";
+import { sendEmail } from "@/app/utils/sendEmail";
 
 export async function POST(request: Request) {
   try {
@@ -16,7 +18,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Get the most recent CSV upload
+    const supabaseAdmin = createAdminClient();
     const { data: latestUpload, error: fetchError } = await supabase
       .from("csv_uploads")
       .select("content")
@@ -25,20 +27,15 @@ export async function POST(request: Request) {
       .single();
 
     if (fetchError || !latestUpload) {
-      return NextResponse.json(
-        { error: "No CSV uploads found." },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "No CSV uploads found." }, { status: 404 });
     }
 
     const parseCsvLine = (line: string) => {
       const values: string[] = [];
       let current = "";
       let inQuotes = false;
-
       for (let i = 0; i < line.length; i++) {
         const char = line[i];
-
         if (char === '"') {
           if (inQuotes && line[i + 1] === '"') {
             current += '"';
@@ -53,7 +50,6 @@ export async function POST(request: Request) {
           current += char;
         }
       }
-
       values.push(current.trim());
       return values;
     };
@@ -77,10 +73,7 @@ export async function POST(request: Request) {
     const expectedHeaders = ["Name", "First Name", "Last Name", "Illinois Email", "Year", "College", "Major", "Committee"];
 
     if (headers.length !== expectedHeaders.length || !headers.every((h, i) => h === expectedHeaders[i])) {
-      return NextResponse.json(
-        { error: "CSV headers do not match expected format." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "CSV headers do not match expected format." }, { status: 400 });
     }
 
     const peopleData: Array<Record<string, string>> = [];
@@ -89,56 +82,45 @@ export async function POST(request: Request) {
     for (let rowIndex = 1; rowIndex < rows.length; rowIndex++) {
       const values = parseCsvLine(rows[rowIndex]);
       const normalizedValues = values.slice(0, expectedHeaders.length);
-
-      while (normalizedValues.length < expectedHeaders.length) {
-        normalizedValues.push("");
-      }
+      while (normalizedValues.length < expectedHeaders.length) normalizedValues.push("");
 
       const [fullName, firstName, lastName, email, year, college, major, committee] = normalizedValues;
       const missingFields = expectedHeaders.filter((_, index) => !normalizedValues[index]?.trim());
 
       if (missingFields.length > 0) {
         missingRows.push({ row: rowIndex + 1, missingFields });
+        continue; // skip incomplete rows entirely — no invite, no insert
       }
 
       peopleData.push({
-        name: fullName?.trim() || "",
-        first_name: firstName?.trim() || "",
-        last_name: lastName?.trim() || "",
-        illinois_email: email?.trim() || "",
-        college: college?.trim() || "",
-        year: year?.trim() || "",
-        major: major?.trim() || "",
-        committee: committee?.trim() || "",
+        name: fullName.trim(),
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+        illinois_email: email.trim(),
+        college: college.trim(),
+        year: year.trim(),
+        major: major.trim(),
+        committee: committee.trim(),
       });
     }
 
     if (peopleData.length === 0) {
-      return NextResponse.json(
-        { error: "No valid data rows found in CSV." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "No valid data rows found in CSV." }, { status: 400 });
     }
 
-    // Insert into People table, checking for duplicates by email + first and last name
     let insertedCount = 0;
     let existingCount = 0;
+    let emailFailures: string[] = [];
     const existingRows: Array<Record<string, string>> = [];
 
     for (const person of peopleData) {
-      let existing = null;
-
-      if (person.illinois_email) {
-        const result = await supabase
-          .from("People")
-          .select("id, name, first_name, last_name, illinois_email, college, year, major, committee")
-          .eq("illinois_email", person.illinois_email)
-          .eq("first_name", person.first_name)
-          .eq("last_name", person.last_name)
-          .maybeSingle();
-
-        existing = result.data;
-      }
+      const { data: existing } = await supabaseAdmin
+        .from("People")
+        .select("id, name, first_name, last_name, illinois_email, college, year, major, committee")
+        .eq("illinois_email", person.illinois_email)
+        .eq("first_name", person.first_name)
+        .eq("last_name", person.last_name)
+        .maybeSingle();
 
       if (existing) {
         existingCount++;
@@ -146,12 +128,56 @@ export async function POST(request: Request) {
         continue;
       }
 
-      const { error: insertError } = await supabase
-        .from("People")
-        .insert(person);
+      // Create the auth user + get an invite link, WITHOUT Supabase sending its own email
+      const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+        type: "invite",
+        email: person.illinois_email,
+        options: {
+          redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
+        },
+      });
 
-      if (insertError) {
-        throw insertError;
+      if (linkError || !linkData?.user?.id || !linkData?.properties?.action_link) {
+        console.error(`Failed to generate invite link for ${person.illinois_email}:`, linkError);
+        emailFailures.push(person.illinois_email);
+        continue;
+      }
+
+      const authId = linkData.user.id;
+      const tokenHash = linkData.properties.hashed_token;
+      const inviteLink = `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback?token_hash=${tokenHash}&type=invite`;
+
+      // The handle_new_user trigger already created a bare-bones People row
+      // for this auth_id — update it with the real CSV data instead of inserting.
+      const { data: existingByAuth } = await supabaseAdmin
+        .from("People")
+        .select("id")
+        .eq("auth_id", authId)
+        .maybeSingle();
+
+      if (existingByAuth) {
+        const { error: updateError } = await supabaseAdmin
+          .from("People")
+          .update({ ...person, role: "MEMBER" })
+          .eq("id", existingByAuth.id);
+        if (updateError) throw updateError;
+      } else {
+        const { error: insertError } = await supabaseAdmin
+          .from("People")
+          .insert({ ...person, auth_id: authId, role: "MEMBER" });
+        if (insertError) throw insertError;
+      }
+
+      // Send the branded invite email through our own GAS pipeline
+      try {
+        await sendEmail(
+          person.illinois_email,
+          "Welcome to NOBE! Create Your Attendance Portal Account",
+          `Hi ${person.first_name},\n\nYou've been added to NOBE's Attendance Portal! Click the link below to set your password and access your member account:\n\n${inviteLink}\n\nSee you soon,\nThe NOBE Team`
+        );
+      } catch (emailErr: any) {
+        console.error(`Failed to send invite email to ${person.illinois_email}:`, emailErr.message);
+        emailFailures.push(person.illinois_email);
       }
 
       insertedCount++;
@@ -164,14 +190,12 @@ export async function POST(request: Request) {
       duplicates: existingRows,
       missing: missingRows.length,
       missingRows,
+      emailFailures,
       message: `${insertedCount} entries added. ${existingCount} entries already existed.${
-        missingRows.length > 0 ? ` ${missingRows.length} row(s) had missing fields.` : ""
-      }`,
+        missingRows.length > 0 ? ` ${missingRows.length} row(s) had missing fields and were skipped.` : ""
+      }${emailFailures.length > 0 ? ` ${emailFailures.length} invite email(s) failed to send.` : ""}`,
     });
   } catch (error: any) {
-    return NextResponse.json(
-      { error: error?.message || "Unexpected server error." },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: error?.message || "Unexpected server error." }, { status: 500 });
   }
 }

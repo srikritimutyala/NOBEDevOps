@@ -9,6 +9,14 @@ export async function GET(req: NextRequest) {
   const type = searchParams.get('type') as 'email' | 'recovery' | 'invite' | null;
   const next = searchParams.get('next');
 
+  // Invite links must NOT be auto-verified on GET (email scanners will burn the token).
+  // Forward to a page that requires a real click before calling verifyOtp.
+  if (token_hash && type === 'invite') {
+    return NextResponse.redirect(
+      `${origin}/auth/setup-account?token_hash=${token_hash}&type=${type}`
+    );
+  }
+
   const cookieStore = await cookies();
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
