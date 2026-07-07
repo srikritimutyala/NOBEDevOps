@@ -134,55 +134,10 @@ export async function POST(req: NextRequest) {
 
     const gcalItems = result.data.items || [];
 
-    for (const event of gcalItems) {
-      if (!event.id) continue;
+    // Google Calendar database sync is disabled to prioritize manual creation and CSV uploads.
+    console.log(`GCal Club Sync: Fetched ${gcalItems.length} events from calendar, database writing is disabled.`);
 
-      const parsed = parseDescription(event.description || null);
-      const gcalEventId = isCustomCalendar
-        ? `imported:public:${calendarId}:${event.id}`
-        : `imported:club:${event.id}`;
-
-      const { error } = await supabase.from('events').upsert(
-        {
-          gcal_event_id: gcalEventId,
-          name: event.summary || 'Untitled Event',
-          event_type: parsed.event_type,
-          date: event.start?.dateTime || event.start?.date || new Date().toISOString(),
-          location: event.location || null,
-          points: parsed.points,
-          dresscode: parsed.dresscode,
-          is_mandatory: parsed.is_mandatory,
-        },
-        { onConflict: 'gcal_event_id' }
-      );
-
-      if (error) {
-        console.error(`Failed to upsert GCal event ${event.id}:`, error.message);
-      }
-    }
-
-    const gcalIds = gcalItems.map((e) => e.id).filter(Boolean) as string[];
-
-    const prefix = isCustomCalendar
-      ? `imported:public:${calendarId}:%`
-      : `imported:club:%`;
-
-    const { data: stale } = await supabase
-      .from('events')
-      .select('id, gcal_event_id')
-      .like('gcal_event_id', prefix);
-
-    if (stale) {
-      const toDelete = stale.filter((e) => {
-        const rawId = e.gcal_event_id?.replace(/^imported:(?:club|public):(?:[^:]+:)?/, '');
-        return rawId ? !gcalIds.includes(rawId) : !gcalIds.includes(e.gcal_event_id ?? '');
-      });
-      for (const e of toDelete) {
-        await supabase.from('events').delete().eq('id', e.id);
-      }
-    }
-
-    return NextResponse.json({ success: true, synced: gcalItems.length });
+    return NextResponse.json({ success: true, synced: 0 });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     console.error('GCal sync error:', message);

@@ -360,11 +360,20 @@ export default function EventList() {
                   Absence Form
                 </Link>
               </div>
-              <p className="eyebrow" style={{ marginTop: '20px' }}>Member</p>
-              <h1 className="page-title">
-                {member?.name ? `${member.name.split(' ')[0]}'s schedule` : 'Your event schedule'}
-              </h1>
-              <p className="page-subtitle">View events and points</p>
+              <div className="flex items-center gap-3" style={{ marginTop: '20px' }}>
+                <img
+                  src="/nobe_logo_f.svg"
+                  alt="NOBE Illinois"
+                  style={{ width: "48px", height: "48px" }}
+                />
+                <div>
+                  <p className="eyebrow" style={{ marginBottom: "2px" }}>NOBE Illinois Member Portal</p>
+                  <h1 className="page-title" style={{ fontSize: "1.8rem", margin: 0 }}>
+                    {member?.name ? `${member.name.split(' ')[0]}'s schedule` : 'Your event schedule'}
+                  </h1>
+                </div>
+              </div>
+              <p className="page-subtitle" style={{ marginTop: "8px" }}>View events, points, and absence forms</p>
             </div>
             <div className="action-row">
               <LogoutButton />
