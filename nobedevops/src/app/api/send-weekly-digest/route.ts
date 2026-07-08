@@ -35,7 +35,6 @@ export async function POST(request: NextRequest) {
     const supabaseAdmin = createAdminClient();
     const goals = await getPointRequirements();
 
-    // ---- Shared content: this week's events ----
     const now = new Date();
     const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
@@ -47,11 +46,13 @@ export async function POST(request: NextRequest) {
       .order("date", { ascending: true });
     if (eventsError) throw eventsError;
 
-    const { data: reminders, error: remindersError } = await supabaseAdmin
-      .from("weekly_reminders")
+    const { data: noteRow, error: noteError } = await supabaseAdmin
+      .from("weekly_reminder_note")
       .select("text")
-      .order("created_at", { ascending: true });
-    if (remindersError) throw remindersError;
+      .eq("id", 1)
+      .single();
+    if (noteError) throw noteError;
+    const reminderText = (noteRow?.text ?? "").trim();
 
     const categoryOrder = ["PROFESSIONAL", "SOCIAL", "SERVICE", "GENERAL_MEETING", "NEW_MEMBER_WORKSHOP", "PROJECT_MEETING", "OTHER_MANDATORY"];
     const eventsByType: Record<string, any[]> = {};
@@ -69,19 +70,18 @@ export async function POST(request: NextRequest) {
       eventSections.push(`${label}:\n\n${typeEvents.map(formatEventLine).join("\n\n")}`);
     }
 
-    if (reminders && reminders.length > 0) {
-      eventSections.push(`Additional Reminders:\n\n${reminders.map((r) => `- ${r.text}`).join("\n")}`);
-    }
-
-    const eventsBlock = eventSections.length > 0
+    // Fallback is based purely on whether there are events — reminders are separate.
+    let eventsBlock = eventSections.length > 0
       ? eventSections.join("\n\n")
       : "No events scheduled this week.";
 
-    // ---- Recipients ----
+    if (reminderText) {
+      eventsBlock += `\n\nAdditional Reminders:\n\n${reminderText}`;
+    }
+
     let recipients: { illinois_email: string; first_name: string; professional_points: number; service_points: number; social_points: number }[] = [];
 
     if (testEmails) {
-      // Pull one real profile per test email if it exists, so the personalized section is realistic
       const { data: matched } = await supabaseAdmin
         .from("People")
         .select("illinois_email, first_name, professional_points, service_points, social_points")
@@ -140,6 +140,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Clear the reminder note after a real, full send (not test emails).
+    if (!testEmails && reminderText) {
+      await supabaseAdmin.from("weekly_reminder_note").update({ text: "" }).eq("id", 1);
+    }
+
     return NextResponse.json({
       ok: true,
       sent: sentCount,
@@ -150,9 +155,6 @@ export async function POST(request: NextRequest) {
         : `Sent ${sentCount} weekly digest emails.${failed.length > 0 ? ` ${failed.length} failed.` : ""}`,
     });
   } catch (error: any) {
-    return NextResponse.json(
-      { error: error?.message || "Unexpected server error." },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: error?.message || "Unexpected server error." }, { status: 500 });
   }
 }
