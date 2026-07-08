@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import Link from "next/link";
 import QRCode from "react-qr-code";
 import { createClient } from "@/app/utils/supabase/client";
@@ -24,6 +24,7 @@ export type AdminDashboardProps = {
     description: string;
     link?: string;
     action?: string;
+    eventId?: string;
   }>;
   upcomingEvents: Array<{
     id: string;
@@ -90,6 +91,32 @@ export default function AdminDashboard({
   const supabase = createClient();
   const router = useRouter();
 
+  const [dismissedList, setDismissedList] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("nobe_dismissed_notifications");
+      if (saved) {
+        try {
+          setDismissedList(JSON.parse(saved));
+        } catch (_) {}
+      }
+    }
+  }, []);
+
+  const handleDismissNotification = (uniqueId: string) => {
+    const newList = [...dismissedList, uniqueId];
+    setDismissedList(newList);
+    localStorage.setItem("nobe_dismissed_notifications", JSON.stringify(newList));
+  };
+
+  const visibleNotifications = useMemo(() => {
+    return needsAttention.filter(item => {
+      const uniqueKey = item.id === "two_strikes" ? `two_strikes_${item.title}` : item.id;
+      return !dismissedList.includes(uniqueKey);
+    });
+  }, [needsAttention, dismissedList]);
+
   async function handleLogout() {
     try {
       await supabase.auth.signOut();
@@ -107,6 +134,7 @@ export default function AdminDashboard({
   // Strike Processor state
   const [isProcessingStrikes, setIsProcessingStrikes] = useState(false);
   const [strikeProcessResult, setStrikeProcessResult] = useState<string | null>(null);
+  const [isResolving, setIsResolving] = useState<string | null>(null);
 
   // Sync state
   const [isSyncingGcal, setIsSyncingGcal] = useState(false);
@@ -141,8 +169,28 @@ export default function AdminDashboard({
       setStrikeProcessResult("An unexpected error occurred while processing strikes.");
     } finally {
       setIsProcessingStrikes(false);
+      router.refresh();
       // Auto hide after 8s
       setTimeout(() => setStrikeProcessResult(null), 8000);
+    }
+  }
+
+  async function handleMarkStrikesResolved(eventId: string) {
+    if (!eventId) return;
+    setIsResolving(eventId);
+    try {
+      const { error } = await supabase
+        .from("events")
+        .update({ strikes_processed: true })
+        .eq("id", eventId);
+
+      if (error) throw error;
+      alert("Event marked as strikes processed. Notification resolved.");
+      router.refresh();
+    } catch (err: any) {
+      alert("Error marking event as resolved: " + err.message);
+    } finally {
+      setIsResolving(null);
     }
   }
 
@@ -368,7 +416,7 @@ export default function AdminDashboard({
               </span>
             </div>
 
-            {needsAttention.length === 0 ? (
+            {visibleNotifications.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-slate-400 text-center">
                 <span className="text-4xl mb-3">✅</span>
                 <h4 className="font-bold text-slate-800 text-base">All Caught Up!</h4>
@@ -376,7 +424,7 @@ export default function AdminDashboard({
               </div>
             ) : (
               <div className="space-y-3 mt-4">
-                {needsAttention.map((item) => (
+                {visibleNotifications.map((item) => (
                   <div key={item.id} className="group relative flex items-start gap-4 p-3.5 bg-white/70 hover:bg-white rounded-2xl border border-slate-100 hover:shadow-xs transition-all duration-200">
                     <div className="mt-1">
                       {item.type === "absence_requests" && <span className="text-lg">✉️</span>}
@@ -407,14 +455,41 @@ export default function AdminDashboard({
                       )}
                     </div>
                     <div className="shrink-0 self-center">
-                      {item.action === "process_strikes" ? (
-                        <button
-                          onClick={triggerStrikeProcessor}
-                          disabled={isProcessingStrikes}
-                          className="text-xs font-bold text-amber-600 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-xl border border-amber-200 transition-colors"
-                        >
-                          {isProcessingStrikes ? "Running..." : "Process Now"}
-                        </button>
+                      {item.id === "two_strikes" ? (
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <Link
+                            href={item.link || "#"}
+                            className="text-xs font-bold text-slate-500 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200 transition-colors text-center"
+                            style={{ textDecoration: "none" }}
+                          >
+                            Review
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={() => handleDismissNotification(`two_strikes_${item.title}`)}
+                            className="text-xs font-bold text-slate-500 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200 transition-colors text-center cursor-pointer"
+                          >
+                            Resolve
+                          </button>
+                        </div>
+                      ) : item.action === "process_strikes" ? (
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <button
+                            onClick={triggerStrikeProcessor}
+                            disabled={isProcessingStrikes}
+                            className="text-xs font-bold text-amber-600 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-xl border border-amber-200 transition-colors"
+                          >
+                            {isProcessingStrikes ? "Running..." : "Process Now"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleMarkStrikesResolved(item.eventId || "")}
+                            disabled={isResolving === item.eventId}
+                            className="text-xs font-bold text-slate-500 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200 transition-colors text-center cursor-pointer"
+                          >
+                            {isResolving === item.eventId ? "Resolving..." : "Mark Resolved"}
+                          </button>
+                        </div>
                       ) : (
                         <Link
                           href={item.link || "#"}
@@ -500,13 +575,7 @@ export default function AdminDashboard({
                         <span className="text-[9px] text-slate-400 px-2 py-1">No QR</span>
                       )}
 
-                      <button
-                        onClick={() => triggerEmailReminder(evt.id, evt.name)}
-                        disabled={remindingEventId === evt.id}
-                        className="text-[10px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded-md border border-blue-100 transition-colors"
-                      >
-                        {remindingEventId === evt.id ? "Sending..." : "Reminder"}
-                      </button>
+
                     </div>
                   </div>
                 ))}

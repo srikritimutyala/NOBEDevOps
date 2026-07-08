@@ -296,50 +296,7 @@ export default async function AdminPage() {
     });
   }
 
-  // 2. Missing check-ins on last mandatory event
-  const lastMandatoryEvent = pastEvents
-    .filter((e) => e.is_mandatory)
-    .sort((a, b) => parseDate(b.date)!.getTime() - parseDate(a.date)!.getTime())[0];
-
-  if (lastMandatoryEvent) {
-    const attendedUserIds = new Set(
-      attendance
-        .filter((a) => a.event_id === lastMandatoryEvent.id)
-        .map((a) => a.user_id)
-    );
-    const excusedForLastMandatory = new Set(
-      absences
-        .filter(
-          (a) =>
-            a.event_id === lastMandatoryEvent.id &&
-            a.status?.toUpperCase() === "APPROVED"
-        )
-        .map((a) => a.user_id)
-    );
-
-    let missingLastMandatory = 0;
-    for (const member of members) {
-      if (!member.auth_id) continue;
-      if (
-        !attendedUserIds.has(member.auth_id) &&
-        !excusedForLastMandatory.has(member.auth_id)
-      ) {
-        missingLastMandatory++;
-      }
-    }
-
-    if (missingLastMandatory > 0) {
-      needsAttentionList.push({
-        id: "missing_checkin",
-        type: "missing_checkin",
-        title: `${missingLastMandatory} member(s) haven't checked into ${lastMandatoryEvent.name}`,
-        description: "Review attendance records or follow up with members.",
-        link: `/users/admin/eventReview?eventId=${lastMandatoryEvent.id}`,
-      });
-    }
-  }
-
-  // 3. Strike processing unprocessed meetings
+  // 2. Strike processing unprocessed meetings
   const unprocessedMandatoryEvents = pastEvents.filter(
     (e) => e.is_mandatory && !e.strikes_processed
   );
@@ -351,6 +308,7 @@ export default async function AdminPage() {
       description: "Click to run the strike processor to assign strikes for this meeting.",
       link: "#",
       action: "process_strikes",
+      eventId: unprocessedMandatoryEvents[0].id,
     });
   }
 

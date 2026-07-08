@@ -33,9 +33,11 @@ interface Strike {
 const EVENT_TYPE_CONFIG: Record<string, { label: string; color: string; borderColor: string }> = {
   PROFESSIONAL: { label: 'Professional', color: '#FF7043', borderColor: '#E64A19' },
   SOCIAL: { label: 'Social', color: '#FF9999', borderColor: '#FF6666' },
+  SERVICE: { label: 'Service/Philanthropy', color: '#9FBB9F', borderColor: '#7A9B7A' },
   'SERVICE / PHILANTHROPY': { label: 'Service/Philanthropy', color: '#9FBB9F', borderColor: '#7A9B7A' },
   GENERAL_MEETING: { label: 'General Meeting', color: '#424242', borderColor: '#212121' },
   MANDATORY: { label: 'Mandatory', color: '#FFEBEE', borderColor: '#EF5350' },
+  OTHER_MANDATORY: { label: 'Mandatory', color: '#FFEBEE', borderColor: '#EF5350' },
   GOOGLE_CALENDAR: { label: 'Google Calendar', color: '#B3E5FC', borderColor: '#0288D1' },
   PROJECT_MEETING: { label: 'Project Meeting', color: '#FFD54F', borderColor: '#FBC02D' },
   NEW_MEMBER_WORKSHOP: { label: 'New Member Workshop', color: '#CE93D8', borderColor: '#AF2CC5' },
@@ -71,6 +73,8 @@ export default function EventList() {
   const [addedEvents, setAddedEvents] = useState<Set<string>>(new Set());
   const [mounted, setMounted] = useState(false);
   const [strikes, setStrikes] = useState<Strike[]>([]);
+  const [viewMode, setViewMode] = useState<"CALENDAR" | "LIST">("CALENDAR");
+
 
   useEffect(() => {
     setMounted(true);
@@ -250,6 +254,13 @@ export default function EventList() {
 
     return combined.filter((event) => selectedFilters.has(event.event_type));
   }, [nobeEvents, googleEvents, selectedFilters]);
+
+  const monthEvents = useMemo(() => {
+    return events.filter(event => {
+      const d = new Date(event.date);
+      return d.getFullYear() === displayMonth.getFullYear() && d.getMonth() === displayMonth.getMonth();
+    }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }, [events, displayMonth]);
 
   const eventConflicts = useMemo(() => {
     const conflicts = new Map<string, boolean>();
@@ -463,40 +474,15 @@ export default function EventList() {
                     borderColor: '#616161',
                     label: event.event_type.replaceAll('_', ' '),
                   };
+                  const isGCal = event.event_type === 'GOOGLE_CALENDAR';
 
-                  return (
-                    <div
-                      key={event.id}
-                      className="calendar-list-event"
-                      style={{
-                        borderLeftColor: config.borderColor,
-                        borderLeftWidth: '4px',
-                        paddingLeft: '8px',
-                        position: 'relative',
-                      }}
-                    >
-                      {event.event_type !== 'GOOGLE_CALENDAR' && (
-                        <button
-                          type="button"
-                          className="event-add-button"
-                          disabled={addedEvents.has(event.id)}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            if (!addedEvents.has(event.id)) {
-                              addEventToGoogleCalendar(event);
-                            }
-                          }}
-                          title={addedEvents.has(event.id) ? 'Added to Google Calendar' : 'Add to Google Calendar'}
-                        >
-                          {addedEvents.has(event.id) ? '✓' : '+'}
-                        </button>
-                      )}
-
+                  const cardContent = (
+                    <>
                       <div className="calendar-list-event-date">
                         <span>{formatEventDay(event.date)}</span>
                         <strong>{formatEventDayNumber(event.date)}</strong>
                       </div>
-                      <div className="calendar-list-event-body">
+                      <div className="calendar-list-event-body" style={{ flex: 1 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <strong>{event.name}</strong>
                           {event.event_type !== 'GOOGLE_CALENDAR' && eventConflicts.get(event.id) && (
@@ -518,6 +504,34 @@ export default function EventList() {
                           ) : null}
                         </p>
                       </div>
+                    </>
+                  );
+
+                  return (
+                    <div
+                      key={event.id}
+                      className="calendar-list-event"
+                      style={{
+                        borderLeftColor: config.borderColor,
+                        borderLeftWidth: '4px',
+                        paddingLeft: '8px',
+                        position: 'relative',
+                        display: 'flex',
+                        alignItems: 'stretch'
+                      }}
+                    >
+
+
+                      {isGCal ? (
+                        <div style={{ display: 'flex', flex: 1, gap: '8px' }}>{cardContent}</div>
+                      ) : (
+                        <Link
+                          href={`/users/member/event-details?eventId=${event.id}`}
+                          style={{ display: 'flex', flex: 1, gap: '8px', textDecoration: 'none', color: 'inherit' }}
+                        >
+                          {cardContent}
+                        </Link>
+                      )}
                     </div>
                   );
                 })}
@@ -589,6 +603,46 @@ export default function EventList() {
                 Next
               </button>
             </div>
+          </div>
+
+          {/* View Mode Tabs */}
+          <div style={{ display: "flex", gap: "6px", background: "var(--surface-alt)", padding: "4px", borderRadius: "12px", marginBottom: "16px", maxWidth: "280px" }}>
+            <button
+              type="button"
+              onClick={() => setViewMode("CALENDAR")}
+              style={{
+                flex: 1,
+                padding: "8px 12px",
+                fontSize: "0.8rem",
+                fontWeight: "700",
+                borderRadius: "8px",
+                border: "none",
+                background: viewMode === "CALENDAR" ? "white" : "transparent",
+                boxShadow: viewMode === "CALENDAR" ? "0 2px 6px rgba(0,0,0,0.05)" : "none",
+                cursor: "pointer",
+                color: "var(--foreground)"
+              }}
+            >
+              📅 Calendar
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("LIST")}
+              style={{
+                flex: 1,
+                padding: "8px 12px",
+                fontSize: "0.8rem",
+                fontWeight: "700",
+                borderRadius: "8px",
+                border: "none",
+                background: viewMode === "LIST" ? "white" : "transparent",
+                boxShadow: viewMode === "LIST" ? "0 2px 6px rgba(0,0,0,0.05)" : "none",
+                cursor: "pointer",
+                color: "var(--foreground)"
+              }}
+            >
+              📋 Clean Cards
+            </button>
           </div>
 
           <div className="filter-section" style={{ marginBottom: '24px', padding: '16px', backgroundColor: '#f5f5f5', borderRadius: '8px', position: 'relative' }}>
@@ -684,58 +738,93 @@ export default function EventList() {
             )}
           </div>
 
-          <div className="calendar-compact">
-            <div className="calendar-header">
-              {weekDays.map((day) => (
-                <div key={day} className="calendar-header-cell">
-                  {day}
-                </div>
-              ))}
-            </div>
+          {viewMode === "CALENDAR" ? (
+            <div className="calendar-compact">
+              <div className="calendar-header">
+                {weekDays.map((day) => (
+                  <div key={day} className="calendar-header-cell">
+                    {day}
+                  </div>
+                ))}
+              </div>
 
-            <div className="calendar-grid">
-              {calendarDays.map((date) => {
-                const inMonth = date.getMonth() === displayMonth.getMonth();
-                const dateKey = eventDateKey(date);
-                const dayEvents = eventsByDate[dateKey] || [];
-                const isToday = mounted && isSameDay(date, today);
+              <div className="calendar-grid">
+                {calendarDays.map((date) => {
+                  const inMonth = date.getMonth() === displayMonth.getMonth();
+                  const dateKey = eventDateKey(date);
+                  const dayEvents = eventsByDate[dateKey] || [];
+                  const isToday = mounted && isSameDay(date, today);
 
-                return (
-                  <div
-                    key={date.toISOString()}
-                    className={[
-                      'calendar-day',
-                      !inMonth ? 'calendar-day-muted' : '',
-                      isToday ? 'calendar-day-today' : '',
-                    ].join(' ').trim()}
-                  >
-                    <div className="calendar-day-head">
-                      <div className="calendar-day-meta">
-                        <strong className="calendar-day-number">{date.getDate()}</strong>
-                        <span className="calendar-day-label">
-                          {date.toLocaleDateString('en-US', { weekday: 'short' })}
-                        </span>
+                  return (
+                    <div
+                      key={date.toISOString()}
+                      className={[
+                        'calendar-day',
+                        !inMonth ? 'calendar-day-muted' : '',
+                        isToday ? 'calendar-day-today' : '',
+                      ].join(' ').trim()}
+                    >
+                      <div className="calendar-day-head">
+                        <div className="calendar-day-meta">
+                          <strong className="calendar-day-number">{date.getDate()}</strong>
+                          <span className="calendar-day-label">
+                            {date.toLocaleDateString('en-US', { weekday: 'short' })}
+                          </span>
+                        </div>
+                        {isToday && <span className="today-pill">Today</span>}
                       </div>
-                      {isToday && <span className="today-pill">Today</span>}
-                    </div>
 
-                    <div className="calendar-events">
-                      {dayEvents.length === 0 ? (
-                        <p className="calendar-empty-copy">{inMonth ? 'Open day' : ''}</p>
-                      ) : (
-                        dayEvents.slice(0, 3).map((event) => {
-                          const config = EVENT_TYPE_CONFIG[event.event_type] || {
-                            color: '#757575',
-                            borderColor: '#616161',
-                          };
+                      <div className="calendar-events">
+                        {dayEvents.length === 0 ? (
+                          <p className="calendar-empty-copy">{inMonth ? 'Open day' : ''}</p>
+                        ) : (
+                          dayEvents.slice(0, 3).map((event) => {
+                            const config = EVENT_TYPE_CONFIG[event.event_type] || {
+                              color: '#757575',
+                              borderColor: '#616161',
+                            };
+                            const isGCal = event.event_type === 'GOOGLE_CALENDAR';
 
-                          if (event.is_mandatory) {
+                            if (isGCal) {
+                              return (
+                                <div
+                                  key={event.id}
+                                  className="calendar-event"
+                                  style={{
+                                    display: 'block',
+                                    borderLeftColor: config.borderColor,
+                                    borderLeftWidth: '4px',
+                                    paddingLeft: '8px',
+                                    opacity: 0.7,
+                                    backgroundColor: '#fafafa',
+                                    borderRadius: '4px',
+                                    padding: '8px',
+                                  }}
+                                >
+                                  <div className="calendar-event-topline">
+                                    <div className="calendar-event-time">
+                                      {new Date(event.date).toLocaleTimeString('en-US', {
+                                        hour: 'numeric',
+                                        minute: '2-digit',
+                                      })}
+                                    </div>
+                                  </div>
+                                  <div className="calendar-event-name" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    {event.name}
+                                  </div>
+                                  <div className="calendar-event-meta">
+                                    <span>{event.location || 'TBD'}</span>
+                                  </div>
+                                </div>
+                              );
+                            }
+
                             return (
                               <Link
                                 key={event.id}
-                                href={`/users/member/absence?eventId=${event.id}`}
+                                href={`/users/member/event-details?eventId=${event.id}`}
                                 className="calendar-event"
-                                title={`Request absence for ${event.name}`}
+                                title={`View details for ${event.name}`}
                                 style={{
                                   display: 'block',
                                   textDecoration: 'none',
@@ -752,13 +841,15 @@ export default function EventList() {
                                       minute: '2-digit',
                                     })}
                                   </div>
-                                  <span className="calendar-event-chip" style={{ backgroundColor: '#EF5350', color: 'white', fontSize: '8px', padding: '1px 6px' }}>
-                                    Mandatory
-                                  </span>
+                                  {event.is_mandatory && (
+                                    <span className="calendar-event-chip" style={{ backgroundColor: '#EF5350', color: 'white', fontSize: '8px', padding: '1px 6px' }}>
+                                      Mandatory
+                                    </span>
+                                  )}
                                 </div>
-                                <div className="calendar-event-name" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <div className="calendar-event-name" style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#333' }}>
                                   {event.name}
-                                  {event.event_type !== 'GOOGLE_CALENDAR' && eventConflicts.get(event.id) && (
+                                  {eventConflicts.get(event.id) && (
                                     <span title="Time conflict with another event" style={{ fontSize: '0.9rem' }}>⚠️</span>
                                   )}
                                 </div>
@@ -768,54 +859,116 @@ export default function EventList() {
                                 </div>
                               </Link>
                             );
-                          }
-
-                          return (
-                            <div
-                              key={event.id}
-                              className="calendar-event"
-                              style={{
-                                display: 'block',
-                                borderLeftColor: config.borderColor,
-                                borderLeftWidth: '4px',
-                                paddingLeft: '8px',
-                                opacity: 0.7,
-                                backgroundColor: '#fafafa',
-                                borderRadius: '4px',
-                                padding: '8px',
-                              }}
-                            >
-                              <div className="calendar-event-topline">
-                                <div className="calendar-event-time">
-                                  {new Date(event.date).toLocaleTimeString('en-US', {
-                                    hour: 'numeric',
-                                    minute: '2-digit',
-                                  })}
-                                </div>
-                              </div>
-                              <div className="calendar-event-name" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                {event.name}
-                                {event.event_type !== 'GOOGLE_CALENDAR' && eventConflicts.get(event.id) && (
-                                  <span title="Time conflict with another event" style={{ fontSize: '0.9rem' }}>⚠️</span>
-                                )}
-                              </div>
-                              <div className="calendar-event-meta">
-                                <span>{event.location || 'TBD'}</span>
-                                <span>{event.points} pt</span>
-                              </div>
-                            </div>
-                          );
-                        })
-                      )}
-                      {dayEvents.length > 3 && (
-                        <div className="calendar-more-events">+{dayEvents.length - 3} more events</div>
-                      )}
+                          })
+                        )}
+                        {dayEvents.length > 3 && (
+                          <div className="calendar-more-events">+{dayEvents.length - 3} more events</div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div style={{ maxHeight: "490px", overflowY: "auto", paddingRight: "6px", marginTop: "16px" }} className="scroll-viewport-cards">
+              <style jsx>{`
+                .scroll-viewport-cards::-webkit-scrollbar {
+                  width: 5px;
+                }
+                .scroll-viewport-cards::-webkit-scrollbar-track {
+                  background: transparent;
+                }
+                .scroll-viewport-cards::-webkit-scrollbar-thumb {
+                  background: var(--border);
+                  border-radius: 8px;
+                }
+              `}</style>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "16px", padding: "2px" }}>
+                {monthEvents.length === 0 ? (
+                  <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "40px", color: "var(--muted)", background: "rgba(0,0,0,0.02)", borderRadius: "16px", border: "1px dashed var(--border)" }}>
+                    No events scheduled for this month.
+                  </div>
+                ) : (
+                  monthEvents.map((event) => {
+                    const config = EVENT_TYPE_CONFIG[event.event_type] || {
+                      color: '#757575',
+                      borderColor: '#616161',
+                      label: event.event_type.replaceAll('_', ' '),
+                    };
+                    const isGCal = event.event_type === 'GOOGLE_CALENDAR';
+                    const eventDate = new Date(event.date);
+                    const isUpcoming = eventDate >= new Date();
+
+                    const cardContent = (
+                      <div
+                        style={{
+                          padding: "20px",
+                          borderRadius: "18px",
+                          border: "1px solid var(--border)",
+                          borderLeft: `5px solid ${config.borderColor}`,
+                          background: "white",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "8px",
+                          height: "100%",
+                          position: "relative",
+                          boxShadow: "0 2px 8px rgba(0,0,0,0.01)"
+                        }}
+                      >
+                        {/* Status Badges */}
+                        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                          {isUpcoming ? (
+                            <span style={{ fontSize: "0.7rem", padding: "2px 6px", borderRadius: "10px", background: "rgba(63,122,83,0.08)", color: "var(--success)", fontWeight: "700" }}>🟢 Upcoming</span>
+                          ) : (
+                            <span style={{ fontSize: "0.7rem", padding: "2px 6px", borderRadius: "10px", background: "rgba(107,108,112,0.06)", color: "var(--muted)", fontWeight: "700" }}>⚪ Completed</span>
+                          )}
+                          {event.is_mandatory && (
+                            <span style={{ fontSize: "0.7rem", padding: "2px 6px", borderRadius: "10px", background: "rgba(154,59,49,0.08)", color: "var(--danger)", fontWeight: "700" }}>🔴 Mandatory</span>
+                          )}
+                        </div>
+
+                        <strong style={{ fontSize: "1.05rem", color: "#111", display: "flex", alignItems: "center", gap: "6px", lineHeight: "1.3" }}>
+                          {event.name}
+                          {!isGCal && eventConflicts.get(event.id) && (
+                            <span title="Time conflict with another event" style={{ fontSize: '1rem' }}>⚠️</span>
+                          )}
+                        </strong>
+
+                        <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--muted)" }}>
+                          📅 {formatEventDate(event.date)}
+                        </p>
+                        {event.location && (
+                          <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--muted)" }}>
+                            📍 {event.location}
+                          </p>
+                        )}
+
+                        <div style={{ marginTop: "auto", paddingTop: "10px", borderTop: "1px solid #f9f9f9", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.8rem", fontWeight: "600", color: "var(--muted)" }}>
+                          <span>{config.label}</span>
+                          <span>{event.points} pt{event.points === 1 ? '' : 's'}</span>
+                        </div>
+                      </div>
+                    );
+
+                    if (isGCal) {
+                      return <div key={event.id}>{cardContent}</div>;
+                    }
+
+                    return (
+                      <Link
+                        key={event.id}
+                        href={`/users/member/event-details?eventId=${event.id}`}
+                        style={{ textDecoration: "none", color: "inherit", display: "block" }}
+                      >
+                        {cardContent}
+                      </Link>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
         </section>
 
         {events.length === 0 && (
