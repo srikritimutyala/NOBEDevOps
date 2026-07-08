@@ -992,12 +992,7 @@ export default function ReviewMemberStatsClient({
                                             </button>
 
                                             {/* Role, Deactivate, Email */}
-                                            <button
-                                                onClick={handlePromoteDemote}
-                                                className="px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/50 rounded-xl text-left text-xs font-bold transition-all cursor-pointer"
-                                            >
-                                                👑 Toggle Officer Role
-                                            </button>
+
 
                                             <button
                                                 onClick={() => setIsEditModalOpen(true)}

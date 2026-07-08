@@ -244,6 +244,7 @@ function CreateEventContent() {
     start_time: "18:00",
     end_time: "19:00",
     location: "",
+    description: "",
     has_check_in_window: false,
     check_in_start_offset_minutes: "0",
     check_in_end_offset_minutes: "30",
@@ -306,7 +307,7 @@ function CreateEventContent() {
       const { data, error } = await supabase
         .from("events")
         .select(
-          "id, name, event_type, dresscode, points, is_mandatory, date, location, created_at, qr_code_secret, check_in_starts_at, check_in_ends_at"
+          "id, name, event_type, dresscode, points, is_mandatory, date, location, created_at, qr_code_secret, check_in_starts_at, check_in_ends_at, description"
         )
         .eq("id", eventId)
         .single();
@@ -348,6 +349,7 @@ function CreateEventContent() {
           ? toTimeInputValue(eventStart)
           : "19:00",
         location: data.location ?? "",
+        description: data.description ?? "",
         has_check_in_window: hasCustomWindow,
         check_in_start_offset_minutes: hasCustomWindow
           ? String(Math.round((checkInStart as Date).getTime() - eventStart.getTime()) / 60000)
@@ -487,6 +489,7 @@ function CreateEventContent() {
         check_in_starts_at: checkInStartsAt.toISOString(),
         check_in_ends_at: checkInEndsAt.toISOString(),
         location: form.location.trim(),
+        description: form.description.trim(),
         created_at: createdAtValue.toISOString(),
         qr_code_secret: secret,
       };
@@ -902,6 +905,19 @@ function CreateEventContent() {
                     className="field-input"
                   />
                 </div>
+              </div>
+
+              <div className="field-group" style={{ marginBottom: "20px" }}>
+                <label className="field-label">Description / Notes &amp; Reminders</label>
+                <textarea
+                  name="description"
+                  value={form.description}
+                  onChange={handleChange}
+                  placeholder="Enter details, description, notes, or reminders for this event..."
+                  className="field-input"
+                  rows={4}
+                  style={{ width: "100%", padding: "10px", borderRadius: "10px", border: "1px solid var(--border)", resize: "vertical", fontSize: "0.9rem", lineHeight: "1.4" }}
+                />
               </div>
 
               <div className="toggle-row">

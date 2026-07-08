@@ -140,6 +140,15 @@ export async function POST(request: Request) {
 
             const newStrikes = (person.strikes || 0) + 1;
 
+            const { error: updatePeopleError } = await adminClient
+              .from("People")
+              .update({ strikes: newStrikes })
+              .eq("auth_id", person.auth_id);
+
+            if (updatePeopleError) {
+              console.error(`Failed to update People strikes for user ${person.name}:`, updatePeopleError);
+            }
+
             if (person.illinois_email) {
               await sendStrikeEmail(
                 person.illinois_email,
