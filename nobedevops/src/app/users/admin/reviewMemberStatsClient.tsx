@@ -430,12 +430,12 @@ export default function ReviewMemberStatsClient({
     // Status label mapping helper
     function getHealthDisplay(health: "track" | "attention" | "risk") {
         if (health === "risk") {
-            return { label: "At Risk", badge: "bg-rose-50 text-rose-700 border-rose-200", icon: "🔴" };
+            return { label: "At Risk", badge: "bg-rose-50 text-rose-700 border-rose-200", dot: "bg-rose-600" };
         }
         if (health === "attention") {
-            return { label: "Needs Attention", badge: "bg-amber-50 text-amber-700 border-amber-200", icon: "🟡" };
+            return { label: "Needs Attention", badge: "bg-amber-50 text-amber-700 border-amber-200", dot: "bg-amber-500" };
         }
-        return { label: "On Track", badge: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: "🟢" };
+        return { label: "On Track", badge: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-500" };
     }
 
     return (
@@ -542,8 +542,8 @@ export default function ReviewMemberStatsClient({
                                 <section className="panel flex flex-col gap-6" style={{ minHeight: "auto" }}>
                                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                                         <div className="flex gap-4 items-center">
-                                            <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-3xl">
-                                                {selectedMember.name?.charAt(0) || "👤"}
+                                            <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-2xl font-bold text-amber-700 uppercase">
+                                                {selectedMember.name?.charAt(0) || "?"}
                                             </div>
                                             <div>
                                                 <div className="flex flex-wrap items-center gap-2">
@@ -565,7 +565,7 @@ export default function ReviewMemberStatsClient({
                                         <div className="flex flex-col gap-2 items-end self-stretch sm:self-center">
                                             {memberDashboardData && (
                                                 <div className={`px-4 py-2 border rounded-2xl text-xs font-bold flex items-center gap-2 shadow-xs ${getHealthDisplay(memberDashboardData.health).badge}`}>
-                                                    <span>{getHealthDisplay(memberDashboardData.health).icon}</span>
+                                                    <span className={`w-2 h-2 rounded-full ${getHealthDisplay(memberDashboardData.health).dot}`}></span>
                                                     <span>Status: {getHealthDisplay(memberDashboardData.health).label}</span>
                                                 </div>
                                             )}
@@ -670,7 +670,7 @@ export default function ReviewMemberStatsClient({
                                                 <div className="flex justify-between items-center mb-1">
                                                     <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Active Strikes</span>
                                                     {memberStrikes.length >= 2 ? (
-                                                        <span className="text-[10px] font-bold text-rose-600">⚠️ Threshold Danger</span>
+                                                        <span className="text-[10px] font-bold text-rose-600">Threshold Danger</span>
                                                     ) : (
                                                         <span className="text-[10px] font-bold text-emerald-600">Good Standing</span>
                                                     )}
@@ -719,17 +719,17 @@ export default function ReviewMemberStatsClient({
                                                             <div className="flex items-center gap-1.5">
                                                                 {status === "attended" && (
                                                                     <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 font-bold rounded-lg border border-emerald-100 text-[10px]">
-                                                                        ✅ Attended
+                                                                        Attended
                                                                     </span>
                                                                 )}
                                                                 {status === "excused" && (
                                                                     <span className="px-2 py-0.5 bg-amber-50 text-amber-700 font-bold rounded-lg border border-amber-100 text-[10px]">
-                                                                        🟡 Excused
+                                                                        Excused
                                                                     </span>
                                                                 )}
                                                                 {status === "missed" && (
                                                                     <span className="px-2 py-0.5 bg-rose-50 text-rose-700 font-bold rounded-lg border border-rose-100 text-[10px]">
-                                                                        ❌ Missed
+                                                                        Missed
                                                                     </span>
                                                                 )}
                                                             </div>
@@ -951,88 +951,87 @@ export default function ReviewMemberStatsClient({
                                         </div>
 
                                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-2">
-                                            {/* Point increments */}
-                                            <button
-                                                onClick={() => handleUpdatePoints("professional", 1)}
-                                                className="px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/50 rounded-xl text-left text-xs font-bold transition-all cursor-pointer"
-                                            >
-                                                💼 +1 Prof Point
-                                            </button>
-                                            <button
-                                                onClick={() => handleUpdatePoints("professional", -1)}
-                                                className="px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/50 rounded-xl text-left text-xs font-bold transition-all cursor-pointer"
-                                            >
-                                                💼 -1 Prof Point
-                                            </button>
-                                            
-                                            <button
-                                                onClick={() => handleUpdatePoints("social", 1)}
-                                                className="px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/50 rounded-xl text-left text-xs font-bold transition-all cursor-pointer"
-                                            >
-                                                🎭 +1 Social Point
-                                            </button>
-                                            <button
-                                                onClick={() => handleUpdatePoints("social", -1)}
-                                                className="px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/50 rounded-xl text-left text-xs font-bold transition-all cursor-pointer"
-                                            >
-                                                🎭 -1 Social Point
-                                            </button>
+                                                                            {/* Point increments */}
+                                                                            <button
+                                                                                onClick={() => handleUpdatePoints("professional", 1)}
+                                                                                className="px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/50 rounded-xl text-left text-xs font-bold transition-all cursor-pointer"
+                                                                            >
+                                                                                +1 Prof Point
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => handleUpdatePoints("professional", -1)}
+                                                                                className="px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/50 rounded-xl text-left text-xs font-bold transition-all cursor-pointer"
+                                                                            >
+                                                                                -1 Prof Point
+                                                                            </button>
+                                                                            
+                                                                            <button
+                                                                                onClick={() => handleUpdatePoints("social", 1)}
+                                                                                className="px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/50 rounded-xl text-left text-xs font-bold transition-all cursor-pointer"
+                                                                            >
+                                                                                +1 Social Point
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => handleUpdatePoints("social", -1)}
+                                                                                className="px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/50 rounded-xl text-left text-xs font-bold transition-all cursor-pointer"
+                                                                            >
+                                                                                -1 Social Point
+                                                                            </button>
 
-                                            <button
-                                                onClick={() => handleUpdatePoints("service", 1)}
-                                                className="px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/50 rounded-xl text-left text-xs font-bold transition-all cursor-pointer"
-                                            >
-                                                🛠️ +1 Service Point
-                                            </button>
-                                            <button
-                                                onClick={() => handleUpdatePoints("service", -1)}
-                                                className="px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/50 rounded-xl text-left text-xs font-bold transition-all cursor-pointer"
-                                            >
-                                                🛠️ -1 Service Point
-                                            </button>
+                                                                            <button
+                                                                                onClick={() => handleUpdatePoints("service", 1)}
+                                                                                className="px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/50 rounded-xl text-left text-xs font-bold transition-all cursor-pointer"
+                                                                            >
+                                                                                +1 Service Point
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => handleUpdatePoints("service", -1)}
+                                                                                className="px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/50 rounded-xl text-left text-xs font-bold transition-all cursor-pointer"
+                                                                            >
+                                                                                -1 Service Point
+                                                                            </button>
 
-                                            {/* Role, Deactivate, Email */}
+                                                                            {/* Role, Deactivate, Email */}
 
 
-                                            <button
-                                                onClick={() => setIsEditModalOpen(true)}
-                                                className="px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/50 rounded-xl text-left text-xs font-bold transition-all cursor-pointer"
-                                            >
-                                                ✏️ Edit Profile Info
-                                            </button>
+                                                                            <button
+                                                                                onClick={() => setIsEditModalOpen(true)}
+                                                                                className="px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/50 rounded-xl text-left text-xs font-bold transition-all cursor-pointer"
+                                                                            >
+                                                                                Edit Profile Info
+                                                                            </button>
 
-                                            <button
-                                                onClick={handleDeactivate}
-                                                className="px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/50 rounded-xl text-left text-xs font-bold transition-all cursor-pointer"
-                                            >
-                                                🔒 Deactivate Portal
-                                            </button>
+                                                                            <button
+                                                                                onClick={handleDeactivate}
+                                                                                className="px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/50 rounded-xl text-left text-xs font-bold transition-all cursor-pointer"
+                                                                            >
+                                                                                Deactivate Portal
+                                                                            </button>
 
-                                            <a
-                                                href={`mailto:${selectedMember.illinois_email}?subject=NOBE%20Status%20Update`}
-                                                className="px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/50 rounded-xl text-left text-xs font-bold transition-all cursor-pointer flex items-center"
-                                            >
-                                                ✉️ Send Email
-                                            </a>
-                                        </div>
-                                    </div>
+                                                                            <a
+                                                                                href={`mailto:${selectedMember.illinois_email}?subject=NOBE%20Status%20Update`}
+                                                                                className="px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/50 rounded-xl text-left text-xs font-bold transition-all cursor-pointer flex items-center"
+                                                                            >
+                                                                                Send Email
+                                                                            </a>
+                                                                        </div>
+                                                                    </div>
 
-                                    <button
-                                        onClick={handleDeleteMemberItem}
-                                        disabled={isPending}
-                                        className="w-full mt-4 py-2 text-xs bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold rounded-xl transition-all cursor-pointer text-center"
-                                    >
-                                        {isPending ? "Processing..." : "❌ Permanent Delete Member"}
-                                    </button>
-                                </section>
-                            </>
-                        ) : (
-                            <section className="panel text-center py-20 text-slate-400">
-                                <span className="text-4xl">👥</span>
-                                <p className="font-bold text-slate-700 text-sm mt-3">Select a Member</p>
-                                <p className="text-xs text-slate-400 mt-1">Pick a profile from the left registry to review their compliance card.</p>
-                            </section>
-                        )}
+                                                                    <button
+                                                                        onClick={handleDeleteMemberItem}
+                                                                        disabled={isPending}
+                                                                        className="w-full mt-4 py-2 text-xs bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold rounded-xl transition-all cursor-pointer text-center"
+                                                                    >
+                                                                        {isPending ? "Processing..." : "Permanent Delete Member"}
+                                                                    </button>
+                                                                </section>
+                                                            </>
+                                                        ) : (
+                                                            <section className="panel text-center py-20 text-slate-400">
+                                                                <p className="font-bold text-slate-700 text-sm mt-3">Select a Member</p>
+                                                                <p className="text-xs text-slate-400 mt-1">Pick a profile from the left registry to review their compliance card.</p>
+                                                            </section>
+                                                        )}
                     </div>
                 </div>
             </div>
