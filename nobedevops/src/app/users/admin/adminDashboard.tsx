@@ -375,7 +375,6 @@ export default function AdminDashboard({
               <p className="stat-label">Total Members</p>
               <p className="stat-value">{quickStats.totalMembers}</p>
             </div>
-            <span className="text-2xl p-2 bg-slate-100 rounded-xl">👥</span>
           </div>
         </Link>
 
@@ -385,7 +384,6 @@ export default function AdminDashboard({
               <p className="stat-label">Upcoming Events</p>
               <p className="stat-value">{quickStats.upcomingEvents}</p>
             </div>
-            <span className="text-2xl p-2 bg-slate-100 rounded-xl">📅</span>
           </div>
         </Link>
 
@@ -395,7 +393,6 @@ export default function AdminDashboard({
               <p className="stat-label">Pending Requests</p>
               <p className="stat-value">{quickStats.pendingAbsences}</p>
             </div>
-            <span className="text-2xl p-2 bg-slate-100 rounded-xl">⚠️</span>
           </div>
         </Link>
       </section>
@@ -409,7 +406,7 @@ export default function AdminDashboard({
             <div className="panel-header border-b border-slate-100 pb-3">
               <div>
                 <h2 className="section-title text-slate-800" style={{ fontSize: "1.4rem" }}>Needs Attention</h2>
-                <p className="section-copy">Operations requiring executive decisions today</p>
+                <p className="section-copy">Pending items requiring attention</p>
               </div>
               <span className="px-3 py-1 bg-rose-50 text-rose-700 text-xs font-bold rounded-full border border-rose-200 uppercase tracking-wider">
                 Priority
@@ -418,7 +415,6 @@ export default function AdminDashboard({
 
             {visibleNotifications.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-slate-400 text-center">
-                <span className="text-4xl mb-3">✅</span>
                 <h4 className="font-bold text-slate-800 text-base">All Caught Up!</h4>
                 <p className="text-xs">No pending requests, unprocessed meetings, or failed actions.</p>
               </div>
@@ -426,12 +422,12 @@ export default function AdminDashboard({
               <div className="space-y-3 mt-4">
                 {visibleNotifications.map((item) => (
                   <div key={item.id} className="group relative flex items-start gap-4 p-3.5 bg-white/70 hover:bg-white rounded-2xl border border-slate-100 hover:shadow-xs transition-all duration-200">
-                    <div className="mt-1">
-                      {item.type === "absence_requests" && <span className="text-lg">✉️</span>}
-                      {item.type === "missing_checkin" && <span className="text-lg">🕒</span>}
-                      {item.type === "strikes_unprocessed" && <span className="text-lg">⚡</span>}
-                      {item.type === "two_strikes" && <span className="text-lg">🚨</span>}
-                      {item.type === "email_failures" && <span className="text-lg">❌</span>}
+                    <div className="mt-1.5 flex items-center justify-center">
+                      {item.type === "absence_requests" && <span className="inline-block w-2.5 h-2.5 rounded-full bg-blue-500"></span>}
+                      {item.type === "missing_checkin" && <span className="inline-block w-2.5 h-2.5 rounded-full bg-amber-500"></span>}
+                      {item.type === "strikes_unprocessed" && <span className="inline-block w-2.5 h-2.5 rounded-full bg-purple-500"></span>}
+                      {item.type === "two_strikes" && <span className="inline-block w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse"></span>}
+                      {item.type === "email_failures" && <span className="inline-block w-2.5 h-2.5 rounded-full bg-slate-500"></span>}
                     </div>
                     <div className="flex-1">
                       {item.action === "process_strikes" ? (
@@ -504,9 +500,6 @@ export default function AdminDashboard({
               </div>
             )}
           </div>
-          <div className="text-[11px] text-slate-400 font-semibold border-t border-slate-100/60 pt-3 mt-4">
-            * Operational flags update dynamically when members submit excuses or check in.
-          </div>
         </section>
 
         {/* ROW 1 Right: Upcoming Events */}
@@ -515,14 +508,13 @@ export default function AdminDashboard({
             <div className="panel-header border-b border-slate-100 pb-3">
               <div>
                 <h2 className="section-title text-slate-800" style={{ fontSize: "1.4rem" }}>Upcoming Events</h2>
-                <p className="section-copy">Nearest scheduled programming</p>
+                <p className="section-copy">Upcoming scheduled events</p>
               </div>
             </div>
 
             {upcomingEvents.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-slate-400 text-center">
-                <span className="text-3xl mb-2">📅</span>
-                <p className="text-xs">No upcoming events scheduled.</p>
+                <p className="text-xs text-slate-500">No upcoming events scheduled.</p>
                 <Link href="/users/admin/createEvent" className="text-xs text-amber-600 font-bold hover:underline mt-2">
                   Create Event →
                 </Link>
@@ -600,7 +592,7 @@ export default function AdminDashboard({
             <div className="panel-header border-b border-slate-100 pb-3">
               <div>
                 <h2 className="section-title text-slate-800" style={{ fontSize: "1.4rem" }}>Quick Actions</h2>
-                <p className="section-copy">Most frequently executed admin commands</p>
+                <p className="section-copy">Quick access to admin tasks</p>
               </div>
             </div>
 
@@ -609,7 +601,6 @@ export default function AdminDashboard({
                 href="/users/admin/createEvent"
                 className="flex flex-col items-center justify-center p-4 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/50 rounded-2xl transition-all duration-200 hover:-translate-y-0.5 text-center font-bold text-xs"
               >
-                <span className="text-2xl mb-1.5">➕</span>
                 Create Event
               </Link>
 
@@ -617,7 +608,6 @@ export default function AdminDashboard({
                 onClick={() => setIsQrSelectorOpen(true)}
                 className="flex flex-col items-center justify-center p-4 bg-slate-50 hover:bg-slate-100 text-slate-800 border border-slate-200/50 rounded-2xl transition-all duration-200 hover:-translate-y-0.5 text-center font-bold text-xs cursor-pointer"
               >
-                <span className="text-2xl mb-1.5">🖼️</span>
                 Generate QR
               </button>
 
@@ -625,15 +615,13 @@ export default function AdminDashboard({
                 href="/users/admin/bulkAdd"
                 className="flex flex-col items-center justify-center p-4 bg-slate-50 hover:bg-slate-100 text-slate-800 border border-slate-200/50 rounded-2xl transition-all duration-200 hover:-translate-y-0.5 text-center font-bold text-xs"
               >
-                <span className="text-2xl mb-1.5">📥</span>
-                New Members Bulk Add
+                Bulk Add
               </Link>
 
               <Link
                 href="/users/admin/reviewAbsence"
                 className="flex flex-col items-center justify-center p-4 bg-slate-50 hover:bg-slate-100 text-slate-800 border border-slate-200/50 rounded-2xl transition-all duration-200 hover:-translate-y-0.5 text-center font-bold text-xs"
               >
-                <span className="text-2xl mb-1.5">⚠️</span>
                 Review Absences
               </Link>
 
@@ -641,7 +629,6 @@ export default function AdminDashboard({
                 href="/users/admin/send-email"
                 className="flex flex-col items-center justify-center p-4 bg-slate-50 hover:bg-slate-100 text-slate-800 border border-slate-200/50 rounded-2xl transition-all duration-200 hover:-translate-y-0.5 text-center font-bold text-xs"
               >
-                <span className="text-2xl mb-1.5">✉️</span>
                 Email Members
               </Link>
 
@@ -650,13 +637,9 @@ export default function AdminDashboard({
                 disabled={isProcessingStrikes}
                 className="flex flex-col items-center justify-center p-4 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/50 rounded-2xl transition-all duration-200 hover:-translate-y-0.5 text-center font-bold text-xs cursor-pointer disabled:opacity-60"
               >
-                <span className="text-2xl mb-1.5">⚡</span>
                 {isProcessingStrikes ? "Running..." : "Process Strikes"}
               </button>
             </div>
-          </div>
-          <div className="text-[11px] text-slate-400 mt-4">
-            Actions execute immediately. Check results in logs.
           </div>
         </section>
 
@@ -666,15 +649,13 @@ export default function AdminDashboard({
             <div className="panel-header border-b border-slate-100 pb-3">
               <div>
                 <h2 className="section-title text-slate-800" style={{ fontSize: "1.4rem" }}>Members At Risk</h2>
-                <p className="section-copy">Proactively review members nearing strike thresholds or missing points</p>
+                <p className="section-copy">Members nearing strike limits or point thresholds</p>
               </div>
             </div>
 
             {membersAtRisk.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-slate-400 text-center">
-                <span className="text-3xl mb-2">⭐</span>
                 <p className="text-xs font-bold text-slate-700">All Members in Good Standing</p>
-                <p className="text-[11px] mt-1 text-slate-400">Nobody has reached strike limit or fell behind attendance guidelines.</p>
               </div>
             ) : (
               <div className="overflow-y-auto mt-4 pr-1" style={{ maxHeight: "230px" }}>
@@ -735,7 +716,7 @@ export default function AdminDashboard({
             <div className="panel-header border-b border-slate-100 pb-3">
               <div>
                 <h2 className="section-title text-slate-800" style={{ fontSize: "1.4rem" }}>Club Progress</h2>
-                <p className="section-copy">Member completion count against category requirements</p>
+                <p className="section-copy">Overall progress toward point requirements</p>
               </div>
             </div>
 
@@ -819,9 +800,6 @@ export default function AdminDashboard({
               </div>
             </div>
           </div>
-          <div className="text-[11px] text-slate-400 mt-4">
-            Reqs are loaded from the database point requirements table.
-          </div>
         </section>
 
         {/* Attendance Panel */}
@@ -880,9 +858,6 @@ export default function AdminDashboard({
               </div>
             </div>
           </div>
-          <div className="text-[11px] text-slate-400 mt-4">
-            Targets are based on full-term general membership parameters.
-          </div>
         </section>
       </div>
 
@@ -895,7 +870,7 @@ export default function AdminDashboard({
             <div className="panel-header border-b border-slate-100 pb-3">
               <div>
                 <h2 className="section-title text-slate-800" style={{ fontSize: "1.4rem" }}>Recent Activity</h2>
-                <p className="section-copy">Operational logs from check-ins and administrators</p>
+                <p className="section-copy">Recent check-ins and admin actions</p>
               </div>
             </div>
 
@@ -905,12 +880,12 @@ export default function AdminDashboard({
               <div className="space-y-3.5 mt-4 overflow-y-auto pr-1.5" style={{ maxHeight: "250px" }}>
                 {recentActivity.map((activity) => (
                   <div key={activity.id} className="flex gap-3 text-xs items-start">
-                    <span className="shrink-0 text-base mt-0.5">
-                      {activity.type === "checkin" && "✅"}
-                      {activity.type === "absence" && "✉️"}
-                      {activity.type === "event_create" && "📅"}
-                      {activity.type === "csv_import" && "📥"}
-                      {activity.type === "strike" && "🚨"}
+                    <span className="shrink-0 mt-1.5 flex items-center justify-center">
+                      {activity.type === "checkin" && <span className="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>}
+                      {activity.type === "absence" && <span className="inline-block w-2 h-2 rounded-full bg-sky-500"></span>}
+                      {activity.type === "event_create" && <span className="inline-block w-2 h-2 rounded-full bg-purple-500"></span>}
+                      {activity.type === "csv_import" && <span className="inline-block w-2 h-2 rounded-full bg-indigo-500"></span>}
+                      {activity.type === "strike" && <span className="inline-block w-2 h-2 rounded-full bg-rose-500"></span>}
                     </span>
                     <div className="flex-1 bg-white/40 p-2.5 rounded-xl border border-slate-100/60">
                       <p className="text-slate-800 font-semibold">{activity.description}</p>
@@ -923,9 +898,6 @@ export default function AdminDashboard({
               </div>
             )}
           </div>
-          <div className="text-[11px] text-slate-400 pt-3 border-t border-slate-100/50 mt-3">
-            Realtime database sync active. Actions are logged instantly.
-          </div>
         </section>
 
         {/* System Status Panel */}
@@ -934,7 +906,7 @@ export default function AdminDashboard({
             <div className="panel-header border-b border-slate-100 pb-3">
               <div>
                 <h2 className="section-title text-slate-800" style={{ fontSize: "1.4rem" }}>System Status</h2>
-                <p className="section-copy">Monitoring external dependencies</p>
+                <p className="section-copy">Status of external integrations</p>
               </div>
             </div>
 
@@ -986,9 +958,6 @@ export default function AdminDashboard({
                 </span>
               </div>
             </div>
-          </div>
-          <div className="text-[11px] text-slate-400 mt-4">
-            Sync details pulled from external calendars.
           </div>
         </section>
       </div>

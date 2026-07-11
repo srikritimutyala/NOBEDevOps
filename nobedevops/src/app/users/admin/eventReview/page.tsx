@@ -230,7 +230,7 @@ function EventReviewClient() {
   }
 
   async function handleDeleteEvent() {
-    if (!confirm("⚠️ WARNING: Are you sure you want to permanently delete this event? This will also remove all associated attendance and absence records!")) return;
+    if (!confirm("Are you sure you want to permanently delete this event? This will also remove all associated attendance and absence records!")) return;
     setActionLoading(true);
     try {
       const { error } = await supabase.from("events").delete().eq("id", eventId);
@@ -529,14 +529,14 @@ function EventReviewClient() {
               <h1 style={{ fontSize: "2.2rem", fontWeight: "800", letterSpacing: "-0.03em", margin: "0 0 12px 0", color: "#111" }}>{event.name}</h1>
               
               <div style={{ fontSize: "0.95rem", color: "var(--muted)", display: "flex", flexDirection: "column", gap: "4px" }}>
-                <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>📅 {formatDate(event.date)}</span>
-                {event.location && <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>📍 {event.location}</span>}
+                <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>{formatDate(event.date)}</span>
+                {event.location && <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>{event.location}</span>}
               </div>
 
               {/* Action Buttons */}
               <div style={{ display: "flex", gap: "12px", marginTop: "24px", flexWrap: "wrap" }}>
                 <Link href={`/users/admin/createEvent?eventId=${event.id}`} className="btn" style={{ padding: "10px 20px", fontWeight: "600", textDecoration: "none", borderRadius: "12px", display: "inline-flex", alignItems: "center", gap: "6px" }}>
-                  ✏️ Edit Event
+                  Edit Event
                 </Link>
                 <button
                   type="button"
@@ -545,7 +545,7 @@ function EventReviewClient() {
                   className="btn-secondary"
                   style={{ padding: "10px 20px", fontWeight: "600", borderRadius: "12px", cursor: "pointer" }}
                 >
-                  🔄 Generate QR
+                  Generate QR
                 </button>
                 <button
                   type="button"
@@ -554,7 +554,7 @@ function EventReviewClient() {
                   className="btn-secondary"
                   style={{ borderColor: "var(--danger)", color: "var(--danger)", padding: "10px 20px", fontWeight: "600", borderRadius: "12px", cursor: "pointer", marginLeft: "auto" }}
                 >
-                  🗑️ Delete
+                  Delete
                 </button>
               </div>
             </div>
@@ -594,7 +594,7 @@ function EventReviewClient() {
           {/* Section 2 — Attendance Sheet */}
           <section className="panel" style={{ padding: "24px", borderRadius: "24px", background: "var(--surface-strong)", border: "1px solid var(--border)" }}>
             <h2 style={{ fontSize: "1.25rem", fontWeight: "800", margin: "0 0 6px 0", color: "#111" }}>Attendance</h2>
-            <p style={{ margin: "0 0 16px 0", fontSize: "0.82rem", color: "var(--muted)" }}>Search members and track present, excused, or missing status.</p>
+            <p style={{ margin: "0 0 16px 0", fontSize: "0.82rem", color: "var(--muted)" }}>Search members and manage attendance status.</p>
 
             {/* Search and Tabs */}
             <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "16px" }}>
@@ -660,7 +660,7 @@ function EventReviewClient() {
                   if (info.status === "PRESENT") {
                     badgeBg = "rgba(63,122,83,0.1)";
                     badgeColor = "var(--success)";
-                    badgeText = "✓ Checked In";
+                    badgeText = "Checked In";
                   } else if (info.status === "EXCUSED") {
                     badgeBg = "rgba(229,138,39,0.1)";
                     badgeColor = "var(--accent-strong)";
@@ -672,7 +672,7 @@ function EventReviewClient() {
                   } else {
                     badgeBg = "rgba(154,59,49,0.1)";
                     badgeColor = "var(--danger)";
-                    badgeText = "❌ Missing";
+                    badgeText = "Missing";
                   }
 
                   return (
@@ -739,7 +739,7 @@ function EventReviewClient() {
           {/* Section 4 — Absence Requests */}
           <section className="panel" style={{ padding: "24px", borderRadius: "24px", background: "var(--surface-strong)", border: "1px solid var(--border)" }}>
             <h2 style={{ fontSize: "1.25rem", fontWeight: "800", margin: "0 0 6px 0", color: "#111" }}>Pending Requests</h2>
-            <p style={{ margin: "0 0 16px 0", fontSize: "0.82rem", color: "var(--muted)" }}>Review and manage excuse forms submitted by absent members.</p>
+            <p style={{ margin: "0 0 16px 0", fontSize: "0.82rem", color: "var(--muted)" }}>Review excuse forms submitted by members.</p>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
               {pendingAbsenceRequests.length === 0 ? (
@@ -797,7 +797,7 @@ function EventReviewClient() {
           <section className="panel" style={{ padding: "24px", borderRadius: "24px", background: "var(--surface-strong)", border: "1px solid var(--border)", display: "flex", flexDirection: "column", alignItems: "center", gap: "16px" }}>
             <div style={{ width: "100%", textAlign: "left" }}>
               <h2 style={{ fontSize: "1.25rem", fontWeight: "800", margin: "0 0 6px 0", color: "#111" }}>QR Check-In</h2>
-              <p style={{ margin: 0, fontSize: "0.82rem", color: "var(--muted)" }}>Display this QR code or share the URL during meetings for automated check-in.</p>
+              <p style={{ margin: 0, fontSize: "0.82rem", color: "var(--muted)" }}>Share the URL or display this QR code to allow member check-in.</p>
             </div>
 
             {event.qr_code_secret ? (
@@ -817,7 +817,7 @@ function EventReviewClient() {
             <div style={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
               {qrExpiryStr && (
                 <p style={{ fontSize: "0.85rem", color: "var(--muted)", margin: "0 0 8px 0" }}>
-                  ⏳ Expires in: <strong>{qrExpiryStr}</strong>
+                  Expires in: <strong>{qrExpiryStr}</strong>
                 </p>
               )}
 
@@ -834,7 +834,7 @@ function EventReviewClient() {
                   className="btn"
                   style={{ flex: 1, fontSize: "0.85rem", padding: "10px 14px", borderRadius: "8px", cursor: "pointer" }}
                 >
-                  📋 Copy Check-in Link
+                  Copy Check-in Link
                 </button>
 
                 <button
@@ -907,7 +907,7 @@ function EventReviewClient() {
           {/* Section 7 — Post-Event Actions */}
           <section className="panel" style={{ padding: "24px", borderRadius: "24px", background: "rgba(255,251,247,0.8)", border: "1px solid rgba(229,138,39,0.25)" }}>
             <h2 style={{ fontSize: "1.25rem", fontWeight: "800", margin: "0 0 6px 0", color: "var(--accent-strong)" }}>Post-Event Actions</h2>
-            <p style={{ margin: "0 0 16px 0", fontSize: "0.82rem", color: "var(--muted)" }}>Complete administrative processing once this event has concluded.</p>
+            <p style={{ margin: "0 0 16px 0", fontSize: "0.82rem", color: "var(--muted)" }}>Process attendance actions after the event concludes.</p>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }} className="mobile-stack-buttons">
               <style jsx>{`

@@ -375,7 +375,7 @@ function CreateEventContent() {
     };
   }, [eventId]);
 
-  function handleChange(e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
+  function handleChange(e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) {
     const { name, type } = e.target;
     const value =
       type === "checkbox" && e.target instanceof HTMLInputElement
