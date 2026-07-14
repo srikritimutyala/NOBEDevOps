@@ -9,8 +9,8 @@ export async function GET(req: NextRequest) {
   const type = searchParams.get('type') as 'email' | 'recovery' | 'invite' | null;
   const next = searchParams.get('next');
 
-  // Never auto-verify on GET — email scanners pre-fetch links and burn one-time tokens.
-  // Forward to pages that require a real user click before calling verifyOtp.
+  // Don't auto-verify invite/email links on GET — email scanners can pre-fetch links and burn one-time tokens.
+  // Redirect to pages that require a real user click before calling verifyOtp.
   if (token_hash && type === 'invite') {
     return NextResponse.redirect(
       `${origin}/auth/setup-account?token_hash=${token_hash}&type=${type}`
