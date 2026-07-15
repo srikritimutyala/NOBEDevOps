@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useAuth } from '../authprovider';
-import { getMemberStrikes } from './actions';
+import { getMemberStrikes, updateMemberProfile } from './actions';
 import LogoutButton from '../login/logout';
 
 interface Event {
@@ -47,8 +47,11 @@ const EVENT_TYPES = Object.keys(EVENT_TYPE_CONFIG);
 
 interface MemberProfile {
   name: string | null;
+  first_name: string | null;
+  last_name: string | null;
   year: string | null;
   college: string | null;
+  major: string | null;
   committee: string | null;
   social_points: number | null;
   professional_points: number | null;
@@ -74,6 +77,11 @@ export default function EventList() {
   const [mounted, setMounted] = useState(false);
   const [strikes, setStrikes] = useState<Strike[]>([]);
   const [viewMode, setViewMode] = useState<"CALENDAR" | "LIST">("CALENDAR");
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [profileForm, setProfileForm] = useState({ first_name: '', last_name: '', year: '', college: '', major: '' });
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [profileSuccess, setProfileSuccess] = useState(false);
 
 
   useEffect(() => {
@@ -151,7 +159,7 @@ export default function EventList() {
       const { data, error: fetchError } = await supabase
         .from('People')
         .select(
-          'name, year, college, committee, social_points, professional_points, service_points, strikes, auth_id'
+          'name, first_name, last_name, year, college, major, committee, social_points, professional_points, service_points, strikes, auth_id'
         )
         .eq('auth_id', session.user.id)
         .single();
@@ -162,6 +170,13 @@ export default function EventList() {
         setStrikes([]);
       } else {
         setMember(data as MemberProfile);
+        setProfileForm({
+          first_name: data.first_name ?? '',
+          last_name: data.last_name ?? '',
+          year: data.year ?? '',
+          college: data.college ?? '',
+          major: data.major ?? '',
+        });
 
         try {
           const strikeData = await getMemberStrikes();
@@ -436,6 +451,10 @@ export default function EventList() {
 
                 <div className="subtle-card list-stack">
                   <div className="metric-pair">
+                    <span>Email</span>
+                    <span>{session?.user?.email || 'N/A'}</span>
+                  </div>
+                  <div className="metric-pair">
                     <span>Year</span>
                     <span>{member.year || 'N/A'}</span>
                   </div>
@@ -444,10 +463,83 @@ export default function EventList() {
                     <span>{member.college || 'N/A'}</span>
                   </div>
                   <div className="metric-pair">
+                    <span>Major</span>
+                    <span>{member.major || 'N/A'}</span>
+                  </div>
+                  <div className="metric-pair">
                     <span>Committee</span>
                     <span>{member.committee || 'N/A'}</span>
                   </div>
                 </div>
+
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  style={{ width: '100%' }}
+                  onClick={() => { setEditingProfile(v => !v); setProfileError(null); setProfileSuccess(false); }}
+                >
+                  {editingProfile ? 'Cancel' : 'Edit profile'}
+                </button>
+
+                {editingProfile && (
+                  <form
+                    className="field-group"
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      setProfileSaving(true);
+                      setProfileError(null);
+                      setProfileSuccess(false);
+                      const { error } = await updateMemberProfile(profileForm);
+                      setProfileSaving(false);
+                      if (error) {
+                        setProfileError(error);
+                      } else {
+                        setProfileSuccess(true);
+                        setEditingProfile(false);
+                        setMember(prev => prev ? {
+                          ...prev,
+                          first_name: profileForm.first_name,
+                          last_name: profileForm.last_name,
+                          name: `${profileForm.first_name} ${profileForm.last_name}`,
+                          year: profileForm.year,
+                          college: profileForm.college,
+                          major: profileForm.major,
+                        } : prev);
+                      }
+                    }}
+                  >
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <div className="field-group" style={{ flex: 1 }}>
+                        <label className="field-label">First name</label>
+                        <input className="field-input" value={profileForm.first_name} onChange={e => setProfileForm(f => ({ ...f, first_name: e.target.value }))} required />
+                      </div>
+                      <div className="field-group" style={{ flex: 1 }}>
+                        <label className="field-label">Last name</label>
+                        <input className="field-input" value={profileForm.last_name} onChange={e => setProfileForm(f => ({ ...f, last_name: e.target.value }))} required />
+                      </div>
+                    </div>
+                    <div className="field-group">
+                      <label className="field-label">Year</label>
+                      <input className="field-input" value={profileForm.year} onChange={e => setProfileForm(f => ({ ...f, year: e.target.value }))} placeholder="e.g. Junior" />
+                    </div>
+                    <div className="field-group">
+                      <label className="field-label">College</label>
+                      <input className="field-input" value={profileForm.college} onChange={e => setProfileForm(f => ({ ...f, college: e.target.value }))} placeholder="e.g. Grainger" />
+                    </div>
+                    <div className="field-group">
+                      <label className="field-label">Major</label>
+                      <input className="field-input" value={profileForm.major} onChange={e => setProfileForm(f => ({ ...f, major: e.target.value }))} placeholder="e.g. Computer Science" />
+                    </div>
+                    {profileError && <div className="message-error">{profileError}</div>}
+                    <button type="submit" className="btn button-full" disabled={profileSaving}>
+                      {profileSaving ? 'Saving...' : 'Save changes'}
+                    </button>
+                  </form>
+                )}
+
+                {profileSuccess && (
+                  <div className="message-success">Profile updated!</div>
+                )}
               </div>
             ) : (
               <div className="message-error">
