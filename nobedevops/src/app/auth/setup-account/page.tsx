@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { createClient } from "@/app/utils/supabase/client";
 
-export default function SetupAccountPage() {
+function SetupAccountForm() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const supabase = createClient();
@@ -128,5 +128,21 @@ export default function SetupAccountPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function SetupAccountPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="auth-shell">
+          <div className="auth-card">
+            <p className="text-center">Loading account setup...</p>
+          </div>
+        </div>
+      }
+    >
+      <SetupAccountForm />
+    </Suspense>
   );
 }
