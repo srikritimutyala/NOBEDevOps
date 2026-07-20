@@ -116,21 +116,17 @@ export async function POST(req: Request) {
     }
 
     const updates: Record<string, number> = {};
+    const normType = (event.event_type ?? "").toUpperCase();
 
-    if (event.event_type === "PROFESSIONAL") {
+    if (normType.includes("PROF")) {
       updates.professional_points =
         (profile.professional_points ?? 0) + (event.points ?? 0);
-    } else if (event.event_type === "SERVICE") {
+    } else if (normType.includes("SERV")) {
       updates.service_points =
         (profile.service_points ?? 0) + (event.points ?? 0);
-    } else if (event.event_type === "SOCIAL") {
+    } else if (normType.includes("SOCI")) {
       updates.social_points =
         (profile.social_points ?? 0) + (event.points ?? 0);
-    } else {
-      return NextResponse.json(
-        { ok: false, message: `Unsupported event type: ${event.event_type}` },
-        { status: 400 }
-      );
     }
 
     const { error: attendanceError } = await supabase
@@ -150,23 +146,24 @@ export async function POST(req: Request) {
       );
     }
 
-    const { data: updatedProfile, error: updateError } = await supabase
-      .from("People")
-      .update(updates)
-      .eq("auth_id", user.id)
-      .select(`
-        professional_points,
-        service_points,
-        social_points
-      `)
-      .single();
+    let updatedProfile = profile;
+    if (Object.keys(updates).length > 0) {
+      const { data: updated, error: updateError } = await supabase
+        .from("People")
+        .update(updates)
+        .eq("auth_id", user.id)
+        .select(`
+          professional_points,
+          service_points,
+          social_points
+        `)
+        .single();
 
-    if (updateError || !updatedProfile) {
-      return NextResponse.json(
-        { ok: false, message: "Attendance saved, but failed to update points." },
-        { status: 500 }
-      );
+      if (!updateError && updated) {
+        updatedProfile = updated;
+      }
     }
+
 
     const goals = await getPointRequirements();
 
