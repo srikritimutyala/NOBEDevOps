@@ -114,13 +114,28 @@ export default function LoginForm() {
     setSubmitting(true);
 
     if (mode === 'signin') {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
         setError(error.message);
         if (error.message === 'Email not confirmed') setShowResend(true);
+        setSubmitting(false);
+        return;
       }
-      // redirect handled by useEffect once profile loads
+
+      if (data.user) {
+        const { data: person } = await supabase
+          .from('People')
+          .select('role')
+          .eq('auth_id', data.user.id)
+          .maybeSingle();
+
+        const destination = redirectTo ?? (person?.role === 'ADMIN' ? '/users/admin' : '/users/member');
+        router.replace(destination);
+        router.refresh();
+        return;
+      }
     } else if (mode === 'signup') {
+
       if (email !== confirmEmail) {
         setError('Email addresses do not match.');
         setSubmitting(false);
