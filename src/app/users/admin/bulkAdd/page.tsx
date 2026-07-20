@@ -171,6 +171,29 @@ export default function BulkAddPage() {
         <p className="mb-5 text-sm text-slate-600">
           Drag CSV files here or click to choose files. The files will be saved so they can be read later from Supabase.
         </p>
+
+        <div className="mb-6 text-left rounded-xl border border-blue-200 bg-blue-50 p-4 text-blue-900 shadow-sm">
+          <div className="flex items-start gap-3">
+            <svg className="h-5 w-5 text-blue-600 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div className="w-full">
+              <h3 className="font-semibold text-blue-900 mb-1">Required CSV Column Headings</h3>
+              <p className="text-xs text-blue-800 mb-3">Please ensure your CSV file includes these exact column headers:</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
+                <span className="bg-white/80 border border-blue-200 px-2.5 py-1.5 rounded-lg text-slate-800 font-semibold shadow-xs">Name</span>
+                <span className="bg-white/80 border border-blue-200 px-2.5 py-1.5 rounded-lg text-slate-800 font-semibold shadow-xs">First Name</span>
+                <span className="bg-white/80 border border-blue-200 px-2.5 py-1.5 rounded-lg text-slate-800 font-semibold shadow-xs">Last Name</span>
+                <span className="bg-white/80 border border-blue-200 px-2.5 py-1.5 rounded-lg text-slate-800 font-semibold shadow-xs">Illinois Email</span>
+                <span className="bg-white/80 border border-blue-200 px-2.5 py-1.5 rounded-lg text-slate-800 font-semibold shadow-xs">Year</span>
+                <span className="bg-white/80 border border-blue-200 px-2.5 py-1.5 rounded-lg text-slate-800 font-semibold shadow-xs">College</span>
+                <span className="bg-white/80 border border-blue-200 px-2.5 py-1.5 rounded-lg text-slate-800 font-semibold shadow-xs">Major</span>
+                <span className="bg-white/80 border border-blue-200 px-2.5 py-1.5 rounded-lg text-slate-800 font-semibold shadow-xs">Committee</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <label
           htmlFor="csv-upload"
           className="inline-block w-full cursor-pointer rounded-xl bg-white px-5 py-8 text-slate-700 shadow-sm transition hover:bg-slate-100"
