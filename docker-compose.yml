@@ -4,16 +4,17 @@ services:
   app:
     build:
       context: .
-      dockerfile: nobedevops/Dockerfile
+      dockerfile: Dockerfile
     container_name: dev-env
     volumes:
       - .:/app
-      - /app/nobedevops/node_modules
+      - /app/node_modules
       - ~/.gemini/antigravity-cli:/home/nextjs/.gemini/antigravity-cli
-    working_dir: /app/nobedevops
+    working_dir: /app
     tty: true
     stdin_open: true
     environment:
       - NODE_ENV=development
     ports:
       - "3000:3000"
+

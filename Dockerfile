@@ -14,13 +14,13 @@ ARG NODE_VERSION=20.11.1
 # 1) deps: install deps
 ############################
 FROM node:${NODE_VERSION}-alpine AS deps
-WORKDIR /app/nobedevops
+WORKDIR /app
 
 # OS deps often needed for native modules
 RUN apk add --no-cache libc6-compat
 
 # Copy only package files for better caching
-COPY nobedevops/package.json nobedevops/package-lock.json* ./
+COPY package.json package-lock.json* ./
 
 # Reproducible install (npm)
 RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
@@ -29,12 +29,12 @@ RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
 # 2) build: compile next app
 ############################
 FROM node:${NODE_VERSION}-alpine AS build
-WORKDIR /app/nobedevops
+WORKDIR /app
 
 ENV NODE_ENV=production
 
 # Bring node_modules from deps stage
-COPY --from=deps /app/nobedevops/node_modules ./node_modules
+COPY --from=deps /app/node_modules ./node_modules
 COPY . /app
 
 # Recommended: Next standalone output
@@ -45,7 +45,7 @@ RUN npm run build
 # 3) runner: minimal runtime
 ############################
 FROM node:${NODE_VERSION}-alpine AS runner
-WORKDIR /app/nobedevops
+WORKDIR /app
 
 ENV NODE_ENV=production
 ENV PORT=3000
@@ -64,9 +64,9 @@ ENV PATH="/home/nextjs/.local/bin:${PATH}"
 RUN git config --system --add safe.directory /app
 
 # If using Next "standalone" output:
-COPY --from=build /app/nobedevops/public ./public
-COPY --from=build /app/nobedevops/.next/static ./.next/static
-COPY --from=build /app/nobedevops/.next/standalone ./
+COPY --from=build /app/public ./public
+COPY --from=build /app/.next/static ./.next/static
+COPY --from=build /app/.next/standalone ./
 
 # Ensure the nextjs user owns the files
 RUN chown -R nextjs:nextjs /app
@@ -77,3 +77,4 @@ EXPOSE 3000
 
 # Next standalone server entrypoint:
 CMD ["sh", "-c", "if [ \"$NODE_ENV\" = \"development\" ]; then npm install && npm run dev; else node server.js; fi"]
+

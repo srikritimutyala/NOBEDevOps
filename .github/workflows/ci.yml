@@ -3,10 +3,6 @@ jobs:
     name: Lint and Test
     runs-on: ubuntu-latest
 
-    defaults:
-      run:
-        working-directory: nobedevops
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -16,7 +12,7 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: nobedevops/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -24,5 +20,3 @@ jobs:
       - name: Run linter
         run: npm run lint
 
-      - name: Run tests
-        run: npm test

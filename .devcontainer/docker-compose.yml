@@ -1,14 +1,15 @@
 services:
   app:
     image: node:20
-    working_dir: /workspaces/NOBEDevOps/nobedevops
+    working_dir: /workspaces/NOBEDevOps
     volumes:
       - ..:/workspaces/NOBEDevOps
-      - nobedevops_node_modules:/workspaces/NOBEDevOps/nobedevops/node_modules
+      - node_modules:/workspaces/NOBEDevOps/node_modules
       - ~/.gemini/antigravity-cli:/root/.gemini/antigravity-cli
     command: sleep infinity
     ports:
       - "3000:3000"
 
 volumes:
-  nobedevops_node_modules:
+  node_modules:
+
