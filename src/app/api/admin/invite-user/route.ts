@@ -33,8 +33,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
-  const origin = req.headers.get('origin') ?? 'http://localhost:3000';
+  const origin = req.headers.get('origin') ?? process.env.NEXT_PUBLIC_SITE_URL ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://nobe-dev-ops.vercel.app');
   const loginUrl = `${origin}/users/login`;
+
 
   const gasUrl = process.env.GAS_EMAIL_URL;
   const gasSecret = process.env.GAS_EMAIL_SECRET;

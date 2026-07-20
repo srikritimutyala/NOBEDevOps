@@ -8,7 +8,8 @@ const supabase = createClient();
 
 
 export default function AdminUI() {
-    const PUBLIC_URL = " http://10.195.105.173:3000";
+    const PUBLIC_URL = typeof window !== "undefined" ? window.location.origin : "https://nobe-dev-ops.vercel.app";
+
     const [form, setForm] = useState({
         name: "",
         event_type: "PROFESSIONAL", 
