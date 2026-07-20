@@ -4,12 +4,10 @@ import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, Suspense
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import QRCode from "react-qr-code";
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/app/utils/supabase/client";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY!
-);
+const supabase = createClient();
+
 
 const eventTypes = [
   "PROFESSIONAL",

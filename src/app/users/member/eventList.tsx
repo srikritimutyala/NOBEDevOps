@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@/app/utils/supabase/client';
+
 import { useAuth } from '../authprovider';
 import { getMemberStrikes, updateMemberProfile } from './actions';
 import LogoutButton from '../login/logout';
@@ -111,10 +112,8 @@ export default function EventList() {
   useEffect(() => {
     const fetchEvents = async () => {
       try {
-        const supabase = createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-          process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY || ''
-        );
+        const supabase = createClient();
+
 
         const { data, error: fetchError } = await supabase
           .from('events')
@@ -151,10 +150,8 @@ export default function EventList() {
       setAuthId(session.user.id);
       setMemberLoading(true);
 
-      const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-        process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY || ''
-      );
+      const supabase = createClient();
+
 
       const { data, error: fetchError } = await supabase
         .from('People')

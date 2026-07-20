@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/app/utils/supabase/client";
 import { useAuth } from "../../authprovider";
 import RequireAuth from "../../RequireAuth";
 
@@ -35,10 +35,8 @@ type AbsenceRecord = {
   reason: string | null;
 };
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY!
-);
+const supabase = createClient();
+
 
 function formatDate(dateString: string) {
   const date = new Date(dateString);

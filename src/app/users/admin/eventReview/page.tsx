@@ -3,9 +3,10 @@
 import { useEffect, useMemo, useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/app/utils/supabase/client";
 import QRCode from "react-qr-code";
 import AdminGuard from "../AdminGuard";
+
 
 type MemberRecord = {
   id: string;
@@ -47,10 +48,7 @@ type AbsenceRecord = {
   submitted_at: string | null;
 };
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY!
-);
+const supabase = createClient();
 
 function formatDate(dateString: string) {
   const date = new Date(dateString);

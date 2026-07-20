@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/app/utils/supabase/client";
 import QRCode from "react-qr-code";
+
 import AdminGuard from "../AdminGuard";
 
 type EventItem = {
@@ -24,10 +25,7 @@ type EventItem = {
   check_in_ends_at?: string | null;
 };
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY!
-);
+const supabase = createClient();
 
 function isGcalEvent(event: EventItem) {
   return !!event.gcal_event_id && !event.qr_code_secret;
