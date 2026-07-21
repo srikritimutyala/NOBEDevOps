@@ -31,6 +31,7 @@ export default function AbsencePage() {
         reason: '',
     });
 
+    const [submitting, setSubmitting] = useState(false);
     const [submitted, setSubmitted] = useState(false);
     const [absences, setAbsences] = useState<AbsenceRecord[]>([]);
     const [absencesLoading, setAbsencesLoading] = useState(true);
@@ -68,12 +69,20 @@ export default function AbsencePage() {
             setAbsencesError(error.message);
             setAbsences([]);
         } else {
-            setAbsences(data || []);
+            const unique = (data || []).reduce<AbsenceRecord[]>((acc, current) => {
+                const exists = current.event_id && acc.some((item) => item.event_id === current.event_id);
+                if (!exists) {
+                    acc.push(current);
+                }
+                return acc;
+            }, []);
+            setAbsences(unique);
             setAbsencesError(null);
         }
 
         setAbsencesLoading(false);
     };
+
 
     useEffect(() => {
         fetchAbsences();
@@ -114,6 +123,8 @@ export default function AbsencePage() {
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
 
+        if (submitting) return;
+
         const {
             data: { user },
             error: userError,
@@ -133,68 +144,75 @@ export default function AbsencePage() {
             return;
         }
 
-        let imageUrl: string | null = null;
+        setSubmitting(true);
 
-        if (imageFile) {
-            const filePath = `${user.id}/${Date.now()}-${imageFile.name}`;
+        try {
+            let imageUrl: string | null = null;
 
-            const { error: uploadError } = await supabase.storage
-                .from('absence-images')
-                .upload(filePath, imageFile);
+            if (imageFile) {
+                const filePath = `${user.id}/${Date.now()}-${imageFile.name}`;
 
-            if (uploadError) {
-                console.error('Image upload error:', uploadError);
-                alert(`Image upload failed: ${uploadError.message}`);
+                const { error: uploadError } = await supabase.storage
+                    .from('absence-images')
+                    .upload(filePath, imageFile);
+
+                if (uploadError) {
+                    console.error('Image upload error:', uploadError);
+                    alert(`Image upload failed: ${uploadError.message}`);
+                    return;
+                }
+
+                const { data } = supabase.storage
+                    .from('absence-images')
+                    .getPublicUrl(filePath);
+
+                imageUrl = data.publicUrl;
+            }
+
+            const { error } = await supabase
+                .from('excused_absences')
+                .insert([
+                    {
+                        user_id: user.id,
+                        event_id: formData.eventId || null,
+                        reason: formData.reason,
+                        submitted_at: new Date().toISOString(),
+                        status: 'PENDING',
+                        image_url: imageUrl,
+                    },
+                ]);
+
+            if (error) {
+                console.error('Insert error:', error);
                 return;
             }
 
-            const { data } = supabase.storage
-                .from('absence-images')
-                .getPublicUrl(filePath);
+            try {
+                await fetch('/api/send-email', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        to: process.env.NEXT_PUBLIC_ADMIN_NOTIFICATION_EMAIL ?? '',
+                        subject: 'New Absence Form Submission',
+                        message: `An absence form has been submitted.\n\nEvent Missed: ${selectedEvent?.name ?? 'Unknown'}\n\nReason: ${formData.reason}`,
+                    }),
+                });
+            } catch (emailError) {
+                console.error('Email send error:', emailError);
+            }
 
-            imageUrl = data.publicUrl;
+            setSubmitted(true);
+            setFormData({ eventId: '', reason: '' });
+            setImageFile(null);
+            setTimeout(() => setSubmitted(false), 3000);
+            await fetchAbsences();
+        } finally {
+            setSubmitting(false);
         }
-
-        const { error } = await supabase
-            .from('excused_absences')
-            .insert([
-                {
-                    user_id: user.id,
-                    event_id: formData.eventId || null,
-                    reason: formData.reason,
-                    submitted_at: new Date().toISOString(),
-                    status: 'PENDING',
-                    image_url: imageUrl,
-                },
-            ]);
-
-        if (error) {
-            console.error('Insert error:', error);
-            return;
-        }
-
-        try {
-            await fetch('/api/send-email', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    to: process.env.NEXT_PUBLIC_ADMIN_NOTIFICATION_EMAIL ?? '',
-                    subject: 'New Absence Form Submission',
-                    message: `An absence form has been submitted.\n\nEvent Missed: ${selectedEvent?.name ?? 'Unknown'}\n\nReason: ${formData.reason}`,
-                }),
-            });
-        } catch (emailError) {
-            console.error('Email send error:', emailError);
-        }
-
-        setSubmitted(true);
-        setFormData({ eventId: '', reason: '' });
-        setImageFile(null);
-        setTimeout(() => setSubmitted(false), 3000);
-        await fetchAbsences();
     };
+
 
     return (
         <div className="app-shell">
@@ -359,9 +377,10 @@ export default function AbsencePage() {
                                 </div>
                             )}
 
-                            <button type="submit" className="btn button-full">
-                                Submit Absence
+                            <button type="submit" disabled={submitting} className="btn button-full">
+                                {submitting ? 'Submitting...' : 'Submit Absence'}
                             </button>
+
                         </form>
                     </section>
 
