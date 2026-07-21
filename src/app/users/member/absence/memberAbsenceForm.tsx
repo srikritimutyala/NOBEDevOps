@@ -19,7 +19,9 @@ interface Event {
     id: string;
     name: string;
     date: string;
+    is_mandatory?: boolean | null;
 }
+
 
 export default function AbsencePage() {
     const supabase = createClient();
@@ -79,12 +81,13 @@ export default function AbsencePage() {
         const fetchEvents = async () => {
             const { data } = await supabase
                 .from('events')
-                .select('id, name, date')
+                .select('id, name, date, is_mandatory')
                 .order('date', { ascending: false });
 
             setEvents(data || []);
             setEventsLoading(false);
         };
+
 
         fetchEvents();
     }, []);
@@ -246,27 +249,37 @@ export default function AbsencePage() {
                                     disabled={eventsLoading}
                                 >
                                     <option value="">
-                                        {eventsLoading ? 'Loading events...' : 'Select an event'}
+                                        {eventsLoading
+                                            ? 'Loading events...'
+                                            : events.filter((e) => Boolean(e.is_mandatory)).length === 0
+                                            ? 'No mandatory events available'
+                                            : 'Select a mandatory event'}
                                     </option>
 
-                                    {events.map((event) => {
-                                        const eventTime = new Date(event.date).getTime();
-                                        const twentyFourHoursFromNow = Date.now() + 24 * 60 * 60 * 1000;
-                                        const isTooLate = eventTime <= twentyFourHoursFromNow;
-                                        return (
-                                            <option 
-                                                key={event.id} 
-                                                value={event.id}
-                                                disabled={isTooLate}
-                                            >
-                                                {event.name} — {new Date(event.date).toLocaleDateString('en-US', {
-                                                    month: 'short',
-                                                    day: 'numeric',
-                                                    year: 'numeric',
-                                                })} {isTooLate ? '(Too late to submit)' : ''}
-                                            </option>
-                                        );
-                                    })}
+                                    {(() => {
+                                        const mandatoryEvents = events.filter((event) => Boolean(event.is_mandatory));
+                                        const now = Date.now();
+                                        const twentyFourHoursFromNow = now + 24 * 60 * 60 * 1000;
+
+                                        return mandatoryEvents.map((event) => {
+                                            const eventTime = new Date(event.date).getTime();
+                                            const isTooLate = eventTime <= twentyFourHoursFromNow;
+                                            return (
+                                                <option 
+                                                    key={event.id} 
+                                                    value={event.id}
+                                                    disabled={isTooLate}
+                                                >
+                                                    {event.name} — {new Date(event.date).toLocaleDateString('en-US', {
+                                                        month: 'short',
+                                                        day: 'numeric',
+                                                        year: 'numeric',
+                                                    })} {isTooLate ? '(Too late to submit)' : ''}
+                                                </option>
+                                            );
+                                        });
+                                    })()}
+
                                 </select>
                                 <p className="text-xs text-[color:var(--muted)] mt-1">Note: You must submit an absence request at least 24 hours before the event starts.</p>
 
