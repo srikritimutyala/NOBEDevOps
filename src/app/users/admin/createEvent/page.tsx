@@ -54,6 +54,20 @@ function normalizeDresscode(codeStr: string): string {
 }
 
 function parseEventsCsv(text: string) {
+  const lines = text
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  if (lines.length < 2) {
+    throw new Error("CSV file must have a header row and at least one event data row.");
+  }
+
+  const firstLine = lines[0] || "";
+  const delimiter = firstLine.includes("\t") ? "\t" : ",";
+
   const parseCsvLine = (line: string) => {
     const values: string[] = [];
     let current = "";
@@ -67,7 +81,7 @@ function parseEventsCsv(text: string) {
         } else {
           inQuotes = !inQuotes;
         }
-      } else if (char === "," && !inQuotes) {
+      } else if (char === delimiter && !inQuotes) {
         values.push(current.trim());
         current = "";
       } else {
@@ -77,17 +91,6 @@ function parseEventsCsv(text: string) {
     values.push(current.trim());
     return values;
   };
-
-  const lines = text
-    .replace(/\r\n/g, "\n")
-    .replace(/\r/g, "\n")
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-
-  if (lines.length < 2) {
-    throw new Error("CSV file must have a header row and at least one event data row.");
-  }
 
   const headers = parseCsvLine(lines[0]);
   const headerIndexes = {

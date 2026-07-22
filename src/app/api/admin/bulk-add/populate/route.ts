@@ -30,29 +30,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No CSV uploads found." }, { status: 404 });
     }
 
-    const parseCsvLine = (line: string) => {
-      const values: string[] = [];
-      let current = "";
-      let inQuotes = false;
-      for (let i = 0; i < line.length; i++) {
-        const char = line[i];
-        if (char === '"') {
-          if (inQuotes && line[i + 1] === '"') {
-            current += '"';
-            i += 1;
-          } else {
-            inQuotes = !inQuotes;
-          }
-        } else if (char === "," && !inQuotes) {
-          values.push(current.trim());
-          current = "";
-        } else {
-          current += char;
-        }
-      }
-      values.push(current.trim());
-      return values;
-    };
+
 
     // Parse CSV content into rows while preserving line structure
     const rows = (latestUpload.content as string)
@@ -68,6 +46,34 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    // Auto-detect delimiter (tabs for TSV/Google Sheets, commas for CSV)
+    const firstLine = rows[0] || "";
+    const delimiter = firstLine.includes("\t") ? "\t" : ",";
+
+    const parseCsvLine = (line: string) => {
+      const values: string[] = [];
+      let current = "";
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        if (char === '"') {
+          if (inQuotes && line[i + 1] === '"') {
+            current += '"';
+            i += 1;
+          } else {
+            inQuotes = !inQuotes;
+          }
+        } else if (char === delimiter && !inQuotes) {
+          values.push(current.trim());
+          current = "";
+        } else {
+          current += char;
+        }
+      }
+      values.push(current.trim());
+      return values;
+    };
 
     const rawHeaders = parseCsvLine(rows[0]);
 
@@ -128,6 +134,10 @@ export async function POST(request: Request) {
 
     for (let rowIndex = 1; rowIndex < rows.length; rowIndex++) {
       const values = parseCsvLine(rows[rowIndex]);
+      if (values.every((v) => !v.trim())) {
+        continue; // skip empty or blank trailing rows silently
+      }
+
       const getValue = (idx: number) => (idx >= 0 && idx < values.length ? values[idx].trim() : "");
 
       let fullName = getValue(headerIndexes.name);
@@ -139,10 +149,11 @@ export async function POST(request: Request) {
       const major = getValue(headerIndexes.major);
       const committee = getValue(headerIndexes.committee);
 
-      if (!fullName && firstName && lastName) {
-        fullName = `${firstName} ${lastName}`.trim();
-      }
-      if ((!firstName || !lastName) && fullName) {
+      if (firstName && lastName) {
+        if (!fullName || fullName === firstName || !fullName.includes(" ")) {
+          fullName = `${firstName} ${lastName}`.trim();
+        }
+      } else if ((!firstName || !lastName) && fullName) {
         const parts = fullName.split(" ");
         if (!firstName) firstName = parts[0] || "";
         if (!lastName) lastName = parts.slice(1).join(" ") || "";
