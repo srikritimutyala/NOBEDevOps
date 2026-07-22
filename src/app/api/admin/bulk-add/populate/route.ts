@@ -69,23 +69,97 @@ export async function POST(request: Request) {
       );
     }
 
-    const headers = parseCsvLine(rows[0]);
-    const expectedHeaders = ["Name", "First Name", "Last Name", "Illinois Email", "Year", "College", "Major", "Committee"];
+    const rawHeaders = parseCsvLine(rows[0]);
 
-    if (headers.length !== expectedHeaders.length || !headers.every((h, i) => h === expectedHeaders[i])) {
-      return NextResponse.json({ error: "CSV headers do not match expected format." }, { status: 400 });
+    const headerIndexes: Record<string, number> = {
+      name: -1,
+      first_name: -1,
+      last_name: -1,
+      illinois_email: -1,
+      year: -1,
+      college: -1,
+      major: -1,
+      committee: -1,
+    };
+
+    rawHeaders.forEach((h, idx) => {
+      const norm = h.toLowerCase().trim();
+      if (norm === "name" || norm === "full name" || norm === "fullname") {
+        headerIndexes.name = idx;
+      } else if (norm === "first name" || norm === "first_name" || norm === "firstname") {
+        headerIndexes.first_name = idx;
+      } else if (norm === "last name" || norm === "last_name" || norm === "lastname") {
+        headerIndexes.last_name = idx;
+      } else if (norm === "illinois email" || norm === "illinois_email" || norm === "email" || norm === "email address") {
+        headerIndexes.illinois_email = idx;
+      } else if (norm === "year" || norm === "class year" || norm === "grade") {
+        headerIndexes.year = idx;
+      } else if (norm === "college" || norm === "school") {
+        headerIndexes.college = idx;
+      } else if (norm === "major" || norm === "field of study") {
+        headerIndexes.major = idx;
+      } else if (norm === "committee" || norm === "team") {
+        headerIndexes.committee = idx;
+      }
+    });
+
+    const missingHeaderLabels: string[] = [];
+    if (headerIndexes.name === -1 && (headerIndexes.first_name === -1 || headerIndexes.last_name === -1)) {
+      if (headerIndexes.name === -1) missingHeaderLabels.push("Name");
+      if (headerIndexes.first_name === -1) missingHeaderLabels.push("First Name");
+      if (headerIndexes.last_name === -1) missingHeaderLabels.push("Last Name");
+    }
+    if (headerIndexes.illinois_email === -1) missingHeaderLabels.push("Illinois Email");
+    if (headerIndexes.year === -1) missingHeaderLabels.push("Year");
+    if (headerIndexes.college === -1) missingHeaderLabels.push("College");
+    if (headerIndexes.major === -1) missingHeaderLabels.push("Major");
+    if (headerIndexes.committee === -1) missingHeaderLabels.push("Committee");
+
+    if (missingHeaderLabels.length > 0) {
+      return NextResponse.json(
+        { error: `CSV headers do not match expected format. Missing header(s): ${missingHeaderLabels.join(", ")}.` },
+        { status: 400 }
+      );
     }
 
     const peopleData: Array<Record<string, string>> = [];
     const missingRows: Array<{ row: number; missingFields: string[] }> = [];
+    const expectedHeaderNames = ["Name", "First Name", "Last Name", "Illinois Email", "Year", "College", "Major", "Committee"];
 
     for (let rowIndex = 1; rowIndex < rows.length; rowIndex++) {
       const values = parseCsvLine(rows[rowIndex]);
-      const normalizedValues = values.slice(0, expectedHeaders.length);
-      while (normalizedValues.length < expectedHeaders.length) normalizedValues.push("");
+      const getValue = (idx: number) => (idx >= 0 && idx < values.length ? values[idx].trim() : "");
 
-      const [fullName, firstName, lastName, email, year, college, major, committee] = normalizedValues;
-      const missingFields = expectedHeaders.filter((_, index) => !normalizedValues[index]?.trim());
+      let fullName = getValue(headerIndexes.name);
+      let firstName = getValue(headerIndexes.first_name);
+      let lastName = getValue(headerIndexes.last_name);
+      const email = getValue(headerIndexes.illinois_email);
+      const year = getValue(headerIndexes.year);
+      const college = getValue(headerIndexes.college);
+      const major = getValue(headerIndexes.major);
+      const committee = getValue(headerIndexes.committee);
+
+      if (!fullName && firstName && lastName) {
+        fullName = `${firstName} ${lastName}`.trim();
+      }
+      if ((!firstName || !lastName) && fullName) {
+        const parts = fullName.split(" ");
+        if (!firstName) firstName = parts[0] || "";
+        if (!lastName) lastName = parts.slice(1).join(" ") || "";
+      }
+
+      const rowMap: Record<string, string> = {
+        "Name": fullName,
+        "First Name": firstName,
+        "Last Name": lastName,
+        "Illinois Email": email,
+        "Year": year,
+        "College": college,
+        "Major": major,
+        "Committee": committee,
+      };
+
+      const missingFields = expectedHeaderNames.filter((h) => !rowMap[h]?.trim());
 
       if (missingFields.length > 0) {
         missingRows.push({ row: rowIndex + 1, missingFields });

@@ -179,7 +179,7 @@ export default function BulkAddPage() {
             </svg>
             <div className="w-full">
               <h3 className="font-semibold text-blue-900 mb-1">Required CSV Column Headings</h3>
-              <p className="text-xs text-blue-800 mb-3">Please ensure your CSV file includes these exact column headers:</p>
+              <p className="text-xs text-blue-800 mb-3">Please ensure your CSV file includes these column headers (in any order):</p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
                 <span className="bg-white/80 border border-blue-200 px-2.5 py-1.5 rounded-lg text-slate-800 font-semibold shadow-xs">Name</span>
                 <span className="bg-white/80 border border-blue-200 px-2.5 py-1.5 rounded-lg text-slate-800 font-semibold shadow-xs">First Name</span>
