@@ -599,35 +599,35 @@ export default function AdminDashboard({
             <div className="grid grid-cols-2 gap-3 mt-5">
               <Link
                 href="/users/admin/createEvent"
-                className="flex flex-col items-center justify-center p-4 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/50 rounded-2xl transition-all duration-200 hover:-translate-y-0.5 text-center font-bold text-xs"
+                className="flex flex-col items-center justify-center p-4 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/50 rounded-2xl transition-all duration-200 hover:-translate-y-0.5 text-center font-bold text-xs cursor-pointer"
               >
                 Create Event
               </Link>
 
               <button
                 onClick={() => setIsQrSelectorOpen(true)}
-                className="flex flex-col items-center justify-center p-4 bg-slate-50 hover:bg-slate-100 text-slate-800 border border-slate-200/50 rounded-2xl transition-all duration-200 hover:-translate-y-0.5 text-center font-bold text-xs cursor-pointer"
+                className="flex flex-col items-center justify-center p-4 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/50 rounded-2xl transition-all duration-200 hover:-translate-y-0.5 text-center font-bold text-xs cursor-pointer"
               >
                 Generate QR
               </button>
 
               <Link
                 href="/users/admin/bulkAdd"
-                className="flex flex-col items-center justify-center p-4 bg-slate-50 hover:bg-slate-100 text-slate-800 border border-slate-200/50 rounded-2xl transition-all duration-200 hover:-translate-y-0.5 text-center font-bold text-xs"
+                className="flex flex-col items-center justify-center p-4 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/50 rounded-2xl transition-all duration-200 hover:-translate-y-0.5 text-center font-bold text-xs cursor-pointer"
               >
                 Bulk Add
               </Link>
 
               <Link
                 href="/users/admin/reviewAbsence"
-                className="flex flex-col items-center justify-center p-4 bg-slate-50 hover:bg-slate-100 text-slate-800 border border-slate-200/50 rounded-2xl transition-all duration-200 hover:-translate-y-0.5 text-center font-bold text-xs"
+                className="flex flex-col items-center justify-center p-4 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/50 rounded-2xl transition-all duration-200 hover:-translate-y-0.5 text-center font-bold text-xs cursor-pointer"
               >
                 Review Absences
               </Link>
 
               <Link
                 href="/users/admin/send-email"
-                className="flex flex-col items-center justify-center p-4 bg-slate-50 hover:bg-slate-100 text-slate-800 border border-slate-200/50 rounded-2xl transition-all duration-200 hover:-translate-y-0.5 text-center font-bold text-xs"
+                className="flex flex-col items-center justify-center p-4 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/50 rounded-2xl transition-all duration-200 hover:-translate-y-0.5 text-center font-bold text-xs cursor-pointer"
               >
                 Email Members
               </Link>
