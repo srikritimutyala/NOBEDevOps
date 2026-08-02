@@ -599,35 +599,35 @@ export default function AdminDashboard({
             <div className="grid grid-cols-2 gap-3 mt-5">
               <Link
                 href="/users/admin/createEvent"
-                className="quick-action-card flex flex-col items-center justify-center p-4 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/50 rounded-2xl transition-all duration-200 hover:-translate-y-0.5 text-center cursor-pointer"
+                className="quick-action-card flex flex-col items-center justify-center p-4 bg-amber-50 hover:bg-amber-100 text-black border border-amber-200/50 rounded-2xl transition-all duration-200 hover:-translate-y-0.5 text-center cursor-pointer"
               >
                 Create Event
               </Link>
 
               <button
                 onClick={() => setIsQrSelectorOpen(true)}
-                className="quick-action-card flex flex-col items-center justify-center p-4 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/50 rounded-2xl transition-all duration-200 hover:-translate-y-0.5 text-center cursor-pointer"
+                className="quick-action-card flex flex-col items-center justify-center p-4 bg-amber-50 hover:bg-amber-100 text-black border border-amber-200/50 rounded-2xl transition-all duration-200 hover:-translate-y-0.5 text-center cursor-pointer"
               >
                 Generate QR
               </button>
 
               <Link
                 href="/users/admin/bulkAdd"
-                className="quick-action-card flex flex-col items-center justify-center p-4 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/50 rounded-2xl transition-all duration-200 hover:-translate-y-0.5 text-center cursor-pointer"
+                className="quick-action-card flex flex-col items-center justify-center p-4 bg-amber-50 hover:bg-amber-100 text-black border border-amber-200/50 rounded-2xl transition-all duration-200 hover:-translate-y-0.5 text-center cursor-pointer"
               >
                 Bulk Add
               </Link>
 
               <Link
                 href="/users/admin/reviewAbsence"
-                className="quick-action-card flex flex-col items-center justify-center p-4 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/50 rounded-2xl transition-all duration-200 hover:-translate-y-0.5 text-center cursor-pointer"
+                className="quick-action-card flex flex-col items-center justify-center p-4 bg-amber-50 hover:bg-amber-100 text-black border border-amber-200/50 rounded-2xl transition-all duration-200 hover:-translate-y-0.5 text-center cursor-pointer"
               >
                 Review Absences
               </Link>
 
               <Link
                 href="/users/admin/send-email"
-                className="quick-action-card flex flex-col items-center justify-center p-4 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/50 rounded-2xl transition-all duration-200 hover:-translate-y-0.5 text-center cursor-pointer"
+                className="quick-action-card flex flex-col items-center justify-center p-4 bg-amber-50 hover:bg-amber-100 text-black border border-amber-200/50 rounded-2xl transition-all duration-200 hover:-translate-y-0.5 text-center cursor-pointer"
               >
                 Email Members
               </Link>
@@ -635,7 +635,7 @@ export default function AdminDashboard({
               <button
                 onClick={triggerStrikeProcessor}
                 disabled={isProcessingStrikes}
-                className="quick-action-card flex flex-col items-center justify-center p-4 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/50 rounded-2xl transition-all duration-200 hover:-translate-y-0.5 text-center cursor-pointer disabled:opacity-60"
+                className="quick-action-card flex flex-col items-center justify-center p-4 bg-amber-50 hover:bg-amber-100 text-black border border-amber-200/50 rounded-2xl transition-all duration-200 hover:-translate-y-0.5 text-center cursor-pointer disabled:opacity-60"
               >
                 {isProcessingStrikes ? "Running..." : "Process Strikes"}
               </button>
