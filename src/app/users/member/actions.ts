@@ -8,12 +8,14 @@ export async function updateMemberProfile({
   year,
   college,
   major,
+  committee,
 }: {
   first_name: string;
   last_name: string;
   year: string;
   college: string;
   major: string;
+  committee?: string;
 }) {
   const supabase = await createClient();
   const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -28,6 +30,7 @@ export async function updateMemberProfile({
       year,
       college,
       major,
+      committee: committee || null,
       illinois_email: user.email,
     })
     .eq('auth_id', user.id);

@@ -1234,6 +1234,7 @@ export default function ReviewMemberStatsClient({
                                     type="text"
                                     value={editForm.committee}
                                     onChange={(e) => setEditForm({ ...editForm, committee: e.target.value })}
+                                    placeholder="e.g. Product development, Technology, Consulting"
                                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 focus:outline-hidden focus:border-amber-500 focus:bg-white transition-colors"
                                 />
                             </div>

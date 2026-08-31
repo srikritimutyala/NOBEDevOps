@@ -34,8 +34,8 @@ interface Strike {
 const EVENT_TYPE_CONFIG: Record<string, { label: string; color: string; borderColor: string }> = {
   PROFESSIONAL: { label: 'Professional', color: '#FF7043', borderColor: '#E64A19' },
   SOCIAL: { label: 'Social', color: '#FF9999', borderColor: '#FF6666' },
-  SERVICE: { label: 'Service/Philanthropy', color: '#9FBB9F', borderColor: '#7A9B7A' },
-  'SERVICE / PHILANTHROPY': { label: 'Service/Philanthropy', color: '#9FBB9F', borderColor: '#7A9B7A' },
+  SERVICE: { label: 'Service', color: '#9FBB9F', borderColor: '#7A9B7A' },
+  'SERVICE / PHILANTHROPY': { label: 'Service', color: '#9FBB9F', borderColor: '#7A9B7A' },
   GENERAL_MEETING: { label: 'General Meeting', color: '#424242', borderColor: '#212121' },
   MANDATORY: { label: 'Mandatory', color: '#FFEBEE', borderColor: '#EF5350' },
   OTHER_MANDATORY: { label: 'Mandatory', color: '#FFEBEE', borderColor: '#EF5350' },
@@ -44,7 +44,44 @@ const EVENT_TYPE_CONFIG: Record<string, { label: string; color: string; borderCo
   NEW_MEMBER_WORKSHOP: { label: 'New Member Workshop', color: '#CE93D8', borderColor: '#AF2CC5' },
 };
 
-const EVENT_TYPES = Object.keys(EVENT_TYPE_CONFIG);
+const FILTER_CONFIG: Record<string, { label: string; emoji: string; color: string; borderColor: string }> = {
+  MANDATORY: { label: 'Mandatory', emoji: '⚠️', color: '#FFEBEE', borderColor: '#EF5350' },
+  SOCIAL: { label: 'Social', emoji: '🎉', color: '#FF9999', borderColor: '#FF6666' },
+  SERVICE: { label: 'Service', emoji: '🤝', color: '#9FBB9F', borderColor: '#7A9B7A' },
+  PROFESSIONAL: { label: 'Professional', emoji: '💼', color: '#FF7043', borderColor: '#E64A19' },
+  OTHER: { label: 'Other', emoji: '📌', color: '#E0E0E0', borderColor: '#9E9E9E' },
+};
+
+const FILTER_KEYS = Object.keys(FILTER_CONFIG);
+
+function eventMatchesFilter(event: Event, selected: Set<string>): boolean {
+  if (selected.size === 0) return false;
+  if (selected.size === FILTER_KEYS.length) return true;
+
+  const norm = (event.event_type || '').toUpperCase().trim();
+  const isMandatory = Boolean(event.is_mandatory || norm === 'MANDATORY' || norm === 'OTHER_MANDATORY');
+
+  if (isMandatory && selected.has('MANDATORY')) return true;
+  if (norm === 'SOCIAL' && selected.has('SOCIAL')) return true;
+  if ((norm === 'SERVICE' || norm === 'SERVICE / PHILANTHROPY' || norm === 'SERVICE/PHILANTHROPY') && selected.has('SERVICE')) return true;
+  if (norm === 'PROFESSIONAL' && selected.has('PROFESSIONAL')) return true;
+
+  const isCoreCategory = norm === 'SOCIAL' || norm === 'SERVICE' || norm === 'SERVICE / PHILANTHROPY' || norm === 'SERVICE/PHILANTHROPY' || norm === 'PROFESSIONAL' || isMandatory;
+  if (!isCoreCategory && selected.has('OTHER')) return true;
+
+  return false;
+}
+
+function getEventEmoji(event: { is_mandatory?: boolean | null; event_type?: string }): string {
+  if (event.is_mandatory) return '⚠️';
+  const norm = (event.event_type || '').toUpperCase().trim();
+  if (norm === 'MANDATORY' || norm === 'OTHER_MANDATORY') return '⚠️';
+  if (norm === 'SOCIAL') return '🎉';
+  if (norm === 'SERVICE' || norm === 'SERVICE / PHILANTHROPY' || norm === 'SERVICE/PHILANTHROPY') return '🤝';
+  if (norm === 'PROFESSIONAL') return '💼';
+  if (norm === 'GOOGLE_CALENDAR') return '📅';
+  return '📌';
+}
 
 interface MemberProfile {
   name: string | null;
@@ -72,14 +109,14 @@ export default function EventList() {
   const [authId, setAuthId] = useState<string | null>(null);
   const [displayMonth, setDisplayMonth] = useState(new Date());
   const [googleEvents, setGoogleEvents] = useState<Event[]>([]);
-  const [selectedFilters, setSelectedFilters] = useState<Set<string>>(new Set(EVENT_TYPES));
+  const [selectedFilters, setSelectedFilters] = useState<Set<string>>(new Set(FILTER_KEYS));
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const [addedEvents, setAddedEvents] = useState<Set<string>>(new Set());
   const [mounted, setMounted] = useState(false);
   const [strikes, setStrikes] = useState<Strike[]>([]);
   const [viewMode, setViewMode] = useState<"CALENDAR" | "LIST">("CALENDAR");
   const [editingProfile, setEditingProfile] = useState(false);
-  const [profileForm, setProfileForm] = useState({ first_name: '', last_name: '', year: '', college: '', major: '' });
+  const [profileForm, setProfileForm] = useState({ first_name: '', last_name: '', year: '', college: '', major: '', committee: '' });
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profileSuccess, setProfileSuccess] = useState(false);
@@ -173,6 +210,7 @@ export default function EventList() {
           year: data.year ?? '',
           college: data.college ?? '',
           major: data.major ?? '',
+          committee: data.committee ?? '',
         });
 
         try {
@@ -192,21 +230,21 @@ export default function EventList() {
     }
   }, [session]);
 
-  const toggleFilter = (eventType: string) => {
+  const toggleFilter = (key: string) => {
     const newFilters = new Set(selectedFilters);
-    if (newFilters.has(eventType)) {
-      newFilters.delete(eventType);
+    if (newFilters.has(key)) {
+      newFilters.delete(key);
     } else {
-      newFilters.add(eventType);
+      newFilters.add(key);
     }
     setSelectedFilters(newFilters);
   };
 
   const toggleAllFilters = () => {
-    if (selectedFilters.size === EVENT_TYPES.length) {
+    if (selectedFilters.size === FILTER_KEYS.length) {
       setSelectedFilters(new Set());
     } else {
-      setSelectedFilters(new Set(EVENT_TYPES));
+      setSelectedFilters(new Set(FILTER_KEYS));
     }
   };
 
@@ -264,7 +302,7 @@ export default function EventList() {
       }),
     ];
 
-    return combined.filter((event) => selectedFilters.has(event.event_type));
+    return combined.filter((event) => eventMatchesFilter(event, selectedFilters));
   }, [nobeEvents, googleEvents, selectedFilters]);
 
   const monthEvents = useMemo(() => {
@@ -472,7 +510,7 @@ export default function EventList() {
                 <button
                   type="button"
                   className="btn-secondary"
-                  style={{ width: '100%' }}
+                  style={{ width: '100%', minHeight: '36px', padding: '0 12px', fontSize: '0.85rem', fontWeight: 700 }}
                   onClick={() => { setEditingProfile(v => !v); setProfileError(null); setProfileSuccess(false); }}
                 >
                   {editingProfile ? 'Cancel' : 'Edit profile'}
@@ -480,7 +518,7 @@ export default function EventList() {
 
                 {editingProfile && (
                   <form
-                    className="field-group"
+                    className="p-3.5 bg-slate-50/90 border border-slate-200/80 rounded-2xl space-y-2.5 mt-2.5 transition-all shadow-2xs"
                     onSubmit={async (e) => {
                       e.preventDefault();
                       setProfileSaving(true);
@@ -501,36 +539,98 @@ export default function EventList() {
                           year: profileForm.year,
                           college: profileForm.college,
                           major: profileForm.major,
+                          committee: profileForm.committee,
                         } : prev);
                       }
                     }}
                   >
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <div className="field-group" style={{ flex: 1 }}>
-                        <label className="field-label">First name</label>
-                        <input className="field-input" value={profileForm.first_name} onChange={e => setProfileForm(f => ({ ...f, first_name: e.target.value }))} required />
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">First Name</label>
+                        <input
+                          type="text"
+                          className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 focus:outline-hidden focus:border-amber-500 transition-colors"
+                          value={profileForm.first_name}
+                          onChange={e => setProfileForm(f => ({ ...f, first_name: e.target.value }))}
+                          required
+                        />
                       </div>
-                      <div className="field-group" style={{ flex: 1 }}>
-                        <label className="field-label">Last name</label>
-                        <input className="field-input" value={profileForm.last_name} onChange={e => setProfileForm(f => ({ ...f, last_name: e.target.value }))} required />
+                      <div>
+                        <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">Last Name</label>
+                        <input
+                          type="text"
+                          className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 focus:outline-hidden focus:border-amber-500 transition-colors"
+                          value={profileForm.last_name}
+                          onChange={e => setProfileForm(f => ({ ...f, last_name: e.target.value }))}
+                          required
+                        />
                       </div>
                     </div>
-                    <div className="field-group">
-                      <label className="field-label">Year</label>
-                      <input className="field-input" value={profileForm.year} onChange={e => setProfileForm(f => ({ ...f, year: e.target.value }))} placeholder="e.g. Junior" />
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">Year</label>
+                        <input
+                          type="text"
+                          className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 focus:outline-hidden focus:border-amber-500 transition-colors"
+                          value={profileForm.year}
+                          onChange={e => setProfileForm(f => ({ ...f, year: e.target.value }))}
+                          placeholder="e.g. Junior"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">Committee</label>
+                        <input
+                          type="text"
+                          className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 focus:outline-hidden focus:border-amber-500 transition-colors"
+                          value={profileForm.committee}
+                          onChange={e => setProfileForm(f => ({ ...f, committee: e.target.value }))}
+                          placeholder="e.g. Product development, Technology, Consulting"
+                        />
+                      </div>
                     </div>
-                    <div className="field-group">
-                      <label className="field-label">College</label>
-                      <input className="field-input" value={profileForm.college} onChange={e => setProfileForm(f => ({ ...f, college: e.target.value }))} placeholder="e.g. Grainger" />
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">College</label>
+                        <input
+                          type="text"
+                          className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 focus:outline-hidden focus:border-amber-500 transition-colors"
+                          value={profileForm.college}
+                          onChange={e => setProfileForm(f => ({ ...f, college: e.target.value }))}
+                          placeholder="e.g. Grainger"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">Major</label>
+                        <input
+                          type="text"
+                          className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 focus:outline-hidden focus:border-amber-500 transition-colors"
+                          value={profileForm.major}
+                          onChange={e => setProfileForm(f => ({ ...f, major: e.target.value }))}
+                          placeholder="e.g. Computer Science"
+                        />
+                      </div>
                     </div>
-                    <div className="field-group">
-                      <label className="field-label">Major</label>
-                      <input className="field-input" value={profileForm.major} onChange={e => setProfileForm(f => ({ ...f, major: e.target.value }))} placeholder="e.g. Computer Science" />
+
+                    {profileError && <div className="message-error text-xs p-2">{profileError}</div>}
+
+                    <div className="flex gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setEditingProfile(false)}
+                        className="flex-1 py-1.5 text-xs font-bold text-slate-600 bg-slate-200/80 hover:bg-slate-300 rounded-xl transition-colors cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        className="flex-1 py-1.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl transition-colors cursor-pointer disabled:opacity-50"
+                        disabled={profileSaving}
+                      >
+                        {profileSaving ? 'Saving...' : 'Save changes'}
+                      </button>
                     </div>
-                    {profileError && <div className="message-error">{profileError}</div>}
-                    <button type="submit" className="btn button-full" disabled={profileSaving}>
-                      {profileSaving ? 'Saving...' : 'Save changes'}
-                    </button>
                   </form>
                 )}
 
@@ -583,12 +683,14 @@ export default function EventList() {
                           {event.dresscode && ` · ${event.dresscode}`}
                         </p>
                         <p className="field-help">
-                          <span style={{ color: config.borderColor, fontWeight: '600' }}>{config.label}</span>
+                          <span style={{ color: config.borderColor, fontWeight: '600' }}>
+                            {getEventEmoji(event)} {config.label}
+                          </span>
                           {' · '}
                           {event.points} point{event.points === 1 ? '' : 's'}
                           {event.is_mandatory ? (
                             <span style={{ marginLeft: '8px', backgroundColor: '#EF5350', color: 'white', padding: '2px 6px', borderRadius: '3px', fontSize: '10px', fontWeight: '600' }}>
-                              Mandatory
+                              ⚠️ Mandatory
                             </span>
                           ) : null}
                         </p>
@@ -679,9 +781,6 @@ export default function EventList() {
               </p>
             </div>
             <div className="action-row">
-              <a href="/api/gcal-personal/auth" className="btn-secondary">
-                Import Google Calendar
-              </a>
               <button type="button" onClick={() => changeMonth(-1)} className="btn-secondary">
                 Previous
               </button>
@@ -737,7 +836,7 @@ export default function EventList() {
           <div className="filter-section" style={{ marginBottom: '24px', padding: '16px', backgroundColor: '#f5f5f5', borderRadius: '8px', position: 'relative' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <p style={{ fontWeight: '600', fontSize: '14px', margin: 0 }}>
-                Events: {selectedFilters.size}/{EVENT_TYPES.length} types
+                Events: {selectedFilters.size}/{FILTER_KEYS.length} types
               </p>
               <button
                 type="button"
@@ -766,29 +865,29 @@ export default function EventList() {
                     style={{
                       padding: '6px 12px',
                       fontSize: '12px',
-                      backgroundColor: selectedFilters.size === EVENT_TYPES.length ? '#424242' : '#f0f0f0',
-                      color: selectedFilters.size === EVENT_TYPES.length ? 'white' : '#424242',
+                      backgroundColor: selectedFilters.size === FILTER_KEYS.length ? '#424242' : '#f0f0f0',
+                      color: selectedFilters.size === FILTER_KEYS.length ? 'white' : '#424242',
                       border: '1px solid #e0e0e0',
                       borderRadius: '4px',
                       cursor: 'pointer',
                       fontWeight: '500',
                     }}
                   >
-                    {selectedFilters.size === EVENT_TYPES.length ? 'Deselect All' : 'Select All'}
+                    {selectedFilters.size === FILTER_KEYS.length ? 'Deselect All' : 'Select All'}
                   </button>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '8px' }}>
-                  {EVENT_TYPES.map((type) => {
-                    const config = EVENT_TYPE_CONFIG[type];
-                    const isSelected = selectedFilters.has(type);
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '8px' }}>
+                  {FILTER_KEYS.map((key) => {
+                    const config = FILTER_CONFIG[key];
+                    const isSelected = selectedFilters.has(key);
                     return (
                       <label
-                        key={type}
+                        key={key}
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          padding: '8px',
-                          borderRadius: '4px',
+                          padding: '8px 12px',
+                          borderRadius: '6px',
                           backgroundColor: isSelected ? '#f0f0f0' : '#ffffff',
                           cursor: 'pointer',
                           userSelect: 'none',
@@ -797,7 +896,7 @@ export default function EventList() {
                         <input
                           type="checkbox"
                           checked={isSelected}
-                          onChange={() => toggleFilter(type)}
+                          onChange={() => toggleFilter(key)}
                           style={{
                             marginRight: '8px',
                             cursor: 'pointer',
@@ -812,11 +911,14 @@ export default function EventList() {
                             height: '12px',
                             backgroundColor: config.color,
                             borderRadius: '2px',
-                            marginRight: '8px',
+                            marginRight: '6px',
                             border: `1px solid ${config.borderColor}`,
                           }}
                         />
-                        <span style={{ fontSize: '13px', fontWeight: '500', color: '#333' }}>
+                        <span style={{ marginRight: '6px', fontSize: '14px' }}>
+                          {config.emoji}
+                        </span>
+                        <span style={{ fontSize: '13px', fontWeight: '600', color: '#333' }}>
                           {config.label}
                         </span>
                       </label>
@@ -898,8 +1000,9 @@ export default function EventList() {
                                       })}
                                     </div>
                                   </div>
-                                  <div className="calendar-event-name" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    {event.name}
+                                  <div className="calendar-event-name" style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                    <span style={{ fontSize: '11px', flexShrink: 0 }}>📅</span>
+                                    <span>{event.name}</span>
                                   </div>
                                   <div className="calendar-event-meta">
                                     <span>{event.location || 'TBD'}</span>
@@ -932,12 +1035,13 @@ export default function EventList() {
                                   </div>
                                   {event.is_mandatory && (
                                     <span className="calendar-event-chip" style={{ backgroundColor: '#EF5350', color: 'white', fontSize: '8px', padding: '1px 6px' }}>
-                                      Mandatory
+                                      ⚠️ Mandatory
                                     </span>
                                   )}
                                 </div>
-                                <div className="calendar-event-name" style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#333' }}>
-                                  {event.name}
+                                <div className="calendar-event-name" style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#333' }}>
+                                  <span style={{ fontSize: '11px', flexShrink: 0 }}>{getEventEmoji(event)}</span>
+                                  <span>{event.name}</span>
                                   {eventConflicts.get(event.id) && (
                                     <span title="Time conflict with another event" style={{ fontSize: '0.75rem', color: '#d97706', fontWeight: 'bold' }}>(Conflict)</span>
                                   )}
@@ -951,7 +1055,7 @@ export default function EventList() {
                           })
                         )}
                         {dayEvents.length > 3 && (
-                          <div className="calendar-more-events">+{dayEvents.length - 3} more events</div>
+                          <p className="calendar-more-pill">+{dayEvents.length - 3} more</p>
                         )}
                       </div>
                     </div>
@@ -1013,7 +1117,7 @@ export default function EventList() {
                             <span style={{ fontSize: "0.7rem", padding: "2px 6px", borderRadius: "10px", background: "rgba(107,108,112,0.06)", color: "var(--muted)", fontWeight: "700" }}>Completed</span>
                           )}
                           {event.is_mandatory && (
-                            <span style={{ fontSize: "0.7rem", padding: "2px 6px", borderRadius: "10px", background: "rgba(154,59,49,0.08)", color: "var(--danger)", fontWeight: "700" }}>Mandatory</span>
+                            <span style={{ fontSize: "0.7rem", padding: "2px 6px", borderRadius: "10px", background: "rgba(154,59,49,0.08)", color: "var(--danger)", fontWeight: "700" }}>⚠️ Mandatory</span>
                           )}
                         </div>
 
@@ -1034,7 +1138,10 @@ export default function EventList() {
                         )}
 
                         <div style={{ marginTop: "auto", paddingTop: "10px", borderTop: "1px solid #f9f9f9", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.8rem", fontWeight: "600", color: "var(--muted)" }}>
-                          <span>{config.label}</span>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <span>{getEventEmoji(event)}</span>
+                            <span>{config.label}</span>
+                          </span>
                           <span>{event.points} pt{event.points === 1 ? '' : 's'}</span>
                         </div>
                       </div>
