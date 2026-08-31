@@ -445,6 +445,59 @@ export default function ReviewMemberStatsClient({
         return { label: "On Track", badge: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-500" };
     }
 
+    function escapeCsvValue(val: string | number | null | undefined): string {
+        if (val === null || val === undefined) return "";
+        const str = String(val).trim();
+        if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
+            return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+    }
+
+    function handleDownloadRosterCsv() {
+        const headers = ["First Name", "Last Name", "netid", "year", "major", "committee", "College"];
+
+        const rows = members.map((m) => {
+            let firstName = m.first_name || "";
+            let lastName = m.last_name || "";
+
+            if (!firstName && m.name) {
+                const parts = m.name.trim().split(/\s+/);
+                firstName = parts[0] || "";
+                if (!lastName && parts.length > 1) {
+                    lastName = parts.slice(1).join(" ");
+                }
+            }
+
+            const netid = m.illinois_email ? m.illinois_email.split("@")[0].trim() : "";
+            const year = m.year || "";
+            const major = m.major || "";
+            const committee = m.committee || "";
+            const college = m.college || "";
+
+            return [
+                escapeCsvValue(firstName),
+                escapeCsvValue(lastName),
+                escapeCsvValue(netid),
+                escapeCsvValue(year),
+                escapeCsvValue(major),
+                escapeCsvValue(committee),
+                escapeCsvValue(college),
+            ].join(",");
+        });
+
+        const csvContent = [headers.join(","), ...rows].join("\r\n");
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.setAttribute("download", `nobe_roster_${new Date().toISOString().split("T")[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    }
+
     return (
         <main className="app-shell" style={{ padding: "2rem max(1.5rem, 3vw)" }}>
             <div className="max-w-[1400px] mx-auto space-y-6">
@@ -486,9 +539,34 @@ export default function ReviewMemberStatsClient({
                     
                     {/* LEFT PANEL: Member Selection List */}
                     <aside className="panel flex flex-col" style={{ minHeight: "600px", maxHeight: "850px" }}>
-                        <div className="border-b border-slate-100 pb-3 mb-4">
-                            <h3 className="font-bold text-slate-800 text-sm tracking-wide uppercase">Member Registry</h3>
-                            <p className="text-[11px] text-slate-400 mt-0.5">Quick search and select profile card</p>
+                        <div className="border-b border-slate-100 pb-3 mb-4 flex items-center justify-between gap-2">
+                            <div>
+                                <h3 className="font-bold text-slate-800 text-sm tracking-wide uppercase">Member Registry</h3>
+                                <p className="text-[11px] text-slate-400 mt-0.5">Quick search and select profile card</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={handleDownloadRosterCsv}
+                                title="Download complete member roster as CSV"
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-slate-800 border border-amber-200 text-[10px] font-extrabold uppercase tracking-wider transition-all shadow-2xs hover:shadow-xs cursor-pointer shrink-0"
+                            >
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    width="11"
+                                    height="11"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2.5"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                >
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                    <polyline points="7 10 12 15 17 10" />
+                                    <line x1="12" y1="15" x2="12" y2="3" />
+                                </svg>
+                                <span>CSV</span>
+                            </button>
                         </div>
 
                         <div className="relative mb-3">

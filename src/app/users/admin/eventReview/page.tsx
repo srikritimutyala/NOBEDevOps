@@ -533,7 +533,7 @@ function EventReviewClient() {
 
               {/* Action Buttons */}
               <div style={{ display: "flex", gap: "12px", marginTop: "24px", flexWrap: "wrap" }}>
-                <Link href={`/users/admin/createEvent?eventId=${event.id}`} className="btn" style={{ padding: "10px 20px", fontWeight: "600", textDecoration: "none", borderRadius: "12px", display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                <Link href={`/users/admin/createEvent?eventId=${event.id}`} className="btn" style={{ padding: "10px 20px", fontWeight: "700", fontSize: "0.85rem", textTransform: "uppercase", letterSpacing: "0.05em", textDecoration: "none", borderRadius: "12px", display: "inline-flex", alignItems: "center", gap: "6px" }}>
                   Edit Event
                 </Link>
                 <button
@@ -541,7 +541,7 @@ function EventReviewClient() {
                   onClick={handleRegenerateQr}
                   disabled={actionLoading}
                   className="btn-secondary"
-                  style={{ padding: "10px 20px", fontWeight: "600", borderRadius: "12px", cursor: "pointer" }}
+                  style={{ padding: "10px 20px", fontWeight: "700", fontSize: "0.85rem", textTransform: "uppercase", letterSpacing: "0.05em", borderRadius: "12px", cursor: "pointer" }}
                 >
                   Generate QR
                 </button>
@@ -556,6 +556,9 @@ function EventReviewClient() {
                     background: "rgba(220, 38, 38, 0.08)",
                     padding: "10px 20px",
                     fontWeight: "700",
+                    fontSize: "0.85rem",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
                     borderRadius: "12px",
                     cursor: "pointer",
                     marginLeft: "auto",

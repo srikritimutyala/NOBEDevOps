@@ -788,8 +788,10 @@ export default function ViewAllEvents() {
                             href={`/users/admin/eventReview?eventId=${event.id}`}
                             className="btn-secondary"
                             style={{
-                              fontSize: "0.8rem",
+                              fontSize: "0.75rem",
                               fontWeight: "700",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.05em",
                               color: "var(--accent-strong)",
                               textDecoration: "none",
                               cursor: "pointer",
@@ -806,9 +808,11 @@ export default function ViewAllEvents() {
                             href={`/users/admin/createEvent?eventId=${event.id}`}
                             className="btn-secondary"
                             style={{
-                              fontSize: "0.8rem",
+                              fontSize: "0.75rem",
                               fontWeight: "700",
-                              color: "var(--foreground)",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.05em",
+                              color: "#1e293b",
                               textDecoration: "none",
                               cursor: "pointer",
                               padding: "6px 12px",
@@ -824,8 +828,10 @@ export default function ViewAllEvents() {
                             type="button"
                             onClick={() => handleQrAction(event)}
                             style={{
-                              fontSize: "0.8rem",
+                              fontSize: "0.75rem",
                               fontWeight: "700",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.05em",
                               color: "var(--success)",
                               background: "rgba(63,122,83,0.08)",
                               border: "1px solid rgba(63,122,83,0.25)",
@@ -844,8 +850,10 @@ export default function ViewAllEvents() {
                           disabled={deletingId === event.id}
                           title={`Delete ${event.name}`}
                           style={{
-                            fontSize: "0.8rem",
+                            fontSize: "0.75rem",
                             fontWeight: "700",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.05em",
                             color: "#dc2626",
                             background: "rgba(220, 38, 38, 0.08)",
                             border: "1px solid rgba(220, 38, 38, 0.3)",

@@ -563,13 +563,13 @@ export default function AdminDashboard({
                     <div className="flex flex-wrap items-center gap-1.5 mt-1 border-t border-slate-100/50 pt-2">
                       <Link
                         href={`/users/admin/createEvent?eventId=${evt.id}`}
-                        className="text-[10px] font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200/80 px-2 py-1 rounded-md transition-colors"
+                        className="text-[10px] font-bold uppercase tracking-wide text-slate-800 hover:text-black bg-slate-100 hover:bg-slate-200/80 px-2 py-1 rounded-md transition-colors"
                       >
                         Edit
                       </Link>
                       <Link
                         href={`/users/admin/eventReview?eventId=${evt.id}`}
-                        className="text-[10px] font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200/80 px-2 py-1 rounded-md transition-colors"
+                        className="text-[10px] font-bold uppercase tracking-wide text-slate-800 hover:text-black bg-slate-100 hover:bg-slate-200/80 px-2 py-1 rounded-md transition-colors"
                       >
                         View Attendees
                       </Link>
@@ -577,12 +577,12 @@ export default function AdminDashboard({
                       {evt.qr_code_secret ? (
                         <button
                           onClick={() => setActiveQrEvent({ id: evt.id, name: evt.name, secret: evt.qr_code_secret! })}
-                          className="text-[10px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 px-2 py-1 rounded-md border border-amber-100 transition-colors"
+                          className="text-[10px] font-bold uppercase tracking-wide text-amber-800 bg-amber-50 hover:bg-amber-100 px-2 py-1 rounded-md border border-amber-100 transition-colors cursor-pointer"
                         >
                           Show QR
                         </button>
                       ) : (
-                        <span className="text-[9px] text-slate-400 px-2 py-1">No QR</span>
+                        <span className="text-[9px] font-bold uppercase tracking-wide text-slate-400 px-2 py-1">No QR</span>
                       )}
 
                       <button
@@ -590,7 +590,7 @@ export default function AdminDashboard({
                         onClick={() => handleDeleteDashboardEvent(evt.id, evt.name)}
                         disabled={deletingEventId === evt.id}
                         title={`Delete ${evt.name}`}
-                        className="text-[10px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 px-2.5 py-1 rounded-md border border-rose-200 transition-colors ml-auto flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                        className="text-[10px] font-bold uppercase tracking-wide text-rose-700 bg-rose-50 hover:bg-rose-100 px-2.5 py-1 rounded-md border border-rose-200 transition-colors ml-auto flex items-center gap-1 cursor-pointer disabled:opacity-50"
                       >
                         {deletingEventId === evt.id ? "Deleting..." : "Delete"}
                       </button>
