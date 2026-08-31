@@ -568,10 +568,16 @@ export default function ReviewMemberStatsClient({
                                                     </span>
                                                 </div>
                                                 <p className="text-xs text-slate-400 font-medium mt-1">
-                                                    {selectedMember.major || "Undeclared Major"} {selectedMember.year ? `'${selectedMember.year.slice(-2)}` : ""} · {selectedMember.college || "University of Illinois"}
+                                                    {[
+                                                        selectedMember.major || "Undeclared Major",
+                                                        formatMemberYear(selectedMember.year),
+                                                        selectedMember.college || "University of Illinois",
+                                                    ]
+                                                        .filter(Boolean)
+                                                        .join(" · ")}
                                                 </p>
                                                 <p className="text-[11px] text-slate-500 mt-0.5">
-                                                    {selectedMember.illinois_email} · Committee: {selectedMember.committee || "None"}
+                                                    {selectedMember.illinois_email} {selectedMember.committee ? `· Committee: ${selectedMember.committee}` : ""}
                                                 </p>
                                             </div>
                                         </div>
@@ -1186,4 +1192,17 @@ function parseDate(value: string | null) {
 
 function isExcusedStatus(status: string | null) {
     return typeof status === "string" && excusedStatuses.has(status.trim().toUpperCase());
+}
+
+function formatMemberYear(year: string | null | undefined): string {
+    if (!year) return "";
+    const trimmed = year.trim();
+    if (!trimmed) return "";
+    if (/^\d{4}$/.test(trimmed)) {
+        return `'${trimmed.slice(-2)}`;
+    }
+    if (/^\d{2}$/.test(trimmed)) {
+        return `'${trimmed}`;
+    }
+    return trimmed;
 }
