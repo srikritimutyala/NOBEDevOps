@@ -22,15 +22,72 @@ export async function POST(req: NextRequest) {
   );
 
   const tempPassword = generateTempPassword();
-
-  const { error } = await supabase.auth.admin.createUser({
+  let authUserId: string | null = null;
+  const { data: createData, error: createError } = await supabase.auth.admin.createUser({
     email,
     password: tempPassword,
     email_confirm: true,
   });
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+  if (createError) {
+    // If the user is already registered in Supabase Auth, update their password so the invite works
+    const { data: usersData } = await supabase.auth.admin.listUsers();
+    const existingUser = usersData?.users?.find(
+      (u) => u.email?.toLowerCase().trim() === email.toLowerCase().trim()
+    );
+
+    if (existingUser) {
+      const { error: updateError } = await supabase.auth.admin.updateUserById(
+        existingUser.id,
+        {
+          password: tempPassword,
+          email_confirm: true,
+        }
+      );
+      if (updateError) {
+        return NextResponse.json({ error: updateError.message }, { status: 400 });
+      }
+      authUserId = existingUser.id;
+    } else {
+      return NextResponse.json({ error: createError.message }, { status: 400 });
+    }
+  } else {
+    authUserId = createData.user.id;
+  }
+
+  // Ensure People table row exists and is linked
+  if (authUserId) {
+    const { data: existingPerson } = await supabase
+      .from('People')
+      .select('id')
+      .or(`auth_id.eq.${authUserId},illinois_email.ilike.${email}`)
+      .maybeSingle();
+
+    if (!existingPerson) {
+      const { error: insertError } = await supabase.from('People').insert({
+        auth_id: authUserId,
+        illinois_email: email,
+        name: email.split('@')[0],
+        role: 'MEMBER',
+      });
+      if (insertError) {
+        await supabase
+          .from('People')
+          .update({
+            illinois_email: email,
+            name: email.split('@')[0],
+          })
+          .eq('auth_id', authUserId);
+      }
+    } else {
+      await supabase
+        .from('People')
+        .update({
+          auth_id: authUserId,
+          illinois_email: email,
+        })
+        .eq('id', existingPerson.id);
+    }
   }
 
   const origin = req.headers.get('origin') ?? process.env.NEXT_PUBLIC_SITE_URL ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://nobe-dev-ops.vercel.app');

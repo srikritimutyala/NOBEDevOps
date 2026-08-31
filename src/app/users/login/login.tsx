@@ -135,45 +135,48 @@ export default function LoginForm() {
         return;
       }
     } else if (mode === 'signup') {
-
       if (email !== confirmEmail) {
         setError('Email addresses do not match.');
         setSubmitting(false);
         return;
       }
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            first_name: firstName,
-            last_name: lastName,
-            full_name: `${firstName} ${lastName}`,
-          },
-        },
+
+      const res = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          password,
+          firstName,
+          lastName,
+        }),
       });
-      if (error) {
-        setError(error.message);
-      } else if (data.user?.identities?.length === 0) {
-        setError('An account with this email already exists. Please sign in instead.');
-        setShowResend(true);
-      } else if (data.user) {
-        const res = await fetch('/api/auth/update-signup-profile', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            auth_id: data.user.id,
-            first_name: firstName,
-            last_name: lastName,
-            illinois_email: email,
-          }),
+
+      const result = await res.json();
+
+      if (!res.ok || result.error) {
+        setError(result.error || 'Failed to create account.');
+      } else {
+        // Automatically sign in the user
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
         });
-        if (!res.ok) {
-          const body = await res.json();
-          setError(`Account created but profile setup failed: ${body.error ?? 'unknown error'}. Please contact an admin.`);
-        } else {
-          setMessage('Sign up successful! Check your email to confirm your account.');
+
+        if (signInError || !signInData.user) {
+          setMessage('Account created successfully! Please sign in.');
           setMode('signin');
+        } else {
+          const { data: person } = await supabase
+            .from('People')
+            .select('role')
+            .eq('auth_id', signInData.user.id)
+            .maybeSingle();
+
+          const destination = redirectTo ?? (person?.role === 'ADMIN' ? '/users/admin' : '/users/member');
+          router.replace(destination);
+          router.refresh();
+          return;
         }
       }
     } else {

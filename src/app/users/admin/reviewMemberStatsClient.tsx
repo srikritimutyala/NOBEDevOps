@@ -122,6 +122,7 @@ export default function ReviewMemberStatsClient({
         year: "",
         college: "",
         committee: "",
+        role: "MEMBER",
     });
 
     const filteredMembers = useMemo(() => {
@@ -164,6 +165,7 @@ export default function ReviewMemberStatsClient({
                 year: selectedMember.year || "",
                 college: selectedMember.college || "",
                 committee: selectedMember.committee || "",
+                role: selectedMember.role?.toUpperCase() === "ADMIN" ? "ADMIN" : "MEMBER",
             });
         }
     }, [selectedMember, systemSettings]);
@@ -340,11 +342,16 @@ export default function ReviewMemberStatsClient({
         });
     }
 
-    // Toggle admin/officer or member role
+    // Toggle admin or member role
     function handlePromoteDemote() {
         if (!selectedMember) return;
-        const newRole = selectedMember.role === "admin" || selectedMember.role === "officer" ? "member" : "officer";
-        const confirmed = window.confirm(`Change ${selectedMember.name}'s role to ${newRole}?`);
+        const isCurrentAdmin = selectedMember.role?.toUpperCase() === "ADMIN";
+        const newRole = isCurrentAdmin ? "MEMBER" : "ADMIN";
+        const confirmed = window.confirm(
+            isCurrentAdmin
+                ? `Change ${selectedMember.name}'s role to MEMBER? This will revoke administrator privileges.`
+                : `Change ${selectedMember.name}'s role to ADMIN? This will grant full administrator privileges.`
+        );
         if (!confirmed) return;
 
         setActionError(null);
@@ -413,13 +420,13 @@ export default function ReviewMemberStatsClient({
 
     function handleDeleteMemberItem() {
         if (!selectedMember) return;
-        const confirmed = window.confirm(`Delete ${selectedMember.name} entirely from the database? This deletes all check-ins, absences, and strikes.`);
+        const confirmed = window.confirm(`Delete ${selectedMember.name} entirely from the database? This deletes all check-ins, absences, strikes, and permanently removes their authentication account so the email can be re-used.`);
         if (!confirmed) return;
 
         setActionError(null);
         startTransition(async () => {
             try {
-                await deleteMember(selectedMember.id, selectedMember.auth_id);
+                await deleteMember(selectedMember.id, selectedMember.auth_id, selectedMember.illinois_email);
                 window.location.reload();
             } catch (err) {
                 setActionError(err instanceof Error ? err.message : "Failed to delete member.");
@@ -514,7 +521,11 @@ export default function ReviewMemberStatsClient({
                                         >
                                             <div className="flex justify-between items-start gap-1">
                                                 <span className="font-bold text-xs text-slate-800 line-clamp-1">{m.name || `${m.first_name} ${m.last_name}`}</span>
-                                                <span className="text-[9px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">
+                                                <span className={`text-[9px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded-full ${
+                                                    m.role?.toUpperCase() === "ADMIN"
+                                                        ? "bg-amber-100 text-amber-800 border border-amber-200"
+                                                        : "bg-slate-100 text-slate-500"
+                                                }`}>
                                                     {m.role || "Member"}
                                                 </span>
                                             </div>
@@ -548,7 +559,11 @@ export default function ReviewMemberStatsClient({
                                             <div>
                                                 <div className="flex flex-wrap items-center gap-2">
                                                     <h2 className="text-xl font-extrabold text-slate-800">{selectedMember.name}</h2>
-                                                    <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded-full text-[9px] uppercase tracking-wider font-bold border border-slate-200">
+                                                    <span className={`px-2 py-0.5 rounded-full text-[9px] uppercase tracking-wider font-bold border ${
+                                                        selectedMember.role?.toUpperCase() === "ADMIN"
+                                                            ? "bg-amber-100 text-amber-800 border-amber-300 font-extrabold"
+                                                            : "bg-slate-100 text-slate-600 border-slate-200"
+                                                    }`}>
                                                         {selectedMember.role || "MEMBER"}
                                                     </span>
                                                 </div>
@@ -991,8 +1006,18 @@ export default function ReviewMemberStatsClient({
                                                                                 -1 Service Point
                                                                             </button>
 
-                                                                            {/* Role, Deactivate, Email */}
-
+                                                                            {/* Role, Edit Profile, Deactivate, Email */}
+                                                                            <button
+                                                                                onClick={handlePromoteDemote}
+                                                                                disabled={isPending}
+                                                                                className={`px-3 py-2 border rounded-xl text-left text-xs font-bold transition-all cursor-pointer ${
+                                                                                    selectedMember.role?.toUpperCase() === "ADMIN"
+                                                                                        ? "bg-amber-50/80 hover:bg-amber-100/80 text-amber-800 border-amber-200"
+                                                                                        : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200/50"
+                                                                                }`}
+                                                                            >
+                                                                                {selectedMember.role?.toUpperCase() === "ADMIN" ? "Change Role (to Member)" : "Change Role (to Admin)"}
+                                                                            </button>
 
                                                                             <button
                                                                                 onClick={() => setIsEditModalOpen(true)}
@@ -1074,6 +1099,18 @@ export default function ReviewMemberStatsClient({
                                     onChange={(e) => setEditForm({ ...editForm, illinois_email: e.target.value })}
                                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 focus:outline-hidden focus:border-amber-500 focus:bg-white transition-colors"
                                 />
+                            </div>
+
+                            <div>
+                                <label className="block text-slate-500 font-bold mb-1">Role</label>
+                                <select
+                                    value={editForm.role}
+                                    onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 focus:outline-hidden focus:border-amber-500 focus:bg-white transition-colors"
+                                >
+                                    <option value="MEMBER">MEMBER</option>
+                                    <option value="ADMIN">ADMIN</option>
+                                </select>
                             </div>
 
                             <div>
