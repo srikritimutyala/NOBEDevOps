@@ -58,6 +58,7 @@ export default function ViewAllEvents() {
   // QR Code Modal State
   const [activeQrEvent, setActiveQrEvent] = useState<{ id: string; name: string; secret: string; endsAt?: string | null } | null>(null);
   const [regeneratingQr, setRegeneratingQr] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const [mounted, setMounted] = useState(false);
   const [viewMode, setViewMode] = useState<"LIST" | "CALENDAR">("LIST");
@@ -367,6 +368,23 @@ export default function ViewAllEvents() {
     }
   }
 
+  // Delete event handler
+  async function handleDeleteEvent(eventId: string, eventName: string) {
+    if (!confirm(`Are you sure you want to permanently delete "${eventName}"? This will also remove all associated attendance and absence records!`)) {
+      return;
+    }
+    setDeletingId(eventId);
+    try {
+      const { error } = await supabase.from("events").delete().eq("id", eventId);
+      if (error) throw error;
+      setEvents(prev => prev.filter(e => e.id !== eventId));
+    } catch (err: any) {
+      alert("Failed to delete event: " + err.message);
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   // Filter & Sort calculation
   const processedEvents = useMemo(() => {
     const now = new Date();
@@ -447,15 +465,7 @@ export default function ViewAllEvents() {
   }
 
   function getEventIcon(type: string) {
-    switch (type) {
-      case "PROFESSIONAL": return "💼";
-      case "SOCIAL": return "🤝";
-      case "SERVICE":
-      case "SERVICE_PHILANTHROPY": return "🌱";
-      case "GENERAL_MEETING": return "📢";
-      case "NEW_MEMBER_WORKSHOP": return "🎓";
-      default: return "📅";
-    }
+    return "";
   }
 
   // QR time remaining indicator
@@ -568,7 +578,7 @@ export default function ViewAllEvents() {
                 className="btn-secondary"
                 style={{ fontSize: "0.8rem", padding: "6px 12px", minHeight: "30px", borderRadius: "20px", display: "inline-flex", alignItems: "center", gap: "4px", background: statusFilter === "UPCOMING" ? "rgba(63,122,83,0.08)" : "transparent", borderColor: statusFilter === "UPCOMING" ? "var(--success)" : "var(--border)" }}
               >
-                🟢 Upcoming
+                Upcoming
               </button>
               <button
                 type="button"
@@ -576,7 +586,7 @@ export default function ViewAllEvents() {
                 className="btn-secondary"
                 style={{ fontSize: "0.8rem", padding: "6px 12px", minHeight: "30px", borderRadius: "20px", display: "inline-flex", alignItems: "center", gap: "4px", background: mandatoryFilter === "MANDATORY" ? "rgba(154,59,49,0.08)" : "transparent", borderColor: mandatoryFilter === "MANDATORY" ? "var(--danger)" : "var(--border)" }}
               >
-                🔴 Mandatory
+                Mandatory
               </button>
               <button
                 type="button"
@@ -584,7 +594,7 @@ export default function ViewAllEvents() {
                 className="btn-secondary"
                 style={{ fontSize: "0.8rem", padding: "6px 12px", minHeight: "30px", borderRadius: "20px", display: "inline-flex", alignItems: "center", gap: "4px", background: typeFilter === "SOCIAL" ? "rgba(79,80,82,0.05)" : "transparent", borderColor: typeFilter === "SOCIAL" ? "var(--muted)" : "var(--border)" }}
               >
-                🤝 Social
+                Social
               </button>
               <button
                 type="button"
@@ -592,7 +602,7 @@ export default function ViewAllEvents() {
                 className="btn-secondary"
                 style={{ fontSize: "0.8rem", padding: "6px 12px", minHeight: "30px", borderRadius: "20px", display: "inline-flex", alignItems: "center", gap: "4px", background: typeFilter === "PROFESSIONAL" ? "rgba(79,80,82,0.05)" : "transparent", borderColor: typeFilter === "PROFESSIONAL" ? "var(--muted)" : "var(--border)" }}
               >
-                💼 Professional
+                Professional
               </button>
               <button
                 type="button"
@@ -600,7 +610,7 @@ export default function ViewAllEvents() {
                 className="btn-secondary"
                 style={{ fontSize: "0.8rem", padding: "6px 12px", minHeight: "30px", borderRadius: "20px", display: "inline-flex", alignItems: "center", gap: "4px", background: typeFilter === "SERVICE" ? "rgba(79,80,82,0.05)" : "transparent", borderColor: typeFilter === "SERVICE" ? "var(--muted)" : "var(--border)" }}
               >
-                🌱 Service
+                Service
               </button>
               {(statusFilter !== "ALL" || typeFilter !== "ALL" || mandatoryFilter !== "ALL" || search) && (
                 <button
@@ -637,7 +647,7 @@ export default function ViewAllEvents() {
                 color: "var(--foreground)"
               }}
             >
-              📋 Cards List
+              Cards List
             </button>
             <button
               type="button"
@@ -655,7 +665,7 @@ export default function ViewAllEvents() {
                 color: "var(--foreground)"
               }}
             >
-              📅 Calendar
+              Calendar
             </button>
           </div>
 
@@ -697,23 +707,23 @@ export default function ViewAllEvents() {
                       <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "16px" }}>
                         {isUpcoming ? (
                           <span style={{ fontSize: "0.72rem", padding: "4px 10px", borderRadius: "20px", background: "rgba(63,122,83,0.1)", color: "var(--success)", fontWeight: "700", display: "inline-flex", alignItems: "center", gap: "4px" }}>
-                            🟢 Upcoming
+                            Upcoming
                           </span>
                         ) : (
                           <span style={{ fontSize: "0.72rem", padding: "4px 10px", borderRadius: "20px", background: "rgba(107,108,112,0.08)", color: "var(--muted)", fontWeight: "700", display: "inline-flex", alignItems: "center", gap: "4px" }}>
-                            ⚪ Completed
+                            Completed
                           </span>
                         )}
 
                         {event.is_mandatory && (
                           <span style={{ fontSize: "0.72rem", padding: "4px 10px", borderRadius: "20px", background: "rgba(154,59,49,0.08)", color: "var(--danger)", fontWeight: "700", display: "inline-flex", alignItems: "center", gap: "4px" }}>
-                            🔴 Mandatory
+                            Mandatory
                           </span>
                         )}
 
                         {!event.qr_code_secret && (
                           <span style={{ fontSize: "0.72rem", padding: "4px 10px", borderRadius: "20px", background: "rgba(229,138,39,0.08)", color: "var(--accent-strong)", fontWeight: "700", display: "inline-flex", alignItems: "center", gap: "4px" }}>
-                            🟡 Draft
+                            Draft
                           </span>
                         )}
                       </div>
@@ -721,12 +731,11 @@ export default function ViewAllEvents() {
                       {/* Card Content */}
                       <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "6px" }}>
                         <h3 style={{ fontSize: "1.2rem", fontWeight: "800", margin: "0 0 4px 0", color: "#111", display: "flex", alignItems: "flex-start", gap: "6px", lineHeight: "1.3" }}>
-                          <span>{getEventIcon(event.event_type)}</span>
                           <span>{event.name}</span>
                         </h3>
                         
                         <p style={{ fontSize: "0.88rem", color: "var(--muted)", margin: "0 0 8px 0", display: "flex", alignItems: "center", gap: "4px" }}>
-                          📅 {formatDateRange(event.date, event.end_date)}
+                          {formatDateRange(event.date, event.end_date)}
                         </p>
 
                         <div style={{ fontSize: "0.85rem", color: "var(--foreground)", fontWeight: "500", display: "flex", alignItems: "center", gap: "6px", margin: "4px 0 8px" }}>
@@ -747,13 +756,13 @@ export default function ViewAllEvents() {
 
                         {event.location && (
                           <p style={{ fontSize: "0.85rem", color: "var(--muted)", margin: "0 0 12px 0", display: "flex", alignItems: "center", gap: "4px" }}>
-                            📍 <span>{event.location}</span>
+                            <span>{event.location}</span>
                           </p>
                         )}
 
                         {event.description && (
                           <p style={{ fontSize: "0.82rem", color: "var(--muted)", margin: "0 0 12px 0", fontStyle: "italic", whiteSpace: "pre-wrap", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", lineHeight: "1.4" }}>
-                            📝 {event.description}
+                            {event.description}
                           </p>
                         )}
                       </div>
@@ -762,9 +771,9 @@ export default function ViewAllEvents() {
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "8px 0 0", padding: "8px 0", borderTop: "1px dashed var(--border)" }}>
                         <span style={{ fontSize: "0.85rem", fontWeight: "700", color: "var(--muted)" }}>
                           {event.is_mandatory ? (
-                            <span>📊 {stats.attended} / {stats.total} Checked In</span>
+                            <span>{stats.attended} / {stats.total} Checked In</span>
                           ) : (
-                            <span>👥 {stats.attended} Attendee{stats.attended === 1 ? "" : "s"}</span>
+                            <span>{stats.attended} Attendee{stats.attended === 1 ? "" : "s"}</span>
                           )}
                         </span>
                       </div>
@@ -773,27 +782,92 @@ export default function ViewAllEvents() {
                       <hr style={{ border: 0, borderTop: "1px solid var(--border)", margin: "16px 0 12px 0" }} />
 
                       {/* Card Actions Row */}
-                      <div style={{ display: "flex", gap: "12px", justifyContent: "space-between", alignItems: "center" }}>
-                        <Link
-                          href={`/users/admin/eventReview?eventId=${event.id}`}
-                          style={{ fontSize: "0.82rem", fontWeight: "700", color: "var(--accent-strong)", textDecoration: "none", cursor: "pointer" }}
-                        >
-                          View Details
-                        </Link>
-                        
-                        <Link
-                          href={`/users/admin/createEvent?eventId=${event.id}`}
-                          style={{ fontSize: "0.82rem", fontWeight: "700", color: "var(--foreground)", textDecoration: "none", cursor: "pointer" }}
-                        >
-                          Edit
-                        </Link>
+                      <div style={{ display: "flex", gap: "8px", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap" }}>
+                        <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                          <Link
+                            href={`/users/admin/eventReview?eventId=${event.id}`}
+                            className="btn-secondary"
+                            style={{
+                              fontSize: "0.8rem",
+                              fontWeight: "700",
+                              color: "var(--accent-strong)",
+                              textDecoration: "none",
+                              cursor: "pointer",
+                              padding: "6px 12px",
+                              borderRadius: "8px",
+                              border: "1px solid var(--border)",
+                              background: "white"
+                            }}
+                          >
+                            View Details
+                          </Link>
+                          
+                          <Link
+                            href={`/users/admin/createEvent?eventId=${event.id}`}
+                            className="btn-secondary"
+                            style={{
+                              fontSize: "0.8rem",
+                              fontWeight: "700",
+                              color: "var(--foreground)",
+                              textDecoration: "none",
+                              cursor: "pointer",
+                              padding: "6px 12px",
+                              borderRadius: "8px",
+                              border: "1px solid var(--border)",
+                              background: "white"
+                            }}
+                          >
+                            Edit
+                          </Link>
+
+                          <button
+                            type="button"
+                            onClick={() => handleQrAction(event)}
+                            style={{
+                              fontSize: "0.8rem",
+                              fontWeight: "700",
+                              color: "var(--success)",
+                              background: "rgba(63,122,83,0.08)",
+                              border: "1px solid rgba(63,122,83,0.25)",
+                              cursor: "pointer",
+                              padding: "6px 12px",
+                              borderRadius: "8px"
+                            }}
+                          >
+                            QR Code
+                          </button>
+                        </div>
 
                         <button
                           type="button"
-                          onClick={() => handleQrAction(event)}
-                          style={{ fontSize: "0.82rem", fontWeight: "700", color: "var(--success)", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                          onClick={() => handleDeleteEvent(event.id, event.name)}
+                          disabled={deletingId === event.id}
+                          title={`Delete ${event.name}`}
+                          style={{
+                            fontSize: "0.8rem",
+                            fontWeight: "700",
+                            color: "#dc2626",
+                            background: "rgba(220, 38, 38, 0.08)",
+                            border: "1px solid rgba(220, 38, 38, 0.3)",
+                            borderRadius: "8px",
+                            padding: "6px 14px",
+                            cursor: deletingId === event.id ? "not-allowed" : "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "6px",
+                            boxShadow: "0 1px 3px rgba(220, 38, 38, 0.08)",
+                            transition: "all 0.15s ease"
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = "rgba(220, 38, 38, 0.16)";
+                            e.currentTarget.style.borderColor = "#dc2626";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = "rgba(220, 38, 38, 0.08)";
+                            e.currentTarget.style.borderColor = "rgba(220, 38, 38, 0.3)";
+                          }}
                         >
-                          Generate QR
+                          <span>{deletingId === event.id ? "Deleting..." : "Delete Event"}</span>
                         </button>
                       </div>
                     </div>
@@ -890,7 +964,6 @@ export default function ViewAllEvents() {
                                     )}
                                   </div>
                                   <div className="calendar-event-name" style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#333' }}>
-                                    <span>{getEventIcon(evt.event_type)}</span>
                                     <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{evt.name}</span>
                                   </div>
                                 </Link>
@@ -1067,7 +1140,7 @@ export default function ViewAllEvents() {
                 <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "16px" }}>
                   {timeRemainingStr && (
                     <p style={{ fontSize: "0.82rem", color: "var(--muted)", margin: 0 }}>
-                      ⏳ Expires in: <strong>{timeRemainingStr}</strong>
+                      Expires in: <strong>{timeRemainingStr}</strong>
                     </p>
                   )}
                   
@@ -1081,7 +1154,7 @@ export default function ViewAllEvents() {
                     className="btn"
                     style={{ fontSize: "0.85rem", padding: "8px 12px", borderRadius: "8px" }}
                   >
-                    📋 Copy Check-In Link
+                    Copy Check-In Link
                   </button>
                 </div>
 
@@ -1093,7 +1166,7 @@ export default function ViewAllEvents() {
                     className="btn-secondary"
                     style={{ flex: 1, fontSize: "0.82rem", padding: "8px 12px", borderRadius: "8px" }}
                   >
-                    {regeneratingQr ? "Regenerating..." : "🔄 Regenerate"}
+                    {regeneratingQr ? "Regenerating..." : "Regenerate"}
                   </button>
                   <button
                     type="button"

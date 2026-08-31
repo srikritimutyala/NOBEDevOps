@@ -575,7 +575,7 @@ export default function EventList() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <strong>{event.name}</strong>
                           {event.event_type !== 'GOOGLE_CALENDAR' && eventConflicts.get(event.id) && (
-                            <span title="Time conflict with another event" style={{ fontSize: '1.2rem' }}>⚠️</span>
+                            <span title="Time conflict with another event" style={{ fontSize: '0.85rem', color: '#d97706', fontWeight: 'bold' }}>(Conflict)</span>
                           )}
                         </div>
                         <p className="section-copy">
@@ -712,7 +712,7 @@ export default function EventList() {
                 color: "var(--foreground)"
               }}
             >
-              📅 Calendar
+              Calendar
             </button>
             <button
               type="button"
@@ -730,7 +730,7 @@ export default function EventList() {
                 color: "var(--foreground)"
               }}
             >
-              📋 Clean Cards
+              Cards
             </button>
           </div>
 
@@ -939,7 +939,7 @@ export default function EventList() {
                                 <div className="calendar-event-name" style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#333' }}>
                                   {event.name}
                                   {eventConflicts.get(event.id) && (
-                                    <span title="Time conflict with another event" style={{ fontSize: '0.9rem' }}>⚠️</span>
+                                    <span title="Time conflict with another event" style={{ fontSize: '0.75rem', color: '#d97706', fontWeight: 'bold' }}>(Conflict)</span>
                                   )}
                                 </div>
                                 <div className="calendar-event-meta">
@@ -1008,28 +1008,28 @@ export default function EventList() {
                         {/* Status Badges */}
                         <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
                           {isUpcoming ? (
-                            <span style={{ fontSize: "0.7rem", padding: "2px 6px", borderRadius: "10px", background: "rgba(63,122,83,0.08)", color: "var(--success)", fontWeight: "700" }}>🟢 Upcoming</span>
+                            <span style={{ fontSize: "0.7rem", padding: "2px 6px", borderRadius: "10px", background: "rgba(63,122,83,0.08)", color: "var(--success)", fontWeight: "700" }}>Upcoming</span>
                           ) : (
-                            <span style={{ fontSize: "0.7rem", padding: "2px 6px", borderRadius: "10px", background: "rgba(107,108,112,0.06)", color: "var(--muted)", fontWeight: "700" }}>⚪ Completed</span>
+                            <span style={{ fontSize: "0.7rem", padding: "2px 6px", borderRadius: "10px", background: "rgba(107,108,112,0.06)", color: "var(--muted)", fontWeight: "700" }}>Completed</span>
                           )}
                           {event.is_mandatory && (
-                            <span style={{ fontSize: "0.7rem", padding: "2px 6px", borderRadius: "10px", background: "rgba(154,59,49,0.08)", color: "var(--danger)", fontWeight: "700" }}>🔴 Mandatory</span>
+                            <span style={{ fontSize: "0.7rem", padding: "2px 6px", borderRadius: "10px", background: "rgba(154,59,49,0.08)", color: "var(--danger)", fontWeight: "700" }}>Mandatory</span>
                           )}
                         </div>
 
                         <strong style={{ fontSize: "1.05rem", color: "#111", display: "flex", alignItems: "center", gap: "6px", lineHeight: "1.3" }}>
                           {event.name}
                           {!isGCal && eventConflicts.get(event.id) && (
-                            <span title="Time conflict with another event" style={{ fontSize: '1rem' }}>⚠️</span>
+                            <span title="Time conflict with another event" style={{ fontSize: '0.85rem', color: '#d97706', fontWeight: 'bold' }}>(Conflict)</span>
                           )}
                         </strong>
 
                         <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--muted)" }}>
-                          📅 {formatEventDate(event.date)}
+                          {formatEventDate(event.date)}
                         </p>
                         {event.location && (
                           <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--muted)" }}>
-                            📍 {event.location}
+                            {event.location}
                           </p>
                         )}
 

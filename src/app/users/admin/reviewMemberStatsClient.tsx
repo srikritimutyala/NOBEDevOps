@@ -249,7 +249,7 @@ export default function ReviewMemberStatsClient({
                     id: `ch-${ch.id}`,
                     title: `Checked into ${evtName}`,
                     date: ch.timestamp || new Date().toISOString(),
-                    emoji: "✅",
+                    emoji: "",
                 });
             });
 
@@ -260,7 +260,7 @@ export default function ReviewMemberStatsClient({
                 id: `ab-${ab.id}`,
                 title: `Submitted absence request for ${evtName} (Status: ${ab.status})`,
                 date: ab.submitted_at || new Date().toISOString(),
-                emoji: "✉️",
+                emoji: "",
             });
         });
 
@@ -274,7 +274,7 @@ export default function ReviewMemberStatsClient({
                     ? `Strike issued: ${st.reason}${eventStr}`
                     : `Strike removed/excused: ${st.reason}${eventStr}`,
                 date: st.created_at || new Date().toISOString(),
-                emoji: "🚨",
+                emoji: "",
             });
         });
 

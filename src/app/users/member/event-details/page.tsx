@@ -242,11 +242,11 @@ function EventDetailsClient() {
             <h1 className="page-title" style={{ fontSize: "2rem", marginBottom: "12px", letterSpacing: "-0.02em", color: "#111" }}>{event.name}</h1>
             
             <p style={{ fontSize: "0.95rem", color: "var(--foreground)", margin: "0 0 6px 0", fontWeight: "600" }}>
-              📅 {formatDate(event.date)}
+              {formatDate(event.date)}
             </p>
             {event.location && (
               <p style={{ fontSize: "0.9rem", color: "var(--muted)", margin: 0, fontWeight: "500" }}>
-                📍 {event.location}
+                {event.location}
               </p>
             )}
           </div>
@@ -260,7 +260,7 @@ function EventDetailsClient() {
                 className="btn-secondary"
                 style={{ textDecoration: "none", fontSize: "0.85rem", padding: "10px 20px", display: "inline-flex", alignItems: "center", gap: "6px", borderRadius: "12px", textAlign: "center" }}
               >
-                🗺️ Directions
+                Directions
               </a>
             </div>
           )}

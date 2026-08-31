@@ -143,6 +143,7 @@ export default function AdminDashboard({
   // Email Reminder state
   const [remindingEventId, setRemindingEventId] = useState<string | null>(null);
   const [reminderMessage, setReminderMessage] = useState<string | null>(null);
+  const [deletingEventId, setDeletingEventId] = useState<string | null>(null);
 
   const qrRef = useRef<HTMLDivElement>(null);
 
@@ -242,6 +243,23 @@ export default function AdminDashboard({
     } finally {
       setRemindingEventId(null);
       setTimeout(() => setReminderMessage(null), 4000);
+    }
+  }
+
+  // Delete event handler for dashboard
+  async function handleDeleteDashboardEvent(eventId: string, eventName: string) {
+    if (!confirm(`Are you sure you want to permanently delete "${eventName}"? This will also remove all associated attendance and absence records!`)) {
+      return;
+    }
+    setDeletingEventId(eventId);
+    try {
+      const { error } = await supabase.from("events").delete().eq("id", eventId);
+      if (error) throw error;
+      router.refresh();
+    } catch (err: any) {
+      alert("Failed to delete event: " + err.message);
+    } finally {
+      setDeletingEventId(null);
     }
   }
 
@@ -567,7 +585,15 @@ export default function AdminDashboard({
                         <span className="text-[9px] text-slate-400 px-2 py-1">No QR</span>
                       )}
 
-
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteDashboardEvent(evt.id, evt.name)}
+                        disabled={deletingEventId === evt.id}
+                        title={`Delete ${evt.name}`}
+                        className="text-[10px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 px-2.5 py-1 rounded-md border border-rose-200 transition-colors ml-auto flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                      >
+                        {deletingEventId === evt.id ? "Deleting..." : "Delete"}
+                      </button>
                     </div>
                   </div>
                 ))}

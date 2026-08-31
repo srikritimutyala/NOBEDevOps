@@ -1053,7 +1053,7 @@ function CreateEventContent() {
                   style={{ display: "none" }}
                   onChange={handleFileChange}
                 />
-                <div style={{ fontSize: "3rem", marginBottom: "12px" }}>📅</div>
+                <div style={{ fontSize: "1.5rem", marginBottom: "8px", fontWeight: "700", color: "var(--accent)" }}>CSV</div>
                 <h3 className="section-title" style={{ marginBottom: "8px" }}>Drag & Drop CSV File</h3>
                 <p className="section-copy" style={{ margin: 0 }}>
                   or click to browse your computer (.csv)
@@ -1074,7 +1074,7 @@ function CreateEventContent() {
                     className="btn"
                     style={{ fontSize: "0.8rem", padding: "6px 12px", minHeight: "36px" }}
                   >
-                    📥 Download Sheets Template (.xlsx)
+                    Download Sheets Template (.xlsx)
                   </button>
                 </div>
 
@@ -1199,7 +1199,7 @@ function CreateEventContent() {
                           <td style={{ padding: "12px 8px", fontSize: "0.85rem" }}>
                             {new Date(evt.date).toLocaleString()}
                           </td>
-                          <td style={{ padding: "12px 8px" }}>{evt.is_mandatory ? "✅ Yes" : "❌ No"}</td>
+                          <td style={{ padding: "12px 8px" }}>{evt.is_mandatory ? "Yes" : "No"}</td>
                           <td style={{ padding: "12px 8px" }}>{evt.location}</td>
                           <td style={{ padding: "12px 8px", fontSize: "0.85rem", color: "var(--muted)" }}>
                             Start: {evt.check_in_start_offset_minutes}m<br />

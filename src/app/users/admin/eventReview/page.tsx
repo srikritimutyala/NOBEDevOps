@@ -550,9 +550,21 @@ function EventReviewClient() {
                   onClick={handleDeleteEvent}
                   disabled={actionLoading}
                   className="btn-secondary"
-                  style={{ borderColor: "var(--danger)", color: "var(--danger)", padding: "10px 20px", fontWeight: "600", borderRadius: "12px", cursor: "pointer", marginLeft: "auto" }}
+                  style={{
+                    borderColor: "rgba(220, 38, 38, 0.4)",
+                    color: "var(--danger)",
+                    background: "rgba(220, 38, 38, 0.08)",
+                    padding: "10px 20px",
+                    fontWeight: "700",
+                    borderRadius: "12px",
+                    cursor: "pointer",
+                    marginLeft: "auto",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px"
+                  }}
                 >
-                  Delete
+                  Delete Event
                 </button>
               </div>
             </div>
