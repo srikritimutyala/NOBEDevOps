@@ -22,7 +22,6 @@ export default function LoginForm() {
   );
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [testingMode, setTestingMode] = useState(false);
   const [email, setEmail] = useState('');
   const [confirmEmail, setConfirmEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -116,7 +115,8 @@ export default function LoginForm() {
     setError(null);
     setMessage(null);
 
-    if (!testingMode && !email.endsWith('@illinois.edu')) {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail.endsWith('@illinois.edu') && normalizedEmail !== 'mutyalasrikriti2006@gmail.com') {
       setError('Please use your @illinois.edu email address.');
       return;
     }
@@ -360,15 +360,6 @@ export default function LoginForm() {
               </div>
             </div>
           )}
-
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', color: 'var(--muted)', cursor: 'pointer', marginTop: '4px' }}>
-            <input
-              type="checkbox"
-              checked={testingMode}
-              onChange={e => setTestingMode(e.target.checked)}
-            />
-            Testing features (allow non-illinois emails)
-          </label>
 
           <button
             type="submit"

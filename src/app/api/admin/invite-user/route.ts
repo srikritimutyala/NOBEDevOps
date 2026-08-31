@@ -8,8 +8,9 @@ function generateTempPassword() {
 
 export async function POST(req: NextRequest) {
   const { email } = await req.json();
+  const normalizedEmail = email ? email.trim().toLowerCase() : '';
 
-  if (!email || !email.endsWith('@illinois.edu')) {
+  if (!normalizedEmail || (!normalizedEmail.endsWith('@illinois.edu') && normalizedEmail !== 'mutyalasrikriti2006@gmail.com')) {
     return NextResponse.json(
       { error: 'A valid @illinois.edu email is required.' },
       { status: 400 }

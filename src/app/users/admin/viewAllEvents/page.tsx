@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/app/utils/supabase/client";
 import QRCode from "react-qr-code";
 
@@ -32,6 +33,7 @@ function isGcalEvent(event: EventItem) {
 }
 
 export default function ViewAllEvents() {
+  const router = useRouter();
   const [events, setEvents] = useState<EventItem[]>([]);
   const [attendance, setAttendance] = useState<any[]>([]);
   const [people, setPeople] = useState<any[]>([]);
@@ -782,63 +784,28 @@ export default function ViewAllEvents() {
                       <hr style={{ border: 0, borderTop: "1px solid var(--border)", margin: "16px 0 12px 0" }} />
 
                       {/* Card Actions Row */}
-                      <div style={{ display: "flex", gap: "8px", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap" }}>
-                        <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-                          <Link
-                            href={`/users/admin/eventReview?eventId=${event.id}`}
-                            className="btn-secondary"
-                            style={{
-                              fontSize: "0.75rem",
-                              fontWeight: "700",
-                              textTransform: "uppercase",
-                              letterSpacing: "0.05em",
-                              color: "var(--accent-strong)",
-                              textDecoration: "none",
-                              cursor: "pointer",
-                              padding: "6px 12px",
-                              borderRadius: "8px",
-                              border: "1px solid var(--border)",
-                              background: "white"
-                            }}
+                      <div className="flex items-center justify-between gap-2 flex-wrap mt-4 pt-3 border-t border-slate-100">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => router.push(`/users/admin/eventReview?eventId=${event.id}`)}
+                            className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 text-xs font-bold transition-all shadow-2xs hover:shadow-xs cursor-pointer inline-flex items-center justify-center"
                           >
                             View Details
-                          </Link>
+                          </button>
                           
-                          <Link
-                            href={`/users/admin/createEvent?eventId=${event.id}`}
-                            className="btn-secondary"
-                            style={{
-                              fontSize: "0.75rem",
-                              fontWeight: "700",
-                              textTransform: "uppercase",
-                              letterSpacing: "0.05em",
-                              color: "#1e293b",
-                              textDecoration: "none",
-                              cursor: "pointer",
-                              padding: "6px 12px",
-                              borderRadius: "8px",
-                              border: "1px solid var(--border)",
-                              background: "white"
-                            }}
+                          <button
+                            type="button"
+                            onClick={() => router.push(`/users/admin/createEvent?eventId=${event.id}`)}
+                            className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 text-xs font-bold transition-all shadow-2xs hover:shadow-xs cursor-pointer inline-flex items-center justify-center"
                           >
                             Edit
-                          </Link>
+                          </button>
 
                           <button
                             type="button"
                             onClick={() => handleQrAction(event)}
-                            style={{
-                              fontSize: "0.75rem",
-                              fontWeight: "700",
-                              textTransform: "uppercase",
-                              letterSpacing: "0.05em",
-                              color: "var(--success)",
-                              background: "rgba(63,122,83,0.08)",
-                              border: "1px solid rgba(63,122,83,0.25)",
-                              cursor: "pointer",
-                              padding: "6px 12px",
-                              borderRadius: "8px"
-                            }}
+                            className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 text-xs font-bold transition-all shadow-2xs hover:shadow-xs cursor-pointer inline-flex items-center justify-center"
                           >
                             QR Code
                           </button>
@@ -849,33 +816,9 @@ export default function ViewAllEvents() {
                           onClick={() => handleDeleteEvent(event.id, event.name)}
                           disabled={deletingId === event.id}
                           title={`Delete ${event.name}`}
-                          style={{
-                            fontSize: "0.75rem",
-                            fontWeight: "700",
-                            textTransform: "uppercase",
-                            letterSpacing: "0.05em",
-                            color: "#dc2626",
-                            background: "rgba(220, 38, 38, 0.08)",
-                            border: "1px solid rgba(220, 38, 38, 0.3)",
-                            borderRadius: "8px",
-                            padding: "6px 14px",
-                            cursor: deletingId === event.id ? "not-allowed" : "pointer",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: "6px",
-                            boxShadow: "0 1px 3px rgba(220, 38, 38, 0.08)",
-                            transition: "all 0.15s ease"
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.background = "rgba(220, 38, 38, 0.16)";
-                            e.currentTarget.style.borderColor = "#dc2626";
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.background = "rgba(220, 38, 38, 0.08)";
-                            e.currentTarget.style.borderColor = "rgba(220, 38, 38, 0.3)";
-                          }}
+                          className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 text-xs font-bold transition-all shadow-2xs hover:shadow-xs cursor-pointer inline-flex items-center justify-center disabled:opacity-50"
                         >
-                          <span>{deletingId === event.id ? "Deleting..." : "Delete Event"}</span>
+                          {deletingId === event.id ? "Deleting..." : "Delete Event"}
                         </button>
                       </div>
                     </div>

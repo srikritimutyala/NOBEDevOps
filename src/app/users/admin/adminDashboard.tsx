@@ -560,29 +560,40 @@ export default function AdminDashboard({
                     </div>
 
                     {/* Action buttons */}
-                    <div className="flex flex-wrap items-center gap-1.5 mt-1 border-t border-slate-100/50 pt-2">
-                      <Link
-                        href={`/users/admin/createEvent?eventId=${evt.id}`}
-                        className="text-[10px] font-bold uppercase tracking-wide text-slate-800 hover:text-black bg-slate-100 hover:bg-slate-200/80 px-2 py-1 rounded-md transition-colors"
+                    <div className="grid grid-cols-4 gap-1 mt-2 border-t border-slate-100 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/users/admin/createEvent?eventId=${evt.id}`)}
+                        className="py-0.5 px-0.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 hover:text-slate-900 text-[7px] font-bold transition-all shadow-2xs hover:shadow-xs cursor-pointer inline-flex items-center justify-center text-center whitespace-nowrap leading-tight"
+                        title="Edit Event"
                       >
                         Edit
-                      </Link>
-                      <Link
-                        href={`/users/admin/eventReview?eventId=${evt.id}`}
-                        className="text-[10px] font-bold uppercase tracking-wide text-slate-800 hover:text-black bg-slate-100 hover:bg-slate-200/80 px-2 py-1 rounded-md transition-colors"
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/users/admin/eventReview?eventId=${evt.id}`)}
+                        className="py-0.5 px-0.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 hover:text-slate-900 text-[7px] font-bold transition-all shadow-2xs hover:shadow-xs cursor-pointer inline-flex items-center justify-center text-center whitespace-nowrap leading-tight"
+                        title="View Attendees"
                       >
-                        View Attendees
-                      </Link>
+                        Attendees
+                      </button>
                       
                       {evt.qr_code_secret ? (
                         <button
+                          type="button"
                           onClick={() => setActiveQrEvent({ id: evt.id, name: evt.name, secret: evt.qr_code_secret! })}
-                          className="text-[10px] font-bold uppercase tracking-wide text-amber-800 bg-amber-50 hover:bg-amber-100 px-2 py-1 rounded-md border border-amber-100 transition-colors cursor-pointer"
+                          className="py-0.5 px-0.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 hover:text-slate-900 text-[7px] font-bold transition-all shadow-2xs hover:shadow-xs cursor-pointer inline-flex items-center justify-center text-center whitespace-nowrap leading-tight"
+                          title="Show QR Code"
                         >
                           Show QR
                         </button>
                       ) : (
-                        <span className="text-[9px] font-bold uppercase tracking-wide text-slate-400 px-2 py-1">No QR</span>
+                        <span
+                          className="py-0.5 px-0.5 rounded-lg border border-slate-100 bg-slate-50/50 text-slate-400 text-[7px] font-bold inline-flex items-center justify-center text-center cursor-default whitespace-nowrap leading-tight"
+                          title="No QR Code"
+                        >
+                          No QR
+                        </span>
                       )}
 
                       <button
@@ -590,7 +601,7 @@ export default function AdminDashboard({
                         onClick={() => handleDeleteDashboardEvent(evt.id, evt.name)}
                         disabled={deletingEventId === evt.id}
                         title={`Delete ${evt.name}`}
-                        className="text-[10px] font-bold uppercase tracking-wide text-rose-700 bg-rose-50 hover:bg-rose-100 px-2.5 py-1 rounded-md border border-rose-200 transition-colors ml-auto flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                        className="py-0.5 px-0.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 hover:text-slate-900 text-[7px] font-bold transition-all shadow-2xs hover:shadow-xs cursor-pointer inline-flex items-center justify-center text-center whitespace-nowrap leading-tight disabled:opacity-50"
                       >
                         {deletingEventId === evt.id ? "Deleting..." : "Delete"}
                       </button>
