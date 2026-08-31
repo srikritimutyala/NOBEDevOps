@@ -7,7 +7,7 @@ function escapeHtml(value: string) {
     .replace(/'/g, "&#39;");
 }
 
-export async function sendEmail(to: string, subject: string, message: string) {
+export async function sendEmail(to: string, subject: string, message: string, customHtml?: string) {
   const gasUrl = process.env.GAS_EMAIL_URL;
   const gasSecret = process.env.GAS_EMAIL_SECRET;
 
@@ -15,7 +15,7 @@ export async function sendEmail(to: string, subject: string, message: string) {
     throw new Error("Email service not configured");
   }
 
-  const html = `<p>${escapeHtml(message).replace(/\n/g, "<br>")}</p>`;
+  const html = customHtml || `<p>${escapeHtml(message).replace(/\n/g, "<br>")}</p>`;
 
   const response = await fetch(gasUrl, {
     method: "POST",

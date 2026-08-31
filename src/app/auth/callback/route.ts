@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
   const type = searchParams.get('type') as 'email' | 'recovery' | 'invite' | null;
   const next = searchParams.get('next');
 
-  // Don't auto-verify invite/email links on GET — email scanners can pre-fetch links and burn one-time tokens.
+  // Don't auto-verify invite/email/recovery links on GET — email scanners can pre-fetch links and burn one-time tokens.
   // Redirect to pages that require a real user click before calling verifyOtp.
   if (token_hash && type === 'invite') {
     return NextResponse.redirect(
@@ -20,6 +20,12 @@ export async function GET(req: NextRequest) {
   if (token_hash && type === 'email') {
     return NextResponse.redirect(
       `${origin}/auth/confirm-email?token_hash=${token_hash}&type=${type}`
+    );
+  }
+
+  if (token_hash && type === 'recovery') {
+    return NextResponse.redirect(
+      `${origin}/auth/reset-password?token_hash=${token_hash}&type=${type}`
     );
   }
 
@@ -59,5 +65,5 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return NextResponse.redirect(`${origin}/users/login?error=link_expired`);
+  return NextResponse.redirect(`${origin}/users/login?error=link_expired${type ? `&type=${type}` : ''}`);
 }

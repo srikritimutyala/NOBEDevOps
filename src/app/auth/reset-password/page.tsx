@@ -1,17 +1,25 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { createClient } from '@/app/utils/supabase/client';
 
-export default function ResetPasswordPage() {
+function ResetPasswordForm() {
   const supabase = createClient();
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const tokenHash = searchParams.get('token_hash');
+  const type = searchParams.get('type');
 
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [otpVerified, setOtpVerified] = useState(false);
 
   async function handleSubmit(e: React.SyntheticEvent) {
     e.preventDefault();
@@ -28,68 +36,168 @@ export default function ResetPasswordPage() {
 
     setSubmitting(true);
 
-    const { error } = await supabase.auth.updateUser({ password });
+    // If arriving via email link with token_hash and not yet verified, verify it first
+    if (tokenHash && type && !otpVerified) {
+      const { error: verifyError } = await supabase.auth.verifyOtp({
+        token_hash: tokenHash,
+        type: type as any,
+      });
 
-    if (error) {
-      setError(error.message);
-    } else {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data } = await supabase.from('People').select('role').eq('auth_id', user.id).single();
-        router.replace(data?.role === 'ADMIN' ? '/users/admin' : '/users/member');
+      if (verifyError) {
+        // Check if user already has an active session (e.g. verified earlier)
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (!sessionData.session) {
+          setError('This password reset link is invalid or has expired. Please request a new reset link below.');
+          setSubmitting(false);
+          return;
+        }
       } else {
-        router.replace('/users/login');
+        setOtpVerified(true);
+        // Clean URL so subsequent submits or reloads don't retry the consumed token
+        if (typeof window !== 'undefined') {
+          window.history.replaceState(null, '', window.location.pathname);
+        }
       }
+    }
+
+    // Update password for the authenticated session
+    const { error: updateError } = await supabase.auth.updateUser({ password });
+
+    if (updateError) {
+      const msg = updateError.message.toLowerCase();
+      if (msg.includes('different') || msg.includes('same') || msg.includes('previous')) {
+        setError('Your new password cannot be the same as your old password. Please choose a different password.');
+      } else {
+        setError(updateError.message);
+      }
+      setSubmitting(false);
+      return;
+    }
+
+    setSuccess(true);
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data } = await supabase.from('People').select('role').eq('auth_id', user.id).maybeSingle();
+      setTimeout(() => {
+        router.replace(data?.role === 'ADMIN' ? '/users/admin' : '/users/member');
+      }, 1500);
+    } else {
+      setTimeout(() => {
+        router.replace('/users/login?confirmed=1');
+      }, 1500);
     }
 
     setSubmitting(false);
   }
 
+  const isFatalError = error && error.includes('link is invalid or has expired');
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="bg-white rounded-lg shadow p-8 w-full max-w-sm space-y-6">
-        <h1 className="text-2xl font-bold text-black text-center">Set new password</h1>
+    <div className="auth-shell">
+      <div className="auth-card">
+        <img
+          src="/nobe_logo_f.svg"
+          alt="NOBE Illinois"
+          className="brand-logo brand-logo-header"
+          style={{ width: '150px', height: '150px' }}
+        />
+        <h1 className="page-title" style={{ fontSize: '2.2rem' }}>Set new password</h1>
+        <p className="page-subtitle">
+          {success
+            ? 'Password updated successfully! Redirecting you...'
+            : 'Enter a new password for your account.'}
+        </p>
 
         {error && (
-          <div className="p-3 bg-red-100 text-red-700 rounded text-sm">{error}</div>
+          <div style={{ marginTop: '20px' }}>
+            <div className="message-error">{error}</div>
+            {isFatalError && (
+              <Link
+                href="/users/login"
+                className="btn-secondary button-full"
+                style={{ marginTop: '12px', textAlign: 'center', textDecoration: 'none', display: 'block' }}
+              >
+                Back to login
+              </Link>
+            )}
+          </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              New password
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+        {success && (
+          <div className="message-success" style={{ marginTop: '20px' }}>
+            Password reset successful! Redirecting...
           </div>
+        )}
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Confirm password
-            </label>
-            <input
-              type="password"
-              value={confirm}
-              onChange={e => setConfirm(e.target.value)}
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+        {!success && !isFatalError && (
+          <form onSubmit={handleSubmit} className="field-group" style={{ marginTop: '20px' }}>
+            <div className="field-group">
+              <label className="field-label">New password</label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  required
+                  minLength={8}
+                  placeholder="At least 8 characters"
+                  className="field-input"
+                  style={{ paddingRight: '60px' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(v => !v)}
+                  style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8rem', color: 'var(--muted)', padding: '0' }}
+                >
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
+            </div>
 
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full py-2 bg-blue-600 text-white font-semibold rounded hover:bg-blue-700 transition disabled:opacity-50"
-          >
-            {submitting ? 'Saving...' : 'Set password'}
-          </button>
-        </form>
+            <div className="field-group">
+              <label className="field-label">Confirm password</label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={confirm}
+                  onChange={e => setConfirm(e.target.value)}
+                  required
+                  minLength={8}
+                  placeholder="Re-enter new password"
+                  className="field-input"
+                  style={{ paddingRight: '60px' }}
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={submitting}
+              className="btn button-full"
+              style={{ marginTop: '8px' }}
+            >
+              {submitting ? 'Saving...' : 'Set password'}
+            </button>
+          </form>
+        )}
       </div>
     </div>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="auth-shell">
+          <div className="auth-card">
+            <p className="section-copy">Loading...</p>
+          </div>
+        </div>
+      }
+    >
+      <ResetPasswordForm />
+    </Suspense>
   );
 }

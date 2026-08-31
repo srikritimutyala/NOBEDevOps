@@ -14,18 +14,27 @@ export default function LoginForm() {
   const redirectTo =
     searchParams.get('redirect') || searchParams.get('next');
 
-  const [mode, setMode] = useState<'signin' | 'signup' | 'forgot'>('signin');
+  const errorParam = searchParams.get('error');
+  const typeParam = searchParams.get('type');
+
+  const [mode, setMode] = useState<'signin' | 'signup' | 'forgot'>(
+    errorParam === 'link_expired' && typeParam === 'recovery' ? 'forgot' : 'signin'
+  );
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [testingMode, setTestingMode] = useState(false);
   const [email, setEmail] = useState('');
   const [confirmEmail, setConfirmEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(
-    searchParams.get('error') === 'link_expired'
-      ? 'That confirmation link has expired. Please sign up again to get a new one.'
-      : null
-  );
+  const [error, setError] = useState<string | null>(() => {
+    if (errorParam === 'link_expired') {
+      if (typeParam === 'recovery') {
+        return 'That password reset link has expired or has already been used. Please request a new one below.';
+      }
+      return 'That confirmation link has expired. Please request a new one.';
+    }
+    return null;
+  });
   const [message, setMessage] = useState<string | null>(
     searchParams.get('confirmed') === '1' ? 'Email confirmed! You can now sign in.' : null
   );
@@ -43,7 +52,7 @@ export default function LoginForm() {
     const errorCode = params.get('error_code');
     const errorDescription = params.get('error_description');
     if (errorCode === 'otp_expired') {
-      setError('Your email confirmation link has expired. Please sign up again to receive a new one.');
+      setError('Your confirmation or reset link has expired. Please request a new one below.');
     } else if (errorCode) {
       setError(errorDescription ?? 'Something went wrong. Please try again.');
     }
@@ -80,6 +89,7 @@ export default function LoginForm() {
     setMessage(null);
     setShowResend(false);
     setConfirmEmail('');
+    setPassword('');
   }
 
   async function handleResend() {
@@ -180,13 +190,18 @@ export default function LoginForm() {
         }
       }
     } else {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/callback`,
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
       });
-      if (error) {
-        setError(error.message);
+
+      const result = await res.json();
+
+      if (!res.ok || result.error) {
+        setError(result.error || 'Failed to send password reset email.');
       } else {
-        setMessage('Check your email for a password reset link.');
+        setMessage(result.message || 'Check your email for a password reset link.');
       }
     }
 
@@ -202,9 +217,13 @@ export default function LoginForm() {
           className="brand-logo brand-logo-header"
           style={{ width: '150px', height: '150px' }}
         />
-        <h1 className="page-title" style={{ fontSize: '2.5rem' }}>NOBE Attendance Portal</h1>
+        <h1 className="page-title" style={{ fontSize: '2.5rem' }}>
+          {mode === 'forgot' ? 'Reset Password' : 'NOBE Attendance Portal'}
+        </h1>
         <p className="page-subtitle">
-          Sign in to view events, points, attendance, and admin tools
+          {mode === 'forgot'
+            ? 'Enter your email to receive a password reset link'
+            : 'Sign in to view events, points, attendance, and admin tools'}
         </p>
 
         <div className="pill-nav" style={{ width: '100%', justifyContent: 'stretch', marginTop: '24px' }}>
@@ -298,26 +317,49 @@ export default function LoginForm() {
             </div>
           )}
 
-          <div className="field-group">
-            <label className="field-label">Password</label>
-            <div style={{ position: 'relative' }}>
-              <input
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                required
-                className="field-input"
-                style={{ paddingRight: '60px' }}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(v => !v)}
-                style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8rem', color: 'var(--muted)', padding: '0' }}
-              >
-                {showPassword ? 'Hide' : 'Show'}
-              </button>
+          {mode !== 'forgot' && (
+            <div className="field-group">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <label className="field-label">Password</label>
+                {mode === 'signin' && (
+                  <button
+                    type="button"
+                    onClick={() => switchMode('forgot')}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--accent)',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      padding: 0,
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')}
+                    onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
+                  >
+                    Forgot password?
+                  </button>
+                )}
+              </div>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  required
+                  className="field-input"
+                  style={{ paddingRight: '60px' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(v => !v)}
+                  style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8rem', color: 'var(--muted)', padding: '0' }}
+                >
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
             </div>
-          </div>
+          )}
 
           <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', color: 'var(--muted)', cursor: 'pointer', marginTop: '4px' }}>
             <input
@@ -338,6 +380,17 @@ export default function LoginForm() {
               ? mode === 'signin' ? 'Signing in...' : mode === 'signup' ? 'Creating account...' : 'Sending...'
               : mode === 'signin' ? 'Sign in' : mode === 'signup' ? 'Create account' : 'Send reset link'}
           </button>
+
+          {mode === 'forgot' && (
+            <button
+              type="button"
+              onClick={() => switchMode('signin')}
+              className="btn-secondary button-full"
+              style={{ marginTop: '8px' }}
+            >
+              Back to sign in
+            </button>
+          )}
         </form>
 
       </div>
