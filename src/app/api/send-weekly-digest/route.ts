@@ -123,10 +123,17 @@ export async function POST(request: NextRequest) {
     const failed: string[] = [];
 
     for (const person of recipients) {
+      const profPoints = person.professional_points ?? 0;
+      const servPoints = person.service_points ?? 0;
+      const socPoints = person.social_points ?? 0;
+      const pooledPoints = servPoints + socPoints;
+      const profGoal = goals.professional_goal ?? 5;
+      const pooledGoal = (goals as any).service_social_goal ?? 5;
+
       const progressLines = [
-        `Professional: ${person.professional_points ?? 0}/${goals.professional_goal} points${(person.professional_points ?? 0) >= goals.professional_goal ? " — goal met!" : ""}`,
-        `Service: ${person.service_points ?? 0}/${goals.service_goal} points${(person.service_points ?? 0) >= goals.service_goal ? " — goal met!" : ""}`,
-        `Social: ${person.social_points ?? 0}/${goals.social_goal} points${(person.social_points ?? 0) >= goals.social_goal ? " — goal met!" : ""}`,
+        `Professional: ${profPoints}/${profGoal} points${profPoints >= profGoal ? " — goal met!" : ""}`,
+        `Service & Social (Combined): ${pooledPoints}/${pooledGoal} points (${servPoints} Service, ${socPoints} Social)${pooledPoints >= pooledGoal ? " — goal met!" : ""}`,
+        `Total: ${profPoints + pooledPoints}/10 points`,
       ];
 
       const message = `Hi ${person.first_name || "there"},\n\nHere's your points progress as of ${todayFormatted}:\n\n${progressLines.join("\n")}\n\nHere are the events coming up this week:\n\n${eventsBlock}`;

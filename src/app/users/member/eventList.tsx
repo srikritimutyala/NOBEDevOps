@@ -459,7 +459,9 @@ export default function EventList() {
               <div className="page-stack">
                 <div className="stat-card">
                   <p className="stat-label">Total points</p>
-                  <p className="stat-value">{totalPoints}</p>
+                  <p className="stat-value">
+                    {totalPoints} <span style={{ fontSize: '1rem', color: 'var(--muted)', fontWeight: 500 }}>/ 10 pts</span>
+                  </p>
                 </div>
 
                 {member.strikes ? (
@@ -469,18 +471,33 @@ export default function EventList() {
                   </div>
                 ) : null}
 
-                <div className="stats-grid">
+                <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                   <div className="stat-card">
-                    <p className="stat-label">Service</p>
-                    <p className="stat-value">{member.service_points ?? 0}</p>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <p className="stat-label">💼 Professional</p>
+                      {(member.professional_points ?? 0) >= 5 ? (
+                        <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--success)' }}>✓ Met</span>
+                      ) : null}
+                    </div>
+                    <p className="stat-value">
+                      {member.professional_points ?? 0}
+                      <span style={{ fontSize: '0.85rem', color: 'var(--muted)', fontWeight: 500 }}> / 5 pts</span>
+                    </p>
                   </div>
                   <div className="stat-card">
-                    <p className="stat-label">Professional</p>
-                    <p className="stat-value">{member.professional_points ?? 0}</p>
-                  </div>
-                  <div className="stat-card">
-                    <p className="stat-label">Social</p>
-                    <p className="stat-value">{member.social_points ?? 0}</p>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <p className="stat-label">🤝 + 🎉 Service & Social</p>
+                      {((member.service_points ?? 0) + (member.social_points ?? 0)) >= 5 ? (
+                        <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--success)' }}>✓ Met</span>
+                      ) : null}
+                    </div>
+                    <p className="stat-value">
+                      {(member.service_points ?? 0) + (member.social_points ?? 0)}
+                      <span style={{ fontSize: '0.85rem', color: 'var(--muted)', fontWeight: 500 }}> / 5 pts</span>
+                    </p>
+                    <p style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: '4px' }}>
+                      {member.service_points ?? 0} Service · {member.social_points ?? 0} Social
+                    </p>
                   </div>
                 </div>
 

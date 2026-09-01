@@ -64,8 +64,10 @@ export type AdminDashboardProps = {
   }>;
   clubProgress: {
     professionalCompleted: number;
+    serviceSocialCompleted?: number;
     socialCompleted: number;
     serviceCompleted: number;
+    allCompleted?: number;
     totalMembers: number;
   };
   systemHealth: {
@@ -757,11 +759,11 @@ export default function AdminDashboard({
               </div>
             </div>
 
-            <div className="space-y-4 mt-6 overflow-y-auto pr-1.5" style={{ maxHeight: "200px" }}>
+            <div className="space-y-4 mt-6 overflow-y-auto pr-1.5" style={{ maxHeight: "220px" }}>
               {/* Professional */}
               <div>
                 <div className="flex justify-between text-xs font-bold text-slate-700 mb-1.5">
-                  <span>Professional Requirement</span>
+                  <span>💼 Professional Requirement (5 pts)</span>
                   <span>
                     {clubProgress.professionalCompleted} / {clubProgress.totalMembers} Members Finished (
                     {clubProgress.totalMembers > 0
@@ -784,14 +786,14 @@ export default function AdminDashboard({
                 </div>
               </div>
 
-              {/* Social */}
+              {/* Service & Social (Pooled) */}
               <div>
                 <div className="flex justify-between text-xs font-bold text-slate-700 mb-1.5">
-                  <span>Social Requirement</span>
+                  <span>🤝 + 🎉 Service & Social (Pooled - 5 pts)</span>
                   <span>
-                    {clubProgress.socialCompleted} / {clubProgress.totalMembers} Members Finished (
+                    {clubProgress.serviceSocialCompleted ?? clubProgress.socialCompleted} / {clubProgress.totalMembers} Members Finished (
                     {clubProgress.totalMembers > 0
-                      ? Math.round((clubProgress.socialCompleted / clubProgress.totalMembers) * 100)
+                      ? Math.round(((clubProgress.serviceSocialCompleted ?? clubProgress.socialCompleted) / clubProgress.totalMembers) * 100)
                       : 0}
                     %)
                   </span>
@@ -802,7 +804,7 @@ export default function AdminDashboard({
                     style={{
                       width: `${
                         clubProgress.totalMembers > 0
-                          ? (clubProgress.socialCompleted / clubProgress.totalMembers) * 100
+                          ? ((clubProgress.serviceSocialCompleted ?? clubProgress.socialCompleted) / clubProgress.totalMembers) * 100
                           : 0
                       }%`,
                     }}
@@ -810,25 +812,25 @@ export default function AdminDashboard({
                 </div>
               </div>
 
-              {/* Service */}
+              {/* All Requirements Finished */}
               <div>
                 <div className="flex justify-between text-xs font-bold text-slate-700 mb-1.5">
-                  <span>Service Requirement</span>
+                  <span>🏆 All Requirements Completed (10 pts total)</span>
                   <span>
-                    {clubProgress.serviceCompleted} / {clubProgress.totalMembers} Members Finished (
+                    {clubProgress.allCompleted ?? quickStats.completedRequirements} / {clubProgress.totalMembers} Members Finished (
                     {clubProgress.totalMembers > 0
-                      ? Math.round((clubProgress.serviceCompleted / clubProgress.totalMembers) * 100)
+                      ? Math.round(((clubProgress.allCompleted ?? quickStats.completedRequirements) / clubProgress.totalMembers) * 100)
                       : 0}
                     %)
                   </span>
                 </div>
                 <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden border border-slate-200/50">
                   <div
-                    className="h-full rounded-full bg-sky-500 transition-all duration-500"
+                    className="h-full rounded-full bg-emerald-500 transition-all duration-500"
                     style={{
                       width: `${
                         clubProgress.totalMembers > 0
-                          ? (clubProgress.serviceCompleted / clubProgress.totalMembers) * 100
+                          ? ((clubProgress.allCompleted ?? quickStats.completedRequirements) / clubProgress.totalMembers) * 100
                           : 0
                       }%`,
                     }}

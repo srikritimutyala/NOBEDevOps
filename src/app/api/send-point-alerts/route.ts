@@ -62,34 +62,54 @@ export async function POST(request: NextRequest) {
         year: "numeric",
         timeZone: "America/Chicago",
       });
-      const categories = [
-        { label: "Professional", points: person.professional_points ?? 0, goal: goals.professional_goal, type: "PROFESSIONAL" },
-        { label: "Service", points: person.service_points ?? 0, goal: goals.service_goal, type: "SERVICE" },
-        { label: "Social", points: person.social_points ?? 0, goal: goals.social_goal, type: "SOCIAL" },
-      ];
+      const profPoints = person.professional_points ?? 0;
+      const servPoints = person.service_points ?? 0;
+      const socPoints = person.social_points ?? 0;
+      const pooledPoints = servPoints + socPoints;
+      const profGoal = goals.professional_goal ?? 5;
+      const pooledGoal = (goals as any).service_social_goal ?? 5;
 
-      const progressLines: string[] = [];
+      const profRemaining = Math.max(profGoal - profPoints, 0);
+      const pooledRemaining = Math.max(pooledGoal - pooledPoints, 0);
+
+      const progressLines: string[] = [
+        `Professional: ${profPoints}/${profGoal} points${profRemaining === 0 ? " — goal met!" : ""}`,
+        `Service & Social (Combined): ${pooledPoints}/${pooledGoal} points (${servPoints} Service, ${socPoints} Social)${pooledRemaining === 0 ? " — goal met!" : ""}`,
+        `Total Points: ${profPoints + pooledPoints}/10 points`,
+      ];
       const eventLines: string[] = [];
 
-      for (const cat of categories) {
-      const remaining = Math.max(cat.goal - cat.points, 0);
-      progressLines.push(`${cat.label}: ${cat.points}/${cat.goal} points${remaining === 0 ? " — goal met!" : ""}`);
-
-      if (remaining > 0 && eventsByType[cat.type].length > 0) {
-        const upcoming = eventsByType[cat.type].slice(0, 3);
-        eventLines.push(`Upcoming ${cat.label.toLowerCase()} events:`);
+      if (profRemaining > 0 && eventsByType.PROFESSIONAL.length > 0) {
+        const upcoming = eventsByType.PROFESSIONAL.slice(0, 3);
+        eventLines.push(`Upcoming professional events:`);
         for (const e of upcoming) {
-            const formatted = new Date(e.date).toLocaleString("en-US", {
-                dateStyle: "medium",
-                timeStyle: "short",
-                timeZone: "America/Chicago",
-            });
-            eventLines.push(`  - ${e.name} (${formatted})`);
+          const formatted = new Date(e.date).toLocaleString("en-US", {
+            dateStyle: "medium",
+            timeStyle: "short",
+            timeZone: "America/Chicago",
+          });
+          eventLines.push(`  - ${e.name} (${formatted})`);
         }
       }
-    }
 
-    const lines = [...progressLines, "", ...eventLines];
+      if (pooledRemaining > 0) {
+        const pooledUpcoming = [...eventsByType.SERVICE, ...eventsByType.SOCIAL].sort(
+          (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+        ).slice(0, 3);
+        if (pooledUpcoming.length > 0) {
+          eventLines.push(`Upcoming service & social events:`);
+          for (const e of pooledUpcoming) {
+            const formatted = new Date(e.date).toLocaleString("en-US", {
+              dateStyle: "medium",
+              timeStyle: "short",
+              timeZone: "America/Chicago",
+            });
+            eventLines.push(`  - ${e.name} (${formatted})`);
+          }
+        }
+      }
+
+      const lines = [...progressLines, "", ...eventLines];
 
       const recipient = testEmail || person.illinois_email;
       const message = `Hi ${person.first_name || "there"},\n\nHere's your points progress as of ${todayFormatted}:\n\n${lines.join("\n")}`;

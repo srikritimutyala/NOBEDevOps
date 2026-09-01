@@ -237,10 +237,10 @@ export default async function AdminPage() {
     const profPoints = member.professional_points || 0;
     const servPoints = member.service_points || 0;
     const socPoints = member.social_points || 0;
+    const pooledPoints = servPoints + socPoints;
 
-    const missingProf = Math.max(goals.professional_goal - profPoints, 0);
-    const missingServ = Math.max(goals.service_goal - servPoints, 0);
-    const missingSoc = Math.max(goals.social_goal - socPoints, 0);
+    const missingProf = Math.max((goals.professional_goal ?? 5) - profPoints, 0);
+    const missingPooled = Math.max(((goals as any).service_social_goal ?? 5) - pooledPoints, 0);
 
     // Latest attendance check
     const memberCheckins = attendance.filter((a) => a.user_id === authId);
@@ -271,9 +271,9 @@ export default async function AdminPage() {
         id: member.id.toString(),
         name: member.name || `${member.first_name} ${member.last_name}`,
         strikes: strikeCount,
-        professionalPoints: `${profPoints}/${goals.professional_goal}`,
-        servicePoints: `${servPoints}/${goals.service_goal}`,
-        socialPoints: `${socPoints}/${goals.social_goal}`,
+        professionalPoints: `${profPoints}/${goals.professional_goal ?? 5}`,
+        servicePoints: `${servPoints} serv`,
+        socialPoints: `${socPoints} soc (Pooled: ${pooledPoints}/${(goals as any).service_social_goal ?? 5})`,
         reason,
       });
     }
@@ -472,15 +472,23 @@ export default async function AdminPage() {
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
     .slice(0, 25);
 
-  // Requirements Completion Progress
+  // Requirements Completion Progress (5 Professional, 5 Pooled Service/Social, 10 Total)
   const professionalCompleted = members.filter(
-    (m) => (m.professional_points ?? 0) >= goals.professional_goal
+    (m) => (m.professional_points ?? 0) >= (goals.professional_goal ?? 5)
+  ).length;
+  const serviceSocialCompleted = members.filter(
+    (m) => ((m.service_points ?? 0) + (m.social_points ?? 0)) >= ((goals as any).service_social_goal ?? 5)
   ).length;
   const socialCompleted = members.filter(
-    (m) => (m.social_points ?? 0) >= goals.social_goal
+    (m) => (m.social_points ?? 0) >= (goals.social_goal ?? 5)
   ).length;
   const serviceCompleted = members.filter(
-    (m) => (m.service_points ?? 0) >= goals.service_goal
+    (m) => (m.service_points ?? 0) >= (goals.service_goal ?? 5)
+  ).length;
+  const allCompleted = members.filter(
+    (m) =>
+      (m.professional_points ?? 0) >= (goals.professional_goal ?? 5) &&
+      ((m.service_points ?? 0) + (m.social_points ?? 0)) >= ((goals as any).service_social_goal ?? 5)
   ).length;
 
   // System Health
@@ -559,12 +567,7 @@ export default async function AdminPage() {
               atRiskMembers: atRiskMembersCount,
               attendanceRate: averageRate,
               totalStrikes: strikes.length,
-              completedRequirements: members.filter(
-                (m) =>
-                  (m.professional_points ?? 0) >= goals.professional_goal &&
-                  (m.social_points ?? 0) >= goals.social_goal &&
-                  (m.service_points ?? 0) >= goals.service_goal
-              ).length,
+              completedRequirements: allCompleted,
             }}
             needsAttention={needsAttentionList}
             upcomingEvents={upcomingEvents}
@@ -579,8 +582,10 @@ export default async function AdminPage() {
             recentActivity={recentActivity}
             clubProgress={{
               professionalCompleted,
+              serviceSocialCompleted,
               socialCompleted,
               serviceCompleted,
+              allCompleted,
               totalMembers: members.length,
             }}
             systemHealth={{

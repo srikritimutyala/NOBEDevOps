@@ -231,52 +231,51 @@ export default function ReviewMemberStatsClient({
         // 5. Points detail mapping
         const attendedEventList = events.filter((e) => attendedEventIds.has(e.id));
         const pointsBreakdown = {
-            professional: attendedEventList.filter((e) => e.event_type === "PROFESSIONAL"),
-            social: attendedEventList.filter((e) => e.event_type === "SOCIAL"),
-            service: attendedEventList.filter((e) => e.event_type === "SERVICE"),
+            professional: attendedEventList.filter((e) => e.event_type?.toUpperCase() === "PROFESSIONAL"),
+            social: attendedEventList.filter((e) => e.event_type?.toUpperCase() === "SOCIAL"),
+            service: attendedEventList.filter((e) => (e.event_type?.toUpperCase() || "").includes("SERVICE")),
+            other: attendedEventList.filter((e) => !["PROFESSIONAL", "SOCIAL"].includes(e.event_type?.toUpperCase() || "") && !(e.event_type?.toUpperCase() || "").includes("SERVICE")),
         };
 
-        // 6. Excused absences list for this member
+        // 6. Excused absences & attendance list for this member
         const memberAbsences = absences.filter((a) => a.user_id === authId);
+        const memberAttendance = attendance.filter((a) => a.user_id === authId);
 
         // 7. Recent activity compilation
-        const activityList: { id: string; title: string; date: string; emoji: string }[] = [];
-        
-        // Add check-ins
-        attendance
-            .filter((a) => a.user_id === authId)
-            .forEach((ch) => {
-                const evtName = events.find((e) => e.id === ch.event_id)?.name || "Event";
-                activityList.push({
-                    id: `ch-${ch.id}`,
-                    title: `Checked into ${evtName}`,
-                    date: ch.timestamp || new Date().toISOString(),
-                    emoji: "",
-                });
-            });
+        const activityList: Array<{ id: string; type: "attendance" | "excuse" | "strike"; title: string; date: string; badge?: string; badgeColor?: string }> = [];
 
-        // Add absence submissions
-        memberAbsences.forEach((ab) => {
-            const evtName = events.find((e) => e.id === ab.event_id)?.name || "Event";
+        memberAttendance.forEach((att) => {
+            const ev = events.find((e) => e.id === att.event_id);
             activityList.push({
-                id: `ab-${ab.id}`,
-                title: `Submitted absence request for ${evtName} (Status: ${ab.status})`,
-                date: ab.submitted_at || new Date().toISOString(),
-                emoji: "",
+                id: `att-${att.id}`,
+                type: "attendance",
+                title: `Checked into ${ev?.name || "Event"}`,
+                date: att.timestamp || new Date().toISOString(),
+                badge: ev?.event_type || "Event",
+                badgeColor: "bg-blue-100 text-blue-800",
             });
         });
 
-        // Add strikes
-        allMemberStrikes.forEach((st) => {
-            const evtName = events.find((e) => e.id === st.event_id)?.name || "";
-            const eventStr = evtName ? ` (${evtName})` : "";
+        memberAbsences.forEach((ab) => {
+            const ev = events.find((e) => e.id === ab.event_id);
+            activityList.push({
+                id: `ab-${ab.id}`,
+                type: "excuse",
+                title: `Absence request for ${ev?.name || "Event"}: ${ab.reason}`,
+                date: ab.submitted_at || new Date().toISOString(),
+                badge: ab.status || undefined,
+                badgeColor: ab.status === "APPROVED" ? "bg-emerald-100 text-emerald-800" : ab.status === "PENDING" ? "bg-amber-100 text-amber-800" : "bg-rose-100 text-rose-800",
+            });
+        });
+
+        memberStrikes.forEach((st) => {
             activityList.push({
                 id: `st-${st.id}`,
-                title: st.status === "ACTIVE" 
-                    ? `Strike issued: ${st.reason}${eventStr}`
-                    : `Strike removed/excused: ${st.reason}${eventStr}`,
+                type: "strike",
+                title: `Strike added: ${st.reason}`,
                 date: st.created_at || new Date().toISOString(),
-                emoji: "",
+                badge: st.strike_type,
+                badgeColor: "bg-rose-100 text-rose-800",
             });
         });
 
@@ -284,19 +283,24 @@ export default function ReviewMemberStatsClient({
             .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
             .slice(0, 10);
 
-        // 8. Health Status logic
+        // 8. Health Status logic (5 Professional + 5 Pooled Service & Social)
         const pPoints = selectedMember.professional_points || 0;
         const sPoints = selectedMember.social_points || 0;
         const vPoints = selectedMember.service_points || 0;
-        const sGoal = pointRequirements.service_goal;
-        const pGoal = pointRequirements.professional_goal;
-        const soGoal = pointRequirements.social_goal;
+        const pooledPoints = sPoints + vPoints;
+        const pGoal = pointRequirements.professional_goal ?? 5;
+        const pooledGoal = (pointRequirements as any).service_social_goal ?? 5;
+        const totalGoal = (pointRequirements as any).total_goal ?? 10;
+        const totalPoints = pPoints + pooledPoints;
 
         const strikeCount = memberStrikes.length;
-        const missingCategories = (pPoints < pGoal ? 1 : 0) + (sPoints < soGoal ? 1 : 0) + (vPoints < sGoal ? 1 : 0);
+        const profCompleted = pPoints >= pGoal;
+        const pooledCompleted = pooledPoints >= pooledGoal;
+        const totalCompleted = totalPoints >= totalGoal;
+        const missingCategories = (profCompleted ? 0 : 1) + (pooledCompleted ? 0 : 1);
 
         let health: "track" | "attention" | "risk" = "track";
-        if (strikeCount >= 2 || missingCategories >= 3) {
+        if (strikeCount >= 2 || missingCategories >= 2) {
             health = "risk";
         } else if (strikeCount === 1 || missingCategories >= 1) {
             health = "attention";
@@ -308,9 +312,14 @@ export default function ReviewMemberStatsClient({
             memberAbsences,
             recentActivity,
             health,
-            profCompleted: pPoints >= pGoal,
-            socCompleted: sPoints >= soGoal,
-            servCompleted: vPoints >= sGoal,
+            profCompleted,
+            pooledCompleted,
+            totalCompleted,
+            pooledPoints,
+            totalPoints,
+            pGoal,
+            pooledGoal,
+            totalGoal,
         };
     }, [selectedMember, events, attendance, absences, allMemberStrikes, pointRequirements, memberStrikes]);
 
@@ -706,59 +715,62 @@ export default function ReviewMemberStatsClient({
                                                     )}
                                                 </div>
                                                 <p className="text-xl font-extrabold text-slate-800">
-                                                    {selectedMember.professional_points || 0} <span className="text-xs text-slate-400 font-medium">/ {pointRequirements.professional_goal} pts</span>
+                                                    {selectedMember.professional_points || 0} <span className="text-xs text-slate-400 font-medium">/ {memberDashboardData?.pGoal ?? 5} pts</span>
                                                 </p>
                                             </div>
                                             <div className="w-full bg-slate-200/60 rounded-full h-2 mt-4 overflow-hidden">
                                                 <div
                                                     className={`h-full rounded-full transition-all duration-300 ${memberDashboardData?.profCompleted ? "bg-emerald-500" : "bg-amber-500"}`}
-                                                    style={{ width: `${Math.min(((selectedMember.professional_points || 0) / pointRequirements.professional_goal) * 100, 100)}%` }}
+                                                    style={{ width: `${Math.min(((selectedMember.professional_points || 0) / (memberDashboardData?.pGoal ?? 5)) * 100, 100)}%` }}
                                                 />
                                             </div>
                                         </div>
 
-                                        {/* Social */}
+                                        {/* Service & Social (Pooled) */}
                                         <div className="bg-slate-50 border border-slate-200/50 rounded-2xl p-4 flex flex-col justify-between">
                                             <div>
                                                 <div className="flex justify-between items-center mb-1">
-                                                    <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Social</span>
-                                                    {memberDashboardData?.socCompleted ? (
+                                                    <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Service & Social (Pooled)</span>
+                                                    {memberDashboardData?.pooledCompleted ? (
                                                         <span className="text-[10px] font-bold text-emerald-600">✓ Completed</span>
                                                     ) : (
                                                         <span className="text-[10px] font-bold text-amber-600">Incomplete</span>
                                                     )}
                                                 </div>
                                                 <p className="text-xl font-extrabold text-slate-800">
-                                                    {selectedMember.social_points || 0} <span className="text-xs text-slate-400 font-medium">/ {pointRequirements.social_goal} pts</span>
+                                                    {memberDashboardData?.pooledPoints ?? 0} <span className="text-xs text-slate-400 font-medium">/ {memberDashboardData?.pooledGoal ?? 5} pts</span>
+                                                </p>
+                                                <p className="text-[10px] text-slate-400 font-medium mt-0.5">
+                                                    {selectedMember.service_points || 0} Serv · {selectedMember.social_points || 0} Soc
                                                 </p>
                                             </div>
-                                            <div className="w-full bg-slate-200/60 rounded-full h-2 mt-4 overflow-hidden">
+                                            <div className="w-full bg-slate-200/60 rounded-full h-2 mt-2 overflow-hidden">
                                                 <div
-                                                    className={`h-full rounded-full transition-all duration-300 ${memberDashboardData?.socCompleted ? "bg-emerald-500" : "bg-amber-500"}`}
-                                                    style={{ width: `${Math.min(((selectedMember.social_points || 0) / pointRequirements.social_goal) * 100, 100)}%` }}
+                                                    className={`h-full rounded-full transition-all duration-300 ${memberDashboardData?.pooledCompleted ? "bg-emerald-500" : "bg-amber-500"}`}
+                                                    style={{ width: `${Math.min(((memberDashboardData?.pooledPoints ?? 0) / (memberDashboardData?.pooledGoal ?? 5)) * 100, 100)}%` }}
                                                 />
                                             </div>
                                         </div>
 
-                                        {/* Service */}
+                                        {/* Total Points */}
                                         <div className="bg-slate-50 border border-slate-200/50 rounded-2xl p-4 flex flex-col justify-between">
                                             <div>
                                                 <div className="flex justify-between items-center mb-1">
-                                                    <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Service</span>
-                                                    {memberDashboardData?.servCompleted ? (
+                                                    <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Total Points</span>
+                                                    {memberDashboardData?.totalCompleted ? (
                                                         <span className="text-[10px] font-bold text-emerald-600">✓ Completed</span>
                                                     ) : (
                                                         <span className="text-[10px] font-bold text-amber-600">Incomplete</span>
                                                     )}
                                                 </div>
                                                 <p className="text-xl font-extrabold text-slate-800">
-                                                    {selectedMember.service_points || 0} <span className="text-xs text-slate-400 font-medium">/ {pointRequirements.service_goal} pts</span>
+                                                    {memberDashboardData?.totalPoints ?? 0} <span className="text-xs text-slate-400 font-medium">/ {memberDashboardData?.totalGoal ?? 10} pts</span>
                                                 </p>
                                             </div>
                                             <div className="w-full bg-slate-200/60 rounded-full h-2 mt-4 overflow-hidden">
                                                 <div
-                                                    className={`h-full rounded-full transition-all duration-300 ${memberDashboardData?.servCompleted ? "bg-emerald-500" : "bg-amber-500"}`}
-                                                    style={{ width: `${Math.min(((selectedMember.service_points || 0) / pointRequirements.service_goal) * 100, 100)}%` }}
+                                                    className={`h-full rounded-full transition-all duration-300 ${memberDashboardData?.totalCompleted ? "bg-emerald-500" : "bg-amber-500"}`}
+                                                    style={{ width: `${Math.min(((memberDashboardData?.totalPoints ?? 0) / (memberDashboardData?.totalGoal ?? 10)) * 100, 100)}%` }}
                                                 />
                                             </div>
                                         </div>
@@ -854,7 +866,7 @@ export default function ReviewMemberStatsClient({
                                                     <div>
                                                         <h5 className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider mb-1.5 flex justify-between">
                                                             <span>Professional ({selectedMember.professional_points || 0} pts)</span>
-                                                            <span className="text-slate-500">Goal: {pointRequirements.professional_goal}</span>
+                                                            <span className="text-slate-500">Goal: {memberDashboardData.pGoal}</span>
                                                         </h5>
                                                         {memberDashboardData.pointsBreakdown.professional.length === 0 ? (
                                                             <p className="text-[10px] text-slate-400 italic">No professional check-ins recorded.</p>
@@ -874,7 +886,7 @@ export default function ReviewMemberStatsClient({
                                                     <div>
                                                         <h5 className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider mb-1.5 flex justify-between">
                                                             <span>Social ({selectedMember.social_points || 0} pts)</span>
-                                                            <span className="text-slate-500">Goal: {pointRequirements.social_goal}</span>
+                                                            <span className="text-slate-500">Pooled Goal: {memberDashboardData.pooledGoal}</span>
                                                         </h5>
                                                         {memberDashboardData.pointsBreakdown.social.length === 0 ? (
                                                             <p className="text-[10px] text-slate-400 italic">No social check-ins recorded.</p>
@@ -894,7 +906,7 @@ export default function ReviewMemberStatsClient({
                                                     <div>
                                                         <h5 className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider mb-1.5 flex justify-between">
                                                             <span>Service ({selectedMember.service_points || 0} pts)</span>
-                                                            <span className="text-slate-500">Goal: {pointRequirements.service_goal}</span>
+                                                            <span className="text-slate-500">Pooled Goal: {memberDashboardData.pooledGoal}</span>
                                                         </h5>
                                                         {memberDashboardData.pointsBreakdown.service.length === 0 ? (
                                                             <p className="text-[10px] text-slate-400 italic">No service check-ins recorded.</p>
