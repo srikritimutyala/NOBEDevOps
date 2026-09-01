@@ -136,7 +136,7 @@ export async function GET() {
       worksheet.getCell(`K${i}`).dataValidation = {
         type: "list",
         allowBlank: true,
-        formulae: ['"Casual,Business Casual,Business Professional,Formal"'],
+        formulae: ['"Casual,Smart Casual,Business Casual,Business Professional,Formal"'],
         showErrorMessage: true,
         errorTitle: "Invalid Dress Code",
         error: "Please choose a valid dress code from the list.",

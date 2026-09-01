@@ -21,6 +21,7 @@ const eventTypes = [
 
 const dressCodes = [
   "Casual",
+  "Smart Casual",
   "Business Casual",
   "Business Professional",
   "Formal",
@@ -46,10 +47,11 @@ function normalizeEventType(typeStr: string): string {
 
 function normalizeDresscode(codeStr: string): string {
   const s = codeStr.trim().toLowerCase().replace(/[\s_-]+/g, " ");
-  if (s.includes("casual") && !s.includes("business")) return "Casual";
+  if (s.includes("smart casual") || s.includes("smart")) return "Smart Casual";
   if (s.includes("business casual") || s.includes("biz casual")) return "Business Casual";
   if (s.includes("business professional") || s.includes("biz prof") || s.includes("professional")) return "Business Professional";
   if (s.includes("formal")) return "Formal";
+  if (s.includes("casual")) return "Casual";
   return "Casual"; // default fallback
 }
 
@@ -1154,7 +1156,7 @@ function CreateEventContent() {
                       <tr style={{ borderBottom: "1px solid var(--border)" }}>
                         <td style={{ padding: "8px 4px", fontWeight: "bold" }}>Dress Code</td>
                         <td style={{ padding: "8px 4px", color: "var(--accent)" }}>Optional</td>
-                        <td style={{ padding: "8px 4px" }}>Casual, Business Casual, Business Professional, Formal</td>
+                        <td style={{ padding: "8px 4px" }}>Casual, Smart Casual, Business Casual, Business Professional, Formal</td>
                         <td style={{ padding: "8px 4px", color: "var(--muted)" }}>"Casual"</td>
                       </tr>
                     </tbody>
