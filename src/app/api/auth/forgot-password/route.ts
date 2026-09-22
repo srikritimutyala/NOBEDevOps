@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/app/utils/supabase/admin';
 import { sendEmail } from '@/app/utils/sendEmail';
+import { isAllowedEmail } from '@/app/utils/emailValidation';
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,7 +16,7 @@ export async function POST(req: NextRequest) {
 
     const normalizedEmail = email.trim().toLowerCase();
 
-    if (!normalizedEmail.endsWith('@illinois.edu') && normalizedEmail !== 'mutyalasrikriti2006@gmail.com') {
+    if (!isAllowedEmail(normalizedEmail)) {
       return NextResponse.json(
         { error: 'Please use your @illinois.edu email address.' },
         { status: 400 }

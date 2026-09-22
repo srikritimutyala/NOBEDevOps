@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/app/utils/supabase/client';
 import { useAuth } from '@/app/users/authprovider';
+import { isAllowedEmail } from '@/app/utils/emailValidation';
 
 export default function LoginForm() {
   const supabase = createClient();
@@ -116,7 +117,7 @@ export default function LoginForm() {
     setMessage(null);
 
     const normalizedEmail = email.trim().toLowerCase();
-    if (!normalizedEmail.endsWith('@illinois.edu') && normalizedEmail !== 'mutyalasrikriti2006@gmail.com') {
+    if (!isAllowedEmail(normalizedEmail)) {
       setError('Please use your @illinois.edu email address.');
       return;
     }
@@ -139,7 +140,8 @@ export default function LoginForm() {
           .eq('auth_id', data.user.id)
           .maybeSingle();
 
-        const destination = redirectTo ?? (person?.role === 'ADMIN' ? '/users/admin' : '/users/member');
+        const isAdmin = person?.role === 'ADMIN' || isTestAdminEmail(data.user.email);
+        const destination = redirectTo ?? (isAdmin ? '/users/admin' : '/users/member');
         router.replace(destination);
         router.refresh();
         return;
@@ -183,7 +185,8 @@ export default function LoginForm() {
             .eq('auth_id', signInData.user.id)
             .maybeSingle();
 
-          const destination = redirectTo ?? (person?.role === 'ADMIN' ? '/users/admin' : '/users/member');
+          const isAdmin = person?.role === 'ADMIN' || isTestAdminEmail(signInData.user.email);
+          const destination = redirectTo ?? (isAdmin ? '/users/admin' : '/users/member');
           router.replace(destination);
           router.refresh();
           return;

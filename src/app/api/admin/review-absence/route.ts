@@ -94,6 +94,35 @@ export async function POST(request: Request) {
           console.error("Failed to insert attendance record for approved absence:", insertError);
         }
       }
+
+      // If a strike was generated for this missed mandatory event, remove it and decrement People.strikes
+      const { data: existingStrikes } = await adminClient
+        .from("strikes")
+        .select("id")
+        .eq("user_id", absence.user_id)
+        .eq("event_id", absence.event_id)
+        .eq("status", "ACTIVE");
+
+      if (existingStrikes && existingStrikes.length > 0) {
+        await adminClient
+          .from("strikes")
+          .delete()
+          .eq("user_id", absence.user_id)
+          .eq("event_id", absence.event_id);
+
+        const { data: person } = await adminClient
+          .from("People")
+          .select("strikes")
+          .eq("auth_id", absence.user_id)
+          .maybeSingle();
+
+        if (person && typeof person.strikes === "number" && person.strikes > 0) {
+          await adminClient
+            .from("People")
+            .update({ strikes: Math.max(0, person.strikes - existingStrikes.length) })
+            .eq("auth_id", absence.user_id);
+        }
+      }
     }
 
     const emailStatus = status === "APPROVED" ? "approved" : "disapproved";

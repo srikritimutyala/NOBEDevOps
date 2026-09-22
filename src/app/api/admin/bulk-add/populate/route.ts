@@ -198,6 +198,14 @@ export async function POST(request: Request) {
     let emailFailures: string[] = [];
     const existingRows: Array<Record<string, string>> = [];
 
+    const baseUrl = (
+      process.env.NEXT_PUBLIC_SITE_URL ||
+      process.env.SITE_URL ||
+      (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : null) ||
+      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
+      "https://nobe-dev-ops.vercel.app"
+    ).replace(/\/+$/, "");
+
     for (const person of peopleData) {
       const { data: existing } = await supabaseAdmin
         .from("People")
@@ -218,7 +226,7 @@ export async function POST(request: Request) {
         type: "invite",
         email: person.illinois_email,
         options: {
-          redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
+          redirectTo: `${baseUrl}/auth/callback`,
         },
       });
 
@@ -230,7 +238,7 @@ export async function POST(request: Request) {
 
       const authId = linkData.user.id;
       const tokenHash = linkData.properties.hashed_token;
-      const inviteLink = `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback?token_hash=${tokenHash}&type=invite`;
+      const inviteLink = `${baseUrl}/auth/callback?token_hash=${tokenHash}&type=invite`;
 
       // The handle_new_user trigger already created a bare-bones People row
       // for this auth_id — update it with the real CSV data instead of inserting.

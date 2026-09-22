@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/app/utils/supabase/admin';
+import { isTestAdminEmail } from '@/app/utils/emailValidation';
 
 export async function POST(req: NextRequest) {
   const { auth_id, first_name, last_name, illinois_email } = await req.json();
@@ -9,9 +10,12 @@ export async function POST(req: NextRequest) {
   }
 
   const supabase = createAdminClient();
+  const normalizedEmail = illinois_email.trim().toLowerCase();
+  const defaultRole = isTestAdminEmail(normalizedEmail) ? 'ADMIN' : 'MEMBER';
+
   const { data: existing } = await supabase
     .from('People')
-    .select('id')
+    .select('id, role')
     .or(`auth_id.eq.${auth_id},illinois_email.ilike.${illinois_email}`)
     .maybeSingle();
 
@@ -24,7 +28,7 @@ export async function POST(req: NextRequest) {
         last_name,
         name: `${first_name} ${last_name}`,
         illinois_email,
-        role: 'MEMBER',
+        role: isTestAdminEmail(normalizedEmail) ? 'ADMIN' : (existing.role || defaultRole),
       })
       .eq('id', existing.id);
 
@@ -40,7 +44,7 @@ export async function POST(req: NextRequest) {
         last_name,
         name: `${first_name} ${last_name}`,
         illinois_email,
-        role: 'MEMBER',
+        role: defaultRole,
       });
 
     if (error) {
@@ -52,7 +56,7 @@ export async function POST(req: NextRequest) {
           last_name,
           name: `${first_name} ${last_name}`,
           illinois_email,
-          role: 'MEMBER',
+          role: defaultRole,
         })
         .eq('auth_id', auth_id);
 

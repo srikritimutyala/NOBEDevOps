@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/app/utils/supabase/admin";
+import { isAllowedEmail, isTestAdminEmail } from "@/app/utils/emailValidation";
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,7 +15,7 @@ export async function POST(req: NextRequest) {
 
     const normalizedEmail = email.trim().toLowerCase();
 
-    if (!normalizedEmail.endsWith("@illinois.edu") && normalizedEmail !== "mutyalasrikriti2006@gmail.com") {
+    if (!isAllowedEmail(normalizedEmail)) {
       return NextResponse.json(
         { error: "Please use your @illinois.edu email address." },
         { status: 400 }
@@ -94,6 +95,8 @@ export async function POST(req: NextRequest) {
       .or(`auth_id.eq.${authUserId},illinois_email.ilike.${normalizedEmail}`)
       .maybeSingle();
 
+    const defaultRole = isTestAdminEmail(normalizedEmail) ? "ADMIN" : "MEMBER";
+
     if (personRecord) {
       const { error: updateError } = await supabaseAdmin
         .from("People")
@@ -103,7 +106,7 @@ export async function POST(req: NextRequest) {
           last_name: lastName.trim(),
           name: `${firstName.trim()} ${lastName.trim()}`,
           illinois_email: normalizedEmail,
-          role: personRecord.role || "MEMBER",
+          role: isTestAdminEmail(normalizedEmail) ? "ADMIN" : (personRecord.role || defaultRole),
         })
         .eq("id", personRecord.id);
 
@@ -119,7 +122,7 @@ export async function POST(req: NextRequest) {
           last_name: lastName.trim(),
           name: `${firstName.trim()} ${lastName.trim()}`,
           illinois_email: normalizedEmail,
-          role: "MEMBER",
+          role: defaultRole,
         });
 
       if (insertError) {
@@ -131,6 +134,7 @@ export async function POST(req: NextRequest) {
             last_name: lastName.trim(),
             name: `${firstName.trim()} ${lastName.trim()}`,
             illinois_email: normalizedEmail,
+            role: defaultRole,
           })
           .eq("auth_id", authUserId);
 

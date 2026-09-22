@@ -50,8 +50,8 @@ export async function POST(request: NextRequest) {
       .from("weekly_reminder_note")
       .select("text")
       .eq("id", 1)
-      .single();
-    if (noteError) throw noteError;
+      .maybeSingle();
+    if (noteError && noteError.code !== "PGRST116") throw noteError;
     const reminderText = (noteRow?.text ?? "").trim();
 
     const categoryOrder = ["PROFESSIONAL", "SOCIAL", "SERVICE", "GENERAL_MEETING", "NEW_MEMBER_WORKSHOP", "PROJECT_MEETING", "OTHER_MANDATORY"];

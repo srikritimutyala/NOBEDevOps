@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { isAllowedEmail, isTestAdminEmail } from '@/app/utils/emailValidation';
 
 function generateTempPassword() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
@@ -10,7 +11,7 @@ export async function POST(req: NextRequest) {
   const { email } = await req.json();
   const normalizedEmail = email ? email.trim().toLowerCase() : '';
 
-  if (!normalizedEmail || (!normalizedEmail.endsWith('@illinois.edu') && normalizedEmail !== 'mutyalasrikriti2006@gmail.com')) {
+  if (!normalizedEmail || !isAllowedEmail(normalizedEmail)) {
     return NextResponse.json(
       { error: 'A valid @illinois.edu email is required.' },
       { status: 400 }
@@ -64,12 +65,14 @@ export async function POST(req: NextRequest) {
       .or(`auth_id.eq.${authUserId},illinois_email.ilike.${email}`)
       .maybeSingle();
 
+    const defaultRole = isTestAdminEmail(normalizedEmail) ? 'ADMIN' : 'MEMBER';
+
     if (!existingPerson) {
       const { error: insertError } = await supabase.from('People').insert({
         auth_id: authUserId,
         illinois_email: email,
         name: email.split('@')[0],
-        role: 'MEMBER',
+        role: defaultRole,
       });
       if (insertError) {
         await supabase
@@ -77,6 +80,7 @@ export async function POST(req: NextRequest) {
           .update({
             illinois_email: email,
             name: email.split('@')[0],
+            role: defaultRole,
           })
           .eq('auth_id', authUserId);
       }
@@ -86,6 +90,7 @@ export async function POST(req: NextRequest) {
         .update({
           auth_id: authUserId,
           illinois_email: email,
+          ...(isTestAdminEmail(normalizedEmail) ? { role: 'ADMIN' } : {}),
         })
         .eq('id', existingPerson.id);
     }

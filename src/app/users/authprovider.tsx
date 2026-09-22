@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { createClient } from '@/app/utils/supabase/client';
+import { isTestAdminEmail } from '@/app/utils/emailValidation';
 
 export type UserProfile = {
   id: number;
@@ -35,18 +36,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  async function fetchProfile(authId: string) {
+  async function fetchProfile(authId: string, email?: string | null) {
+    const isTestAdmin = isTestAdminEmail(email);
     const { data, error } = await supabase
       .from('People')
       .select('id, name, role, auth_id')
       .eq('auth_id', authId)
-      .single();
+      .maybeSingle();
 
-    if (error) {
-      console.error('Could not fetch profile:', error.message);
-      setProfile(null);
+    if (error || !data) {
+      if (isTestAdmin) {
+        setProfile({
+          id: -1,
+          name: email?.split('@')[0] || 'Admin',
+          role: 'ADMIN',
+          auth_id: authId,
+        });
+      } else {
+        if (error) console.error('Could not fetch profile:', error.message);
+        setProfile(null);
+      }
     } else {
-      setProfile(data as UserProfile);
+      setProfile({
+        ...(data as UserProfile),
+        role: isTestAdmin ? 'ADMIN' : data.role,
+      });
     }
   }
 
@@ -69,7 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (session?.user) {
         // User is already logged in 
-        fetchProfile(session.user.id).finally(() => setLoading(false));
+        fetchProfile(session.user.id, session.user.email).finally(() => setLoading(false));
       } else {
         // No session stop loading and show login form
         setLoading(false);
@@ -92,7 +106,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (session?.user) {
         setLoading(true);
-        fetchProfile(session.user.id).finally(() => setLoading(false));
+        fetchProfile(session.user.id, session.user.email).finally(() => setLoading(false));
       } else {
         setProfile(null);
         setLoading(false);
