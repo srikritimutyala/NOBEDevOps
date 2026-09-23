@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
 
     const { data: people, error: peopleError } = await supabaseAdmin
       .from("People")
-      .select("illinois_email, first_name, professional_points, service_points, social_points")
+      .select("illinois_email, first_name, professional_points, service_points, social_points, is_PM, role")
       .not("auth_id", "is", null)
       .not("illinois_email", "is", null);
 
@@ -56,18 +56,24 @@ export async function POST(request: NextRequest) {
     const failed: string[] = [];
 
     for (const person of targetPeople) {
+      // Admins are exempt from point requirements and point alert notifications
+      if ((person as any).role?.toUpperCase() === "ADMIN") {
+        continue;
+      }
       const todayFormatted = new Date().toLocaleDateString("en-US", {
         month: "numeric",
         day: "numeric",
         year: "numeric",
         timeZone: "America/Chicago",
       });
+      const isPM = Boolean((person as any).is_PM);
       const profPoints = person.professional_points ?? 0;
       const servPoints = person.service_points ?? 0;
       const socPoints = person.social_points ?? 0;
       const pooledPoints = servPoints + socPoints;
-      const profGoal = goals.professional_goal ?? 5;
-      const pooledGoal = (goals as any).service_social_goal ?? 5;
+      const profGoal = isPM ? 4 : (goals.professional_goal ?? 5);
+      const pooledGoal = isPM ? 4 : ((goals as any).service_social_goal ?? 5);
+      const totalGoal = isPM ? 8 : ((goals as any).total_goal ?? 10);
 
       const profRemaining = Math.max(profGoal - profPoints, 0);
       const pooledRemaining = Math.max(pooledGoal - pooledPoints, 0);
@@ -75,7 +81,7 @@ export async function POST(request: NextRequest) {
       const progressLines: string[] = [
         `Professional: ${profPoints}/${profGoal} points${profRemaining === 0 ? " — goal met!" : ""}`,
         `Service & Social (Combined): ${pooledPoints}/${pooledGoal} points (${servPoints} Service, ${socPoints} Social)${pooledRemaining === 0 ? " — goal met!" : ""}`,
-        `Total Points: ${profPoints + pooledPoints}/10 points`,
+        `Total Points: ${profPoints + pooledPoints}/${totalGoal} points`,
       ];
       const eventLines: string[] = [];
 

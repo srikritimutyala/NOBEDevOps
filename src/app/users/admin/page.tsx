@@ -22,6 +22,7 @@ type MemberRow = {
   role: string | null;
   year: string | null;
   college: string | null;
+  is_PM?: boolean | null;
 };
 
 type EventRow = {
@@ -104,7 +105,7 @@ export default async function AdminPage() {
     supabase
       .from("People")
       .select(
-        "id, name, first_name, last_name, auth_id, strikes, committee, major, social_points, professional_points, service_points, illinois_email, role, year, college"
+        "id, name, first_name, last_name, auth_id, strikes, committee, major, social_points, professional_points, service_points, illinois_email, role, year, college, is_PM"
       ),
     supabase
       .from("events")
@@ -231,16 +232,22 @@ export default async function AdminPage() {
 
   for (const member of members) {
     if (!member.auth_id) continue;
+    // Admins are officers and exempt from points requirements and strikes
+    if (member.role?.toUpperCase() === "ADMIN") continue;
 
     const authId = member.auth_id;
+    const isPM = Boolean(member.is_PM);
+    const pGoal = isPM ? 4 : (goals.professional_goal ?? 5);
+    const pooledGoal = isPM ? 4 : ((goals as any).service_social_goal ?? 5);
+
     const strikeCount = strikes.filter(s => s.user_id === authId).length;
     const profPoints = member.professional_points || 0;
     const servPoints = member.service_points || 0;
     const socPoints = member.social_points || 0;
     const pooledPoints = servPoints + socPoints;
 
-    const missingProf = Math.max((goals.professional_goal ?? 5) - profPoints, 0);
-    const missingPooled = Math.max(((goals as any).service_social_goal ?? 5) - pooledPoints, 0);
+    const missingProf = Math.max(pGoal - profPoints, 0);
+    const missingPooled = Math.max(pooledGoal - pooledPoints, 0);
 
     // Latest attendance check
     const memberCheckins = attendance.filter((a) => a.user_id === authId);
@@ -271,9 +278,9 @@ export default async function AdminPage() {
         id: member.id.toString(),
         name: member.name || `${member.first_name} ${member.last_name}`,
         strikes: strikeCount,
-        professionalPoints: `${profPoints}/${goals.professional_goal ?? 5}`,
+        professionalPoints: `${profPoints}/${pGoal}`,
         servicePoints: `${servPoints} serv`,
-        socialPoints: `${socPoints} soc (Pooled: ${pooledPoints}/${(goals as any).service_social_goal ?? 5})`,
+        socialPoints: `${socPoints} soc (Pooled: ${pooledPoints}/${pooledGoal})`,
         reason,
       });
     }
@@ -314,7 +321,7 @@ export default async function AdminPage() {
 
   // 4. Two strikes members
   const twoStrikesCount = members.filter((m) => {
-    if (!m.auth_id) return false;
+    if (!m.auth_id || m.role?.toUpperCase() === "ADMIN") return false;
     const count = strikes.filter(s => s.user_id === m.auth_id).length;
     return count === 2;
   }).length;
@@ -387,7 +394,7 @@ export default async function AdminPage() {
 
   const missedMandatoryCount = members.filter(
     (m) => {
-      if (!m.auth_id) return false;
+      if (!m.auth_id || m.role?.toUpperCase() === "ADMIN") return false;
       const count = strikes.filter(s => s.user_id === m.auth_id).length;
       return count > 0;
     }
@@ -472,24 +479,32 @@ export default async function AdminPage() {
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
     .slice(0, 25);
 
-  // Requirements Completion Progress (5 Professional, 5 Pooled Service/Social, 10 Total)
-  const professionalCompleted = members.filter(
-    (m) => (m.professional_points ?? 0) >= (goals.professional_goal ?? 5)
-  ).length;
-  const serviceSocialCompleted = members.filter(
-    (m) => ((m.service_points ?? 0) + (m.social_points ?? 0)) >= ((goals as any).service_social_goal ?? 5)
-  ).length;
-  const socialCompleted = members.filter(
-    (m) => (m.social_points ?? 0) >= (goals.social_goal ?? 5)
-  ).length;
-  const serviceCompleted = members.filter(
-    (m) => (m.service_points ?? 0) >= (goals.service_goal ?? 5)
-  ).length;
-  const allCompleted = members.filter(
-    (m) =>
-      (m.professional_points ?? 0) >= (goals.professional_goal ?? 5) &&
-      ((m.service_points ?? 0) + (m.social_points ?? 0)) >= ((goals as any).service_social_goal ?? 5)
-  ).length;
+  // Requirements Completion Progress (excluding Admins, who are exempt from points)
+  const regularMembers = members.filter((m) => m.role?.toUpperCase() !== "ADMIN");
+  const professionalCompleted = regularMembers.filter((m) => {
+    const pGoal = m.is_PM ? 4 : (goals.professional_goal ?? 5);
+    return (m.professional_points ?? 0) >= pGoal;
+  }).length;
+  const serviceSocialCompleted = regularMembers.filter((m) => {
+    const sGoal = m.is_PM ? 4 : ((goals as any).service_social_goal ?? 5);
+    return ((m.service_points ?? 0) + (m.social_points ?? 0)) >= sGoal;
+  }).length;
+  const socialCompleted = regularMembers.filter((m) => {
+    const sGoal = m.is_PM ? 4 : (goals.social_goal ?? 5);
+    return (m.social_points ?? 0) >= sGoal;
+  }).length;
+  const serviceCompleted = regularMembers.filter((m) => {
+    const sGoal = m.is_PM ? 4 : (goals.service_goal ?? 5);
+    return (m.service_points ?? 0) >= sGoal;
+  }).length;
+  const allCompleted = regularMembers.filter((m) => {
+    const pGoal = m.is_PM ? 4 : (goals.professional_goal ?? 5);
+    const sGoal = m.is_PM ? 4 : ((goals as any).service_social_goal ?? 5);
+    return (
+      (m.professional_points ?? 0) >= pGoal &&
+      ((m.service_points ?? 0) + (m.social_points ?? 0)) >= sGoal
+    );
+  }).length;
 
   // System Health
   const supabaseStatus = loadError ? "error" : "healthy";
@@ -566,7 +581,10 @@ export default async function AdminPage() {
               pendingAbsences: pendingAbsencesCount,
               atRiskMembers: atRiskMembersCount,
               attendanceRate: averageRate,
-              totalStrikes: strikes.length,
+              totalStrikes: strikes.filter(s => {
+                const mem = members.find(m => m.auth_id === s.user_id);
+                return mem?.role?.toUpperCase() !== "ADMIN";
+              }).length,
               completedRequirements: allCompleted,
             }}
             needsAttention={needsAttentionList}
@@ -586,7 +604,7 @@ export default async function AdminPage() {
               socialCompleted,
               serviceCompleted,
               allCompleted,
-              totalMembers: members.length,
+              totalMembers: regularMembers.length,
             }}
             systemHealth={{
               supabaseStatus,

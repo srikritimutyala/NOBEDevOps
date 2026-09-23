@@ -79,22 +79,22 @@ export async function POST(request: NextRequest) {
       eventsBlock += `\n\nAdditional Reminders:\n\n${reminderText}`;
     }
 
-    let recipients: { illinois_email: string; first_name: string; professional_points: number; service_points: number; social_points: number }[] = [];
+    let recipients: { illinois_email: string; first_name: string; professional_points: number; service_points: number; social_points: number; is_PM?: boolean | null }[] = [];
 
     if (testEmails) {
       const { data: matched } = await supabaseAdmin
         .from("People")
-        .select("illinois_email, first_name, professional_points, service_points, social_points")
+        .select("illinois_email, first_name, professional_points, service_points, social_points, is_PM, role")
         .in("illinois_email", testEmails);
 
       recipients = testEmails.map((email) => {
         const match = matched?.find((m) => m.illinois_email === email);
-        return match ?? { illinois_email: email, first_name: "there", professional_points: 0, service_points: 0, social_points: 0 };
+        return match ?? { illinois_email: email, first_name: "there", professional_points: 0, service_points: 0, social_points: 0, is_PM: false, role: null };
       });
     } else {
       const { data: people, error: peopleError } = await supabaseAdmin
         .from("People")
-        .select("illinois_email, first_name, professional_points, service_points, social_points")
+        .select("illinois_email, first_name, professional_points, service_points, social_points, is_PM, role")
         .not("auth_id", "is", null)
         .not("illinois_email", "is", null)
         .neq("illinois_email", "");
@@ -123,20 +123,25 @@ export async function POST(request: NextRequest) {
     const failed: string[] = [];
 
     for (const person of recipients) {
+      const isAdmin = (person as any).role?.toUpperCase() === "ADMIN";
+      const isPM = Boolean(person.is_PM);
       const profPoints = person.professional_points ?? 0;
       const servPoints = person.service_points ?? 0;
       const socPoints = person.social_points ?? 0;
       const pooledPoints = servPoints + socPoints;
-      const profGoal = goals.professional_goal ?? 5;
-      const pooledGoal = (goals as any).service_social_goal ?? 5;
+      const profGoal = isPM ? 4 : (goals.professional_goal ?? 5);
+      const pooledGoal = isPM ? 4 : ((goals as any).service_social_goal ?? 5);
+      const totalGoal = isPM ? 8 : ((goals as any).total_goal ?? 10);
 
       const progressLines = [
         `Professional: ${profPoints}/${profGoal} points${profPoints >= profGoal ? " — goal met!" : ""}`,
         `Service & Social (Combined): ${pooledPoints}/${pooledGoal} points (${servPoints} Service, ${socPoints} Social)${pooledPoints >= pooledGoal ? " — goal met!" : ""}`,
-        `Total: ${profPoints + pooledPoints}/10 points`,
+        `Total: ${profPoints + pooledPoints}/${totalGoal} points`,
       ];
 
-      const message = `Hi ${person.first_name || "there"},\n\nHere's your points progress as of ${todayFormatted}:\n\n${progressLines.join("\n")}\n\nHere are the events coming up this week:\n\n${eventsBlock}`;
+      const message = isAdmin
+        ? `Hi ${person.first_name || "there"},\n\nHere are the events coming up this week:\n\n${eventsBlock}`
+        : `Hi ${person.first_name || "there"},\n\nHere's your points progress as of ${todayFormatted}:\n\n${progressLines.join("\n")}\n\nHere are the events coming up this week:\n\n${eventsBlock}`;
 
       try {
         await sendEmail(person.illinois_email, "This Week at NOBE", message);

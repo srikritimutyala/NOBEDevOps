@@ -17,7 +17,7 @@ export default async function ReviewMemberStats() {
         supabase
             .from("People")
             .select(
-                "id, name, first_name, last_name, role, auth_id, illinois_email, strikes, year, college, major, committee, social_points, professional_points, service_points, created_at, gcal_refresh_token"
+                "id, name, first_name, last_name, role, auth_id, illinois_email, strikes, year, college, major, committee, social_points, professional_points, service_points, created_at, gcal_refresh_token, is_PM"
             )
             .order("name", { ascending: true }),
         supabase

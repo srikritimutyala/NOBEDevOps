@@ -12,6 +12,7 @@ import {
     deactivateMember,
     updateAbsenceStatus,
     editMemberDetails,
+    updateMemberIsPM,
 } from "./reviewMemberStats/actions";
 
 export type MemberRecord = {
@@ -32,6 +33,7 @@ export type MemberRecord = {
     service_points: number | null;
     created_at: string | null;
     gcal_refresh_token?: string | null;
+    is_PM?: boolean | null;
 };
 
 export type EventRecord = {
@@ -123,6 +125,7 @@ export default function ReviewMemberStatsClient({
         college: "",
         committee: "",
         role: "MEMBER",
+        is_PM: false,
     });
 
     const filteredMembers = useMemo(() => {
@@ -166,6 +169,7 @@ export default function ReviewMemberStatsClient({
                 college: selectedMember.college || "",
                 committee: selectedMember.committee || "",
                 role: selectedMember.role?.toUpperCase() === "ADMIN" ? "ADMIN" : "MEMBER",
+                is_PM: Boolean(selectedMember.is_PM),
             });
         }
     }, [selectedMember, systemSettings]);
@@ -283,30 +287,36 @@ export default function ReviewMemberStatsClient({
             .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
             .slice(0, 10);
 
-        // 8. Health Status logic (5 Professional + 5 Pooled Service & Social)
+        // 8. Health Status logic (Admins exempt; 5 Professional + 5 Pooled Service & Social for standard; 4 Professional + 4 Pooled for PMs)
+        const isAdmin = selectedMember.role?.toUpperCase() === "ADMIN";
+        const isPM = Boolean(selectedMember.is_PM);
         const pPoints = selectedMember.professional_points || 0;
         const sPoints = selectedMember.social_points || 0;
         const vPoints = selectedMember.service_points || 0;
         const pooledPoints = sPoints + vPoints;
-        const pGoal = pointRequirements.professional_goal ?? 5;
-        const pooledGoal = (pointRequirements as any).service_social_goal ?? 5;
-        const totalGoal = (pointRequirements as any).total_goal ?? 10;
+        const pGoal = isPM ? 4 : (pointRequirements.professional_goal ?? 5);
+        const pooledGoal = isPM ? 4 : ((pointRequirements as any).service_social_goal ?? 5);
+        const totalGoal = isPM ? 8 : ((pointRequirements as any).total_goal ?? 10);
         const totalPoints = pPoints + pooledPoints;
 
-        const strikeCount = memberStrikes.length;
-        const profCompleted = pPoints >= pGoal;
-        const pooledCompleted = pooledPoints >= pooledGoal;
-        const totalCompleted = totalPoints >= totalGoal;
+        const strikeCount = isAdmin ? 0 : memberStrikes.length;
+        const profCompleted = isAdmin || pPoints >= pGoal;
+        const pooledCompleted = isAdmin || pooledPoints >= pooledGoal;
+        const totalCompleted = isAdmin || totalPoints >= totalGoal;
         const missingCategories = (profCompleted ? 0 : 1) + (pooledCompleted ? 0 : 1);
 
-        let health: "track" | "attention" | "risk" = "track";
-        if (strikeCount >= 2 || missingCategories >= 2) {
+        let health: "track" | "attention" | "risk" | "exempt" = "track";
+        if (isAdmin) {
+            health = "exempt";
+        } else if (strikeCount >= 2 || missingCategories >= 2) {
             health = "risk";
         } else if (strikeCount === 1 || missingCategories >= 1) {
             health = "attention";
         }
 
         return {
+            isAdmin,
+            isPM,
             attendanceHistory,
             pointsBreakdown,
             memberAbsences,
@@ -324,6 +334,18 @@ export default function ReviewMemberStatsClient({
     }, [selectedMember, events, attendance, absences, allMemberStrikes, pointRequirements, memberStrikes]);
 
     // Admin Action Handlers
+    function handleTogglePM(is_PM: boolean) {
+        if (!selectedMember) return;
+        setActionError(null);
+        startTransition(async () => {
+            try {
+                await updateMemberIsPM(selectedMember.id, is_PM);
+            } catch (err) {
+                setActionError(err instanceof Error ? err.message : "Failed to update PM status.");
+            }
+        });
+    }
+
     function handleUpdatePoints(category: "professional" | "social" | "service", amount: number) {
         if (!selectedMember) return;
         setActionError(null);
@@ -444,7 +466,10 @@ export default function ReviewMemberStatsClient({
     }
 
     // Status label mapping helper
-    function getHealthDisplay(health: "track" | "attention" | "risk") {
+    function getHealthDisplay(health: "track" | "attention" | "risk" | "exempt") {
+        if (health === "exempt") {
+            return { label: "Officer (Exempt)", badge: "bg-purple-50 text-purple-700 border-purple-200", dot: "bg-purple-500" };
+        }
         if (health === "risk") {
             return { label: "At Risk", badge: "bg-rose-50 text-rose-700 border-rose-200", dot: "bg-rose-600" };
         }
@@ -464,7 +489,7 @@ export default function ReviewMemberStatsClient({
     }
 
     function handleDownloadRosterCsv() {
-        const headers = ["First Name", "Last Name", "netid", "year", "major", "committee", "College"];
+        const headers = ["First Name", "Last Name", "netid", "year", "major", "committee", "College", "PM"];
 
         const rows = members.map((m) => {
             let firstName = m.first_name || "";
@@ -483,6 +508,7 @@ export default function ReviewMemberStatsClient({
             const major = m.major || "";
             const committee = m.committee || "";
             const college = m.college || "";
+            const isPM = m.is_PM ? "Yes" : "No";
 
             return [
                 escapeCsvValue(firstName),
@@ -492,6 +518,7 @@ export default function ReviewMemberStatsClient({
                 escapeCsvValue(major),
                 escapeCsvValue(committee),
                 escapeCsvValue(college),
+                escapeCsvValue(isPM),
             ].join(",");
         });
 
@@ -608,17 +635,24 @@ export default function ReviewMemberStatsClient({
                                         >
                                             <div className="flex justify-between items-start gap-1">
                                                 <span className="font-bold text-xs text-slate-800 line-clamp-1">{m.name || `${m.first_name} ${m.last_name}`}</span>
-                                                <span className={`text-[9px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded-full ${
-                                                    m.role?.toUpperCase() === "ADMIN"
-                                                        ? "bg-amber-100 text-amber-800 border border-amber-200"
-                                                        : "bg-slate-100 text-slate-500"
-                                                }`}>
-                                                    {m.role || "Member"}
-                                                </span>
+                                                <div className="flex items-center gap-1 shrink-0">
+                                                    {m.is_PM && (
+                                                        <span className="text-[9px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200">
+                                                            PM
+                                                        </span>
+                                                    )}
+                                                    <span className={`text-[9px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded-full ${
+                                                        m.role?.toUpperCase() === "ADMIN"
+                                                            ? "bg-amber-100 text-amber-800 border border-amber-200"
+                                                            : "bg-slate-100 text-slate-500"
+                                                    }`}>
+                                                        {m.role || "Member"}
+                                                    </span>
+                                                </div>
                                             </div>
                                             <div className="flex justify-between items-center text-[10px] text-slate-400 font-medium">
                                                 <span className="line-clamp-1">{m.illinois_email}</span>
-                                                {activeCount > 0 && (
+                                                {activeCount > 0 && m.role?.toUpperCase() !== "ADMIN" && (
                                                     <span className="px-1.5 py-0.5 bg-rose-50 text-rose-600 rounded-full font-bold text-[9px]">
                                                         {activeCount} {activeCount === 1 ? "Strike" : "Strikes"}
                                                     </span>
@@ -653,6 +687,11 @@ export default function ReviewMemberStatsClient({
                                                     }`}>
                                                         {selectedMember.role || "MEMBER"}
                                                     </span>
+                                                    {selectedMember.is_PM && (
+                                                        <span className="px-2 py-0.5 rounded-full text-[9px] uppercase tracking-wider font-extrabold bg-purple-100 text-purple-800 border border-purple-200">
+                                                            PM
+                                                        </span>
+                                                    )}
                                                 </div>
                                                 <p className="text-xs text-slate-400 font-medium mt-1">
                                                     {[
@@ -708,20 +747,35 @@ export default function ReviewMemberStatsClient({
                                             <div>
                                                 <div className="flex justify-between items-center mb-1">
                                                     <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Professional</span>
-                                                    {memberDashboardData?.profCompleted ? (
+                                                    {memberDashboardData?.isAdmin ? (
+                                                        <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded-sm">Exempt</span>
+                                                    ) : memberDashboardData?.profCompleted ? (
                                                         <span className="text-[10px] font-bold text-emerald-600">✓ Completed</span>
                                                     ) : (
                                                         <span className="text-[10px] font-bold text-amber-600">Incomplete</span>
                                                     )}
                                                 </div>
                                                 <p className="text-xl font-extrabold text-slate-800">
-                                                    {selectedMember.professional_points || 0} <span className="text-xs text-slate-400 font-medium">/ {memberDashboardData?.pGoal ?? 5} pts</span>
+                                                    {selectedMember.professional_points || 0}{" "}
+                                                    <span className="text-xs text-slate-400 font-medium">
+                                                        {memberDashboardData?.isAdmin ? "pts (Admin)" : `/ ${memberDashboardData?.pGoal ?? 5} pts`}
+                                                    </span>
                                                 </p>
                                             </div>
                                             <div className="w-full bg-slate-200/60 rounded-full h-2 mt-4 overflow-hidden">
                                                 <div
-                                                    className={`h-full rounded-full transition-all duration-300 ${memberDashboardData?.profCompleted ? "bg-emerald-500" : "bg-amber-500"}`}
-                                                    style={{ width: `${Math.min(((selectedMember.professional_points || 0) / (memberDashboardData?.pGoal ?? 5)) * 100, 100)}%` }}
+                                                    className={`h-full rounded-full transition-all duration-300 ${
+                                                        memberDashboardData?.isAdmin
+                                                            ? "bg-purple-400"
+                                                            : memberDashboardData?.profCompleted
+                                                            ? "bg-emerald-500"
+                                                            : "bg-amber-500"
+                                                    }`}
+                                                    style={{
+                                                        width: memberDashboardData?.isAdmin
+                                                            ? "100%"
+                                                            : `${Math.min(((selectedMember.professional_points || 0) / (memberDashboardData?.pGoal ?? 5)) * 100, 100)}%`,
+                                                    }}
                                                 />
                                             </div>
                                         </div>
@@ -731,14 +785,19 @@ export default function ReviewMemberStatsClient({
                                             <div>
                                                 <div className="flex justify-between items-center mb-1">
                                                     <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Service & Social (Pooled)</span>
-                                                    {memberDashboardData?.pooledCompleted ? (
+                                                    {memberDashboardData?.isAdmin ? (
+                                                        <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded-sm">Exempt</span>
+                                                    ) : memberDashboardData?.pooledCompleted ? (
                                                         <span className="text-[10px] font-bold text-emerald-600">✓ Completed</span>
                                                     ) : (
                                                         <span className="text-[10px] font-bold text-amber-600">Incomplete</span>
                                                     )}
                                                 </div>
                                                 <p className="text-xl font-extrabold text-slate-800">
-                                                    {memberDashboardData?.pooledPoints ?? 0} <span className="text-xs text-slate-400 font-medium">/ {memberDashboardData?.pooledGoal ?? 5} pts</span>
+                                                    {memberDashboardData?.pooledPoints ?? 0}{" "}
+                                                    <span className="text-xs text-slate-400 font-medium">
+                                                        {memberDashboardData?.isAdmin ? "pts (Admin)" : `/ ${memberDashboardData?.pooledGoal ?? 5} pts`}
+                                                    </span>
                                                 </p>
                                                 <p className="text-[10px] text-slate-400 font-medium mt-0.5">
                                                     {selectedMember.service_points || 0} Serv · {selectedMember.social_points || 0} Soc
@@ -746,8 +805,18 @@ export default function ReviewMemberStatsClient({
                                             </div>
                                             <div className="w-full bg-slate-200/60 rounded-full h-2 mt-2 overflow-hidden">
                                                 <div
-                                                    className={`h-full rounded-full transition-all duration-300 ${memberDashboardData?.pooledCompleted ? "bg-emerald-500" : "bg-amber-500"}`}
-                                                    style={{ width: `${Math.min(((memberDashboardData?.pooledPoints ?? 0) / (memberDashboardData?.pooledGoal ?? 5)) * 100, 100)}%` }}
+                                                    className={`h-full rounded-full transition-all duration-300 ${
+                                                        memberDashboardData?.isAdmin
+                                                            ? "bg-purple-400"
+                                                            : memberDashboardData?.pooledCompleted
+                                                            ? "bg-emerald-500"
+                                                            : "bg-amber-500"
+                                                    }`}
+                                                    style={{
+                                                        width: memberDashboardData?.isAdmin
+                                                            ? "100%"
+                                                            : `${Math.min(((memberDashboardData?.pooledPoints ?? 0) / (memberDashboardData?.pooledGoal ?? 5)) * 100, 100)}%`,
+                                                    }}
                                                 />
                                             </div>
                                         </div>
@@ -757,20 +826,35 @@ export default function ReviewMemberStatsClient({
                                             <div>
                                                 <div className="flex justify-between items-center mb-1">
                                                     <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Total Points</span>
-                                                    {memberDashboardData?.totalCompleted ? (
+                                                    {memberDashboardData?.isAdmin ? (
+                                                        <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded-sm">Exempt</span>
+                                                    ) : memberDashboardData?.totalCompleted ? (
                                                         <span className="text-[10px] font-bold text-emerald-600">✓ Completed</span>
                                                     ) : (
                                                         <span className="text-[10px] font-bold text-amber-600">Incomplete</span>
                                                     )}
                                                 </div>
                                                 <p className="text-xl font-extrabold text-slate-800">
-                                                    {memberDashboardData?.totalPoints ?? 0} <span className="text-xs text-slate-400 font-medium">/ {memberDashboardData?.totalGoal ?? 10} pts</span>
+                                                    {memberDashboardData?.totalPoints ?? 0}{" "}
+                                                    <span className="text-xs text-slate-400 font-medium">
+                                                        {memberDashboardData?.isAdmin ? "pts (Admin)" : `/ ${memberDashboardData?.totalGoal ?? 10} pts`}
+                                                    </span>
                                                 </p>
                                             </div>
                                             <div className="w-full bg-slate-200/60 rounded-full h-2 mt-4 overflow-hidden">
                                                 <div
-                                                    className={`h-full rounded-full transition-all duration-300 ${memberDashboardData?.totalCompleted ? "bg-emerald-500" : "bg-amber-500"}`}
-                                                    style={{ width: `${Math.min(((memberDashboardData?.totalPoints ?? 0) / (memberDashboardData?.totalGoal ?? 10)) * 100, 100)}%` }}
+                                                    className={`h-full rounded-full transition-all duration-300 ${
+                                                        memberDashboardData?.isAdmin
+                                                            ? "bg-purple-400"
+                                                            : memberDashboardData?.totalCompleted
+                                                            ? "bg-emerald-500"
+                                                            : "bg-amber-500"
+                                                    }`}
+                                                    style={{
+                                                        width: memberDashboardData?.isAdmin
+                                                            ? "100%"
+                                                            : `${Math.min(((memberDashboardData?.totalPoints ?? 0) / (memberDashboardData?.totalGoal ?? 10)) * 100, 100)}%`,
+                                                    }}
                                                 />
                                             </div>
                                         </div>
@@ -780,20 +864,35 @@ export default function ReviewMemberStatsClient({
                                             <div>
                                                 <div className="flex justify-between items-center mb-1">
                                                     <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Active Strikes</span>
-                                                    {memberStrikes.length >= 2 ? (
+                                                    {memberDashboardData?.isAdmin ? (
+                                                        <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded-sm">Exempt</span>
+                                                    ) : memberStrikes.length >= 2 ? (
                                                         <span className="text-[10px] font-bold text-rose-600">Threshold Danger</span>
                                                     ) : (
                                                         <span className="text-[10px] font-bold text-emerald-600">Good Standing</span>
                                                     )}
                                                 </div>
                                                 <p className="text-xl font-extrabold text-slate-800">
-                                                    {memberStrikes.length} <span className="text-xs text-slate-400 font-medium">/ 3 limit</span>
+                                                    {memberDashboardData?.isAdmin ? 0 : memberStrikes.length}{" "}
+                                                    <span className="text-xs text-slate-400 font-medium">
+                                                        {memberDashboardData?.isAdmin ? "· No strikes for admins" : "/ 3 limit"}
+                                                    </span>
                                                 </p>
                                             </div>
                                             <div className="w-full bg-slate-200/60 rounded-full h-2 mt-4 overflow-hidden">
                                                 <div
-                                                    className={`h-full rounded-full transition-all duration-300 ${memberStrikes.length >= 2 ? "bg-rose-500" : "bg-emerald-500"}`}
-                                                    style={{ width: `${Math.min((memberStrikes.length / 3) * 100, 100)}%` }}
+                                                    className={`h-full rounded-full transition-all duration-300 ${
+                                                        memberDashboardData?.isAdmin
+                                                            ? "bg-purple-400"
+                                                            : memberStrikes.length >= 2
+                                                            ? "bg-rose-500"
+                                                            : "bg-emerald-500"
+                                                    }`}
+                                                    style={{
+                                                        width: memberDashboardData?.isAdmin
+                                                            ? "0%"
+                                                            : `${Math.min((memberStrikes.length / 3) * 100, 100)}%`,
+                                                    }}
                                                 />
                                             </div>
                                         </div>
@@ -939,15 +1038,22 @@ export default function ReviewMemberStatsClient({
                                                     <h3 className="font-bold text-slate-800 text-sm tracking-wide uppercase">Strike History</h3>
                                                     <p className="text-[11px] text-slate-400 mt-0.5">Penalties list with administrative actions</p>
                                                 </div>
-                                                <Link
-                                                    href={`/users/admin/reviewMemberStats/${selectedMember.id}/addStrike`}
-                                                    className="px-2.5 py-1 text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 font-bold rounded-lg transition-colors"
-                                                >
-                                                    + Issue Strike
-                                                </Link>
+                                                {!memberDashboardData?.isAdmin && (
+                                                    <Link
+                                                        href={`/users/admin/reviewMemberStats/${selectedMember.id}/addStrike`}
+                                                        className="px-2.5 py-1 text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 font-bold rounded-lg transition-colors"
+                                                    >
+                                                        + Issue Strike
+                                                    </Link>
+                                                )}
                                             </div>
 
-                                            {allMemberStrikes.length === 0 ? (
+                                            {memberDashboardData?.isAdmin ? (
+                                                <div className="p-4 bg-purple-50/60 text-purple-900 border border-purple-200/80 rounded-xl text-xs font-semibold py-8 text-center space-y-1">
+                                                    <p className="font-bold">Officer Account</p>
+                                                    <p className="text-[11px] text-purple-700 font-normal">Admins are exempt from point requirements and strikes.</p>
+                                                </div>
+                                            ) : allMemberStrikes.length === 0 ? (
                                                 <div className="p-4 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-xl text-xs font-semibold py-8 text-center">
                                                     ✓ Perfect Standing – No strikes issued.
                                                 </div>
@@ -1102,7 +1208,20 @@ export default function ReviewMemberStatsClient({
                                                                                 -1 Service Point
                                                                             </button>
 
-                                                                            {/* Role, Edit Profile, Deactivate, Email */}
+                                                                            {/* Role, PM, Edit Profile, Deactivate, Email */}
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => handleTogglePM(!selectedMember.is_PM)}
+                                                                                disabled={isPending}
+                                                                                className={`px-3 py-2 border rounded-xl text-left text-xs font-bold transition-all cursor-pointer ${
+                                                                                    selectedMember.is_PM
+                                                                                        ? "bg-purple-50/90 hover:bg-purple-100 text-purple-900 border-purple-300"
+                                                                                        : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200/50"
+                                                                                }`}
+                                                                            >
+                                                                                {selectedMember.is_PM ? "Toggle PM (Remove PM)" : "Toggle PM (Make PM)"}
+                                                                            </button>
+
                                                                             <button
                                                                                 onClick={handlePromoteDemote}
                                                                                 disabled={isPending}
@@ -1249,6 +1368,22 @@ export default function ReviewMemberStatsClient({
                                     placeholder="e.g. Product development, Technology, Consulting"
                                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 focus:outline-hidden focus:border-amber-500 focus:bg-white transition-colors"
                                 />
+                            </div>
+
+                            <div className="flex items-start gap-2.5 pt-2 pb-1">
+                                <input
+                                    type="checkbox"
+                                    id="edit_is_pm"
+                                    checked={editForm.is_PM}
+                                    onChange={(e) => setEditForm({ ...editForm, is_PM: e.target.checked })}
+                                    className="mt-0.5 w-4 h-4 rounded border-slate-300 text-purple-600 focus:ring-purple-500 cursor-pointer"
+                                />
+                                <label htmlFor="edit_is_pm" className="text-xs font-bold text-slate-700 cursor-pointer select-none">
+                                    Project Manager (PM)
+                                    <span className="block text-[11px] text-slate-400 font-normal">
+                                        Reduces point requirements to 4 Professional + 4 Service/Social (8 total).
+                                    </span>
+                                </label>
                             </div>
 
                             <div className="flex gap-3 justify-end pt-3 border-t border-slate-100 mt-4">

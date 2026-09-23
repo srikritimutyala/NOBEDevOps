@@ -17,7 +17,7 @@ export default async function AddStrikePage({ params }: AddStrikePageProps) {
     const [{ data: member }, { data: events }] = await Promise.all([
         supabase
             .from("People")
-            .select("id, name, illinois_email, auth_id")
+            .select("id, name, illinois_email, auth_id, role")
             .eq("id", Number(memberId))
             .single(),
         supabase
@@ -29,6 +29,8 @@ export default async function AddStrikePage({ params }: AddStrikePageProps) {
     if (!member?.auth_id) {
         redirect("/users/admin/reviewMemberStats");
     }
+
+    const isAdminMember = member.role?.toUpperCase() === "ADMIN";
 
     return (
         <AdminGuard>
@@ -65,62 +67,78 @@ export default async function AddStrikePage({ params }: AddStrikePageProps) {
                             </p>
                         </div>
 
-                        <form action={addStrike} className="space-y-5">
-                            <input type="hidden" name="memberId" value={member.id} />
-                            <input type="hidden" name="memberAuthId" value={member.auth_id} />
-
-                            <label className="block space-y-2">
-                                <span className="text-sm font-medium text-[color:var(--foreground)]">
-                                    Related event
-                                </span>
-                                <select
-                                    name="eventId"
-                                    className="w-full rounded-2xl border border-[color:var(--border)] bg-[rgba(255,251,247,0.92)] px-4 py-3 text-sm text-[color:var(--foreground)] outline-none"
-                                    defaultValue=""
-                                >
-                                    <option value="">No event linked</option>
-                                    {(events ?? []).map((event) => (
-                                        <option key={event.id} value={event.id}>
-                                            {event.name ?? "Unnamed event"} {event.date ? `(${formatDate(event.date)})` : ""}
-                                        </option>
-                                    ))}
-                                </select>
-                            </label>
-
-                            <label className="block space-y-2">
-                                <span className="text-sm font-medium text-[color:var(--foreground)]">
-                                    Reason
-                                </span>
-                                <textarea
-                                    name="reason"
-                                    required
-                                    rows={4}
-                                    placeholder="Explain why this strike is being issued."
-                                    className="w-full rounded-2xl border border-[color:var(--border)] bg-[rgba(255,251,247,0.92)] px-4 py-3 text-sm text-[color:var(--foreground)] outline-none"
-                                />
-                            </label>
-
-                            <label className="block space-y-2">
-                                <span className="text-sm font-medium text-[color:var(--foreground)]">
-                                    Admin note
-                                </span>
-                                <textarea
-                                    name="adminNote"
-                                    rows={3}
-                                    placeholder="Optional internal note."
-                                    className="w-full rounded-2xl border border-[color:var(--border)] bg-[rgba(255,251,247,0.92)] px-4 py-3 text-sm text-[color:var(--foreground)] outline-none"
-                                />
-                            </label>
-
-                            <div className="flex justify-end gap-3">
-                                <Link href="/users/admin/reviewMemberStats" className="btn-secondary">
-                                    Cancel
-                                </Link>
-                                <button type="submit" className="btn-primary">
-                                    Submit Strike
-                                </button>
+                        {isAdminMember ? (
+                            <div className="rounded-2xl border border-purple-200 bg-purple-50/80 p-6 text-center space-y-3">
+                                <p className="text-sm font-bold text-purple-900">
+                                    Admins are exempt from point requirements and strikes.
+                                </p>
+                                <p className="text-xs text-purple-700">
+                                    Strikes cannot be assigned to officer or admin accounts.
+                                </p>
+                                <div className="pt-2">
+                                    <Link href="/users/admin/reviewMemberStats" className="btn-secondary">
+                                        Return to Member Stats
+                                    </Link>
+                                </div>
                             </div>
-                        </form>
+                        ) : (
+                            <form action={addStrike} className="space-y-5">
+                                <input type="hidden" name="memberId" value={member.id} />
+                                <input type="hidden" name="memberAuthId" value={member.auth_id} />
+
+                                <label className="block space-y-2">
+                                    <span className="text-sm font-medium text-[color:var(--foreground)]">
+                                        Related event
+                                    </span>
+                                    <select
+                                        name="eventId"
+                                        className="w-full rounded-2xl border border-[color:var(--border)] bg-[rgba(255,251,247,0.92)] px-4 py-3 text-sm text-[color:var(--foreground)] outline-none"
+                                        defaultValue=""
+                                    >
+                                        <option value="">No event linked</option>
+                                        {(events ?? []).map((event) => (
+                                            <option key={event.id} value={event.id}>
+                                                {event.name ?? "Unnamed event"} {event.date ? `(${formatDate(event.date)})` : ""}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </label>
+
+                                <label className="block space-y-2">
+                                    <span className="text-sm font-medium text-[color:var(--foreground)]">
+                                        Reason
+                                    </span>
+                                    <textarea
+                                        name="reason"
+                                        required
+                                        rows={4}
+                                        placeholder="Explain why this strike is being issued."
+                                        className="w-full rounded-2xl border border-[color:var(--border)] bg-[rgba(255,251,247,0.92)] px-4 py-3 text-sm text-[color:var(--foreground)] outline-none"
+                                    />
+                                </label>
+
+                                <label className="block space-y-2">
+                                    <span className="text-sm font-medium text-[color:var(--foreground)]">
+                                        Admin note
+                                    </span>
+                                    <textarea
+                                        name="adminNote"
+                                        rows={3}
+                                        placeholder="Optional internal note."
+                                        className="w-full rounded-2xl border border-[color:var(--border)] bg-[rgba(255,251,247,0.92)] px-4 py-3 text-sm text-[color:var(--foreground)] outline-none"
+                                    />
+                                </label>
+
+                                <div className="flex justify-end gap-3">
+                                    <Link href="/users/admin/reviewMemberStats" className="btn-secondary">
+                                        Cancel
+                                    </Link>
+                                    <button type="submit" className="btn-primary">
+                                        Submit Strike
+                                    </button>
+                                </div>
+                            </form>
+                        )}
                     </section>
                 </div>
             </main>

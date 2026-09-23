@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/app/utils/supabase/client';
 import { useAuth } from '@/app/users/authprovider';
-import { isAllowedEmail } from '@/app/utils/emailValidation';
+import { isAllowedEmail, isTestAdminEmail } from '@/app/utils/emailValidation';
 
 export default function LoginForm() {
   const supabase = createClient();

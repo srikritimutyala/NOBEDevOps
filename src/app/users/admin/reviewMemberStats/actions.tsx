@@ -141,6 +141,16 @@ export async function addStrike(formData: FormData) {
         throw new Error(userError.message);
     }
 
+    const { data: targetPerson } = await supabase
+        .from("People")
+        .select("role")
+        .eq("auth_id", memberAuthId)
+        .maybeSingle();
+
+    if (targetPerson?.role?.toUpperCase() === "ADMIN") {
+        throw new Error("Admins are exempt from point requirements and strikes.");
+    }
+
     const { error } = await supabase.from("strikes").insert({
         user_id: memberAuthId,
         event_id: eventIdRaw || null,
@@ -297,6 +307,7 @@ export async function editMemberDetails(
         college: string;
         committee: string;
         role?: string;
+        is_PM?: boolean;
     }
 ) {
     const supabase = await createClient();
@@ -309,6 +320,7 @@ export async function editMemberDetails(
         college: string;
         committee: string;
         role?: string;
+        is_PM?: boolean;
     } = {
         name: payload.name.trim(),
         illinois_email: payload.illinois_email.trim(),
@@ -322,6 +334,10 @@ export async function editMemberDetails(
         updateData.role = payload.role.trim().toUpperCase();
     }
 
+    if (typeof payload.is_PM === "boolean") {
+        updateData.is_PM = payload.is_PM;
+    }
+
     const { error } = await supabase
         .from("People")
         .update(updateData)
@@ -332,4 +348,21 @@ export async function editMemberDetails(
     }
 
     revalidatePath("/users/admin/reviewMemberStats");
+    revalidatePath("/users/admin");
+}
+
+export async function updateMemberIsPM(memberId: number, is_PM: boolean) {
+    const supabaseAdmin = createAdminClient();
+
+    const { error } = await supabaseAdmin
+        .from("People")
+        .update({ is_PM })
+        .eq("id", memberId);
+
+    if (error) {
+        throw new Error(error.message);
+    }
+
+    revalidatePath("/users/admin/reviewMemberStats");
+    revalidatePath("/users/admin");
 }

@@ -96,6 +96,8 @@ interface MemberProfile {
   service_points: number | null;
   strikes: number | null;
   auth_id: string | null;
+  is_PM?: boolean | null;
+  role?: string | null;
 }
 
 export default function EventList() {
@@ -193,7 +195,7 @@ export default function EventList() {
       const { data, error: fetchError } = await supabase
         .from('People')
         .select(
-          'name, first_name, last_name, year, college, major, committee, social_points, professional_points, service_points, strikes, auth_id'
+          'name, first_name, last_name, year, college, major, committee, social_points, professional_points, service_points, strikes, auth_id, is_PM, role'
         )
         .eq('auth_id', session.user.id)
         .single();
@@ -399,6 +401,12 @@ export default function EventList() {
     (member?.professional_points ?? 0) +
     (member?.service_points ?? 0);
 
+  const isAdmin = member?.role?.toUpperCase() === "ADMIN";
+  const isPM = Boolean(member?.is_PM);
+  const profGoal = isPM ? 4 : 5;
+  const pooledGoal = isPM ? 4 : 5;
+  const totalGoal = isPM ? 8 : 10;
+
   const monthEventCount = calendarDays.reduce((count, date) => {
     if (date.getMonth() !== displayMonth.getMonth()) {
       return count;
@@ -458,13 +466,27 @@ export default function EventList() {
             ) : member ? (
               <div className="page-stack">
                 <div className="stat-card">
-                  <p className="stat-label">Total points</p>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <p className="stat-label">{isAdmin ? "Admin Account" : "Total points"}</p>
+                    {isAdmin ? (
+                      <span style={{ fontSize: '10px', background: 'rgba(147, 51, 234, 0.1)', color: '#7e22ce', padding: '2px 8px', borderRadius: '12px', fontWeight: 800 }}>
+                        OFFICER / EXEMPT
+                      </span>
+                    ) : isPM ? (
+                      <span style={{ fontSize: '10px', background: 'rgba(147, 51, 234, 0.1)', color: '#7e22ce', padding: '2px 8px', borderRadius: '12px', fontWeight: 700 }}>
+                        PM (4+4 Goal)
+                      </span>
+                    ) : null}
+                  </div>
                   <p className="stat-value">
-                    {totalPoints} <span style={{ fontSize: '1rem', color: 'var(--muted)', fontWeight: 500 }}>/ 10 pts</span>
+                    {totalPoints}{" "}
+                    <span style={{ fontSize: '1rem', color: 'var(--muted)', fontWeight: 500 }}>
+                      {isAdmin ? "pts (Exempt from points & strikes)" : `/ ${totalGoal} pts`}
+                    </span>
                   </p>
                 </div>
 
-                {member.strikes ? (
+                {!isAdmin && member.strikes ? (
                   <div className="stat-card" style={{ backgroundColor: 'rgba(239, 83, 80, 0.1)', borderColor: '#EF5350' }}>
                     <p className="stat-label" style={{ color: '#D32F2F' }}>Strikes</p>
                     <p className="stat-value" style={{ color: '#D32F2F' }}>{member.strikes}</p>
@@ -475,25 +497,33 @@ export default function EventList() {
                   <div className="stat-card">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <p className="stat-label">💼 Professional</p>
-                      {(member.professional_points ?? 0) >= 5 ? (
+                      {isAdmin ? (
+                        <span style={{ fontSize: '10px', fontWeight: 700, color: '#7e22ce' }}>Exempt</span>
+                      ) : (member.professional_points ?? 0) >= profGoal ? (
                         <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--success)' }}>✓ Met</span>
                       ) : null}
                     </div>
                     <p className="stat-value">
                       {member.professional_points ?? 0}
-                      <span style={{ fontSize: '0.85rem', color: 'var(--muted)', fontWeight: 500 }}> / 5 pts</span>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--muted)', fontWeight: 500 }}>
+                        {isAdmin ? " pts" : ` / ${profGoal} pts`}
+                      </span>
                     </p>
                   </div>
                   <div className="stat-card">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <p className="stat-label">🤝 + 🎉 Service & Social</p>
-                      {((member.service_points ?? 0) + (member.social_points ?? 0)) >= 5 ? (
+                      {isAdmin ? (
+                        <span style={{ fontSize: '10px', fontWeight: 700, color: '#7e22ce' }}>Exempt</span>
+                      ) : ((member.service_points ?? 0) + (member.social_points ?? 0)) >= pooledGoal ? (
                         <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--success)' }}>✓ Met</span>
                       ) : null}
                     </div>
                     <p className="stat-value">
                       {(member.service_points ?? 0) + (member.social_points ?? 0)}
-                      <span style={{ fontSize: '0.85rem', color: 'var(--muted)', fontWeight: 500 }}> / 5 pts</span>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--muted)', fontWeight: 500 }}>
+                        {isAdmin ? " pts" : ` / ${pooledGoal} pts`}
+                      </span>
                     </p>
                     <p style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: '4px' }}>
                       {member.service_points ?? 0} Service · {member.social_points ?? 0} Social

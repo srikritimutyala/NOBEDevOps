@@ -63,7 +63,7 @@ export async function POST(request: Request) {
       // 2. Get all people
       const { data: people, error: peopleError } = await adminClient
         .from("People")
-        .select("auth_id, name, illinois_email, strikes");
+        .select("auth_id, name, illinois_email, strikes, role");
 
       if (peopleError || !people) {
         console.error("Process Strikes: Failed to fetch people", peopleError);
@@ -103,6 +103,8 @@ export async function POST(request: Request) {
 
       for (const person of people) {
         if (!person.auth_id) continue;
+        // Admins are officers and exempt from point requirements and strikes
+        if (person.role?.toUpperCase() === "ADMIN") continue;
 
         // If not attended and not excused
         if (!attendedUserIds.has(person.auth_id) && !excusedUserIds.has(person.auth_id)) {

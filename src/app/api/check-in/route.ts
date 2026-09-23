@@ -82,7 +82,8 @@ export async function POST(req: Request) {
       .select(`
         professional_points,
         service_points,
-        social_points
+        social_points,
+        is_PM
       `)
       .eq("auth_id", user.id)
       .single();
@@ -155,7 +156,8 @@ export async function POST(req: Request) {
         .select(`
           professional_points,
           service_points,
-          social_points
+          social_points,
+          is_PM
         `)
         .single();
 
@@ -166,6 +168,12 @@ export async function POST(req: Request) {
 
 
     const goals = await getPointRequirements();
+    const isPM = Boolean(profile.is_PM);
+    const profGoal = isPM ? 4 : goals.professional_goal;
+    const serviceGoal = isPM ? 4 : goals.service_goal;
+    const socialGoal = isPM ? 4 : goals.social_goal;
+    const pooledGoal = isPM ? 4 : ((goals as any).service_social_goal ?? 5);
+    const totalGoal = isPM ? 8 : ((goals as any).total_goal ?? 10);
 
     return NextResponse.json({
       ok: true,
@@ -175,9 +183,12 @@ export async function POST(req: Request) {
       point_type: event.event_type,
       progress: {
         ...updatedProfile,
-        professional_goal: goals.professional_goal,
-        service_goal: goals.service_goal,
-        social_goal: goals.social_goal,
+        is_PM: isPM,
+        professional_goal: profGoal,
+        service_goal: serviceGoal,
+        social_goal: socialGoal,
+        service_social_goal: pooledGoal,
+        total_goal: totalGoal,
       },
     });
   } catch (error: any) {
