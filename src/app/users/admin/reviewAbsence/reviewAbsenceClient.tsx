@@ -5,6 +5,9 @@ import { Children, type ReactNode, useEffect, useState } from "react";
 export type ReviewAbsenceItem = {
   id: string;
   submitterLabel: string;
+  eventName?: string | null;
+  eventDate?: string | null;
+  isMandatory?: boolean | null;
   reason: string | null;
   status: string | null;
   submittedAt: string | null;
@@ -234,7 +237,18 @@ export default function ReviewAbsenceClient({ items }: Props) {
               >
                 <div className="panel-header" style={{ paddingBottom: '16px', borderBottom: '1px solid var(--border)' }}>
                   <div className="space-y-2">
-                    <h2 className="text-lg font-medium">{item.submitterLabel}</h2>
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-lg font-medium">{item.submitterLabel}</h2>
+                      {item.eventName && (
+                        <span className={`px-2.5 py-0.5 text-xs font-bold rounded-full ${
+                          item.isMandatory
+                            ? "bg-rose-100 text-rose-800 border border-rose-200"
+                            : "bg-slate-100 text-slate-700 border border-slate-200"
+                        }`}>
+                          {item.eventName} {item.isMandatory ? "(Mandatory)" : "(Optional)"}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-sm opacity-80">
                       Submitted {formatTimestamp(item.submittedAt)}
                     </p>
@@ -335,7 +349,18 @@ export default function ReviewAbsenceClient({ items }: Props) {
               className="panel"
             >
               <div className="space-y-2">
-                <h2 className="text-lg font-medium">{item.submitterLabel}</h2>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-medium">{item.submitterLabel}</h2>
+                  {item.eventName && (
+                    <span className={`px-2.5 py-0.5 text-xs font-bold rounded-full ${
+                      item.isMandatory
+                        ? "bg-rose-100 text-rose-800 border border-rose-200"
+                        : "bg-slate-100 text-slate-700 border border-slate-200"
+                    }`}>
+                      {item.eventName} {item.isMandatory ? "(Mandatory)" : "(Optional)"}
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm opacity-80">
                   Submitted {formatTimestamp(item.submittedAt)}
                 </p>

@@ -19,7 +19,7 @@ export async function POST(request: Request) {
 
     const { data: absence, error: absenceError } = await supabase
       .from("excused_absences")
-      .select("id, user_id, status, reason, admin_response")
+      .select("id, user_id, event_id, status, reason, admin_response")
       .eq("id", absenceId)
       .single();
 
@@ -38,11 +38,26 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Could not resolve member email." }, { status: 500 });
     }
 
+    let eventName: string | null = null;
+    let isMandatory: boolean | null = null;
+    if (absence.event_id) {
+      const { data: eventData } = await adminClient
+        .from("events")
+        .select("name, is_mandatory")
+        .eq("id", absence.event_id)
+        .maybeSingle();
+      if (eventData?.name) {
+        eventName = eventData.name;
+        isMandatory = eventData.is_mandatory;
+      }
+    }
+
     const recipient = authUserData.user.email;
     const emailStatus = absence.status === "APPROVED" ? "approved" : "disapproved";
+    const eventSuffix = eventName ? ` for "${eventName}" (${isMandatory ? "Mandatory" : "Optional"})` : "";
 
     const emailBody = [
-      `Your absence request has been ${emailStatus}.`,
+      `Your absence request${eventSuffix} has been ${emailStatus}.`,
       "",
       `Reason submitted: ${absence.reason?.trim() || "No reason provided."}`,
       "",
@@ -52,7 +67,7 @@ export async function POST(request: Request) {
 
     const emailResult = await sendEmail({
       to: recipient,
-      subject: `Absence request ${emailStatus}`,
+      subject: `Absence request ${emailStatus}${eventName ? ` - ${eventName}` : ""}`,
       message: emailBody,
     });
 

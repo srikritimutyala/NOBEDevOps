@@ -73,14 +73,34 @@ export async function POST(request: Request) {
 
     const adminClient = createAdminClient();
 
-    // If APPROVED, mark them as present by adding an attendance record
+    let eventData: {
+      id: string;
+      name: string | null;
+      points: number | null;
+      event_type: string | null;
+      is_mandatory: boolean | null;
+    } | null = null;
+
+    if (absence.event_id) {
+      const { data } = await adminClient
+        .from("events")
+        .select("id, name, points, event_type, is_mandatory")
+        .eq("id", absence.event_id)
+        .maybeSingle();
+      eventData = data;
+    }
+
+    // If APPROVED, mark them as present by adding an attendance record and awarding points
     if (status === "APPROVED" && absence.event_id) {
       const { data: existingAttendance } = await adminClient
         .from("attendance")
         .select("id")
         .eq("user_id", absence.user_id)
         .eq("event_id", absence.event_id)
-        .single();
+        .maybeSingle();
+
+      const eventPoints = eventData?.points ?? 0;
+      const eventType = eventData?.event_type ?? null;
 
       if (!existingAttendance) {
         const { error: insertError } = await adminClient
@@ -88,10 +108,42 @@ export async function POST(request: Request) {
           .insert({
             user_id: absence.user_id,
             event_id: absence.event_id,
+            timestamp: new Date().toISOString(),
+            points_awarded: eventPoints,
+            point_type: eventType,
           });
 
         if (insertError) {
           console.error("Failed to insert attendance record for approved absence:", insertError);
+        }
+
+        // Award points to the member profile if the event has points
+        if (eventPoints > 0 && eventType) {
+          const { data: profile } = await adminClient
+            .from("People")
+            .select("professional_points, service_points, social_points")
+            .eq("auth_id", absence.user_id)
+            .maybeSingle();
+
+          if (profile) {
+            const updates: Record<string, number> = {};
+            const normType = eventType.toUpperCase();
+
+            if (normType.includes("PROF")) {
+              updates.professional_points = (profile.professional_points ?? 0) + eventPoints;
+            } else if (normType.includes("SERV")) {
+              updates.service_points = (profile.service_points ?? 0) + eventPoints;
+            } else if (normType.includes("SOCI")) {
+              updates.social_points = (profile.social_points ?? 0) + eventPoints;
+            }
+
+            if (Object.keys(updates).length > 0) {
+              await adminClient
+                .from("People")
+                .update(updates)
+                .eq("auth_id", absence.user_id);
+            }
+          }
         }
       }
 
@@ -123,6 +175,52 @@ export async function POST(request: Request) {
             .eq("auth_id", absence.user_id);
         }
       }
+    } else if (status === "DENIED" && absence.status?.toUpperCase() === "APPROVED" && absence.event_id) {
+      // If previously approved and now disapproved, reverse the attendance and points awarded
+      const { data: existingAttendance } = await adminClient
+        .from("attendance")
+        .select("id, points_awarded, point_type")
+        .eq("user_id", absence.user_id)
+        .eq("event_id", absence.event_id)
+        .maybeSingle();
+
+      if (existingAttendance) {
+        await adminClient
+          .from("attendance")
+          .delete()
+          .eq("id", existingAttendance.id);
+
+        const pointsToDeduct = existingAttendance.points_awarded ?? (eventData?.points ?? 0);
+        const eventType = existingAttendance.point_type ?? eventData?.event_type;
+
+        if (pointsToDeduct > 0 && eventType) {
+          const { data: profile } = await adminClient
+            .from("People")
+            .select("professional_points, service_points, social_points")
+            .eq("auth_id", absence.user_id)
+            .maybeSingle();
+
+          if (profile) {
+            const updates: Record<string, number> = {};
+            const normType = eventType.toUpperCase();
+
+            if (normType.includes("PROF")) {
+              updates.professional_points = Math.max(0, (profile.professional_points ?? 0) - pointsToDeduct);
+            } else if (normType.includes("SERV")) {
+              updates.service_points = Math.max(0, (profile.service_points ?? 0) - pointsToDeduct);
+            } else if (normType.includes("SOCI")) {
+              updates.social_points = Math.max(0, (profile.social_points ?? 0) - pointsToDeduct);
+            }
+
+            if (Object.keys(updates).length > 0) {
+              await adminClient
+                .from("People")
+                .update(updates)
+                .eq("auth_id", absence.user_id);
+            }
+          }
+        }
+      }
     }
 
     const emailStatus = status === "APPROVED" ? "approved" : "disapproved";
@@ -143,9 +241,13 @@ export async function POST(request: Request) {
       emailError = error?.message || "Supabase admin credentials are not configured.";
     }
 
+    const eventName = eventData?.name ?? null;
+    const isMandatory = eventData?.is_mandatory ?? false;
+    const eventSuffix = eventName ? ` for "${eventName}" (${isMandatory ? "Mandatory" : "Optional"})` : "";
+
     if (reviewRecipient) {
       const emailBody = [
-        `Your absence request has been ${emailStatus}.`,
+        `Your absence request${eventSuffix} has been ${emailStatus}.`,
         "",
         `Reason submitted: ${absence.reason?.trim() || "No reason provided."}`,
         "",
@@ -155,7 +257,7 @@ export async function POST(request: Request) {
 
       const emailResult = await sendEmail({
         to: reviewRecipient,
-        subject: `Absence request ${emailStatus}`,
+        subject: `Absence request ${emailStatus}${eventName ? ` - ${eventName}` : ""}`,
         message: emailBody,
       });
 

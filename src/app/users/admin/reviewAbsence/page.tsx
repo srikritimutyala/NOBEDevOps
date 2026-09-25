@@ -9,6 +9,7 @@ export const revalidate = 0;
 type ExcusedAbsenceRow = {
   id: string;
   user_id: string | null;
+  event_id: string | null;
   reason: string | null;
   status: string | null;
   submitted_at: string | null;
@@ -25,22 +26,34 @@ type PersonRow = {
   illinois_email: string | null;
 };
 
+type EventRow = {
+  id: string;
+  name: string | null;
+  date: string | null;
+  is_mandatory: boolean | null;
+};
+
 export default async function ReviewAbsence() {
   const supabase = await createClient();
 
-  const [absencesRes, peopleRes] = await Promise.all([
+  const [absencesRes, peopleRes, eventsRes] = await Promise.all([
     supabase
       .from("excused_absences")
-      .select("id, user_id, reason, status, submitted_at, admin_response, reviewed_at, email_sent, email_error, image_url")
+      .select("id, user_id, event_id, reason, status, submitted_at, admin_response, reviewed_at, email_sent, email_error, image_url")
       .order("submitted_at", { ascending: false }),
     supabase
       .from("People")
       .select("auth_id, name, illinois_email"),
+    supabase
+      .from("events")
+      .select("id, name, date, is_mandatory"),
   ]);
 
-  const error = absencesRes.error ?? peopleRes.error;
+  const error = absencesRes.error ?? peopleRes.error ?? eventsRes.error;
   const absences = (absencesRes.data ?? []) as ExcusedAbsenceRow[];
   const people = (peopleRes.data ?? []) as PersonRow[];
+  const events = (eventsRes.data ?? []) as EventRow[];
+  const eventById = new Map(events.map((e) => [e.id, e]));
   const submitterByAuthId = new Map(
     people
       .filter((person) => person.auth_id)
@@ -50,20 +63,26 @@ export default async function ReviewAbsence() {
       ])
   );
 
-  const items: ReviewAbsenceItem[] = absences.map((absence) => ({
-    id: absence.id,
-    submitterLabel: absence.user_id
-      ? submitterByAuthId.get(absence.user_id) ?? absence.user_id
-      : "N/A",
-    reason: absence.reason,
-    status: absence.status,
-    submittedAt: absence.submitted_at,
-    adminResponse: absence.admin_response,
-    reviewedAt: absence.reviewed_at,
-    emailSent: absence.email_sent,
-    emailError: absence.email_error,
-    imageUrl: absence.image_url,
-  }));
+  const items: ReviewAbsenceItem[] = absences.map((absence) => {
+    const event = absence.event_id ? eventById.get(absence.event_id) : undefined;
+    return {
+      id: absence.id,
+      submitterLabel: absence.user_id
+        ? submitterByAuthId.get(absence.user_id) ?? absence.user_id
+        : "N/A",
+      eventName: event?.name ?? null,
+      eventDate: event?.date ?? null,
+      isMandatory: event?.is_mandatory ?? false,
+      reason: absence.reason,
+      status: absence.status,
+      submittedAt: absence.submitted_at,
+      adminResponse: absence.admin_response,
+      reviewedAt: absence.reviewed_at,
+      emailSent: absence.email_sent,
+      emailError: absence.email_error,
+      imageUrl: absence.image_url,
+    };
+  });
 
   return (
     <AdminGuard>

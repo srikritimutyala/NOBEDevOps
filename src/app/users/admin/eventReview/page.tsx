@@ -261,23 +261,22 @@ function EventReviewClient() {
     members.forEach((m) => {
       if (!m.auth_id) return;
       
-      // 1. Check Attendance
-      const att = attendance.find(a => a.user_id === m.auth_id);
-      if (att) {
-        map[m.auth_id] = { status: "PRESENT", recordId: att.id, time: att.timestamp ? formatTimeOnly(att.timestamp) : undefined };
-        return;
-      }
-      
-      // 2. Check Absences
+      // 1. Check Absences
       const abs = absences.find(a => a.user_id === m.auth_id);
       if (abs) {
         if (abs.status?.toUpperCase() === "APPROVED") {
           map[m.auth_id] = { status: "EXCUSED", recordId: abs.id, excuseReason: abs.reason || undefined };
+          return;
         } else if (abs.status?.toUpperCase() === "PENDING" || !abs.status) {
           map[m.auth_id] = { status: "PENDING_EXCUSE", recordId: abs.id, excuseReason: abs.reason || undefined };
-        } else {
-          map[m.auth_id] = { status: "MISSING" };
+          return;
         }
+      }
+
+      // 2. Check Attendance
+      const att = attendance.find(a => a.user_id === m.auth_id);
+      if (att) {
+        map[m.auth_id] = { status: "PRESENT", recordId: att.id, time: att.timestamp ? formatTimeOnly(att.timestamp) : undefined };
         return;
       }
       
@@ -404,11 +403,11 @@ function EventReviewClient() {
 
     const defaultSubject = type === "ATTENDEES"
       ? `Thank you for attending: ${event.name}`
-      : `Important: You missed mandatory event: ${event.name}`;
+      : `Important: You missed ${event.is_mandatory ? "mandatory " : ""}event: ${event.name}`;
 
     const defaultBody = type === "ATTENDEES"
-      ? `Hello,\n\nThank you for checking in to "${event.name}". Your professional attendance has been recorded and point rewards processed.\n\nBest regards,\nNOBE Administration`
-      : `Hello,\n\nYou missed the mandatory event "${event.name}" and do not have an approved absence on file. This may result in a strike.\n\nPlease submit an absence form if you have an excuse, or contact executive members.\n\nBest regards,\nNOBE Administration`;
+      ? `Hello,\n\nThank you for checking in to "${event.name}". Your attendance has been recorded and point rewards processed.\n\nBest regards,\nNOBE Administration`
+      : `Hello,\n\nYou missed the event "${event.name}" and do not have an approved absence on file.${event.is_mandatory ? " This may result in a strike." : ""}\n\nPlease submit an absence form if you have an excuse, or contact executive members.\n\nBest regards,\nNOBE Administration`;
 
     setEmailModal({
       isOpen: true,

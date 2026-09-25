@@ -220,10 +220,10 @@ export default function ReviewMemberStatsClient({
         // 4. Map past events to status log
         const attendanceHistory = pastEvents.map((evt) => {
             let status: "attended" | "excused" | "missed" = "missed";
-            if (attendedEventIds.has(evt.id)) {
-                status = "attended";
-            } else if (excusedEventIds.has(evt.id)) {
+            if (excusedEventIds.has(evt.id)) {
                 status = "excused";
+            } else if (attendedEventIds.has(evt.id)) {
+                status = "attended";
             }
             return {
                 event: evt,

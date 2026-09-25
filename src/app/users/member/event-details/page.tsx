@@ -139,6 +139,15 @@ function EventDetailsClient() {
 
   // Determine Attendance Status
   const statusInfo = useMemo(() => {
+    if (absence?.status?.toUpperCase() === "APPROVED") {
+      return {
+        label: "Excused Absence Approved",
+        color: "var(--accent-strong)",
+        background: "rgba(229,138,39,0.12)",
+        detail: "Excuse request reviewed and approved by admins."
+      };
+    }
+
     if (attendance) {
       return {
         label: "Checked In",
@@ -149,14 +158,6 @@ function EventDetailsClient() {
     }
     
     if (absence) {
-      if (absence.status?.toUpperCase() === "APPROVED") {
-        return {
-          label: "Excused Absence Approved",
-          color: "var(--accent-strong)",
-          background: "rgba(229,138,39,0.12)",
-          detail: "Excuse request reviewed and approved by admins."
-        };
-      }
       if (absence.status?.toUpperCase() === "DENIED") {
         return {
           label: "Excuse Request Denied",
@@ -279,7 +280,11 @@ function EventDetailsClient() {
           {/* Status block */}
           <div style={{ padding: "18px", background: statusInfo.background, border: `1px solid ${statusInfo.color}20`, borderRadius: "20px", display: "flex", flexDirection: "column", gap: "4px" }}>
             <span style={{ fontSize: "0.75rem", color: "var(--muted)", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.03em" }}>Your Attendance</span>
-            {attendance ? (
+            {absence?.status?.toUpperCase() === "APPROVED" ? (
+              <strong style={{ fontSize: "1.3rem", color: statusInfo.color, fontWeight: "800" }}>
+                ✓ Excused Absence Approved
+              </strong>
+            ) : attendance ? (
               <strong style={{ fontSize: "1.3rem", color: statusInfo.color, fontWeight: "800" }}>
                 ✓ Checked In
               </strong>
@@ -323,11 +328,13 @@ function EventDetailsClient() {
         </section>
 
         {/* Excuse request section */}
-        {event.is_mandatory && !attendance && (
+        {(!attendance || Boolean(absence)) && (
           <section className="panel" style={{ border: "1px solid rgba(229,138,39,0.25)", background: "rgba(255,251,247,0.75)", padding: "24px", borderRadius: "24px", display: "flex", flexDirection: "column", gap: "8px" }}>
             <h2 style={{ fontSize: "1.1rem", fontWeight: "800", margin: 0, color: "var(--accent-strong)" }}>Can't Attend?</h2>
             <p style={{ margin: 0, fontSize: "0.88rem", color: "var(--foreground)", lineHeight: "1.5" }}>
-              This is a mandatory event. If you have a schedule clash (exam, interview, or emergency), you must submit a formal excuse request.
+              {event.is_mandatory
+                ? "This is a mandatory event. If you have a schedule clash (exam, interview, or emergency), you must submit a formal excuse request."
+                : "If you have a schedule clash (exam, interview, or emergency) and cannot attend this event, you can submit an excused absence request."}
             </p>
             <div style={{ marginTop: "12px" }}>
               {absence ? (

@@ -283,11 +283,163 @@ export async function deactivateMember(memberId: number) {
 }
 
 export async function updateAbsenceStatus(absenceId: string, status: "APPROVED" | "REJECTED") {
-    const supabase = await createClient();
+    const supabaseAdmin = createAdminClient();
 
-    const { error } = await supabase
+    const { data: absence, error: fetchError } = await supabaseAdmin
         .from("excused_absences")
-        .update({ status })
+        .select("id, user_id, event_id, status")
+        .eq("id", absenceId)
+        .maybeSingle();
+
+    if (fetchError || !absence) {
+        throw new Error(fetchError?.message || "Absence request not found");
+    }
+
+    let eventData: {
+        id: string;
+        points: number | null;
+        event_type: string | null;
+        is_mandatory: boolean | null;
+    } | null = null;
+
+    if (absence.event_id) {
+        const { data } = await supabaseAdmin
+            .from("events")
+            .select("id, points, event_type, is_mandatory")
+            .eq("id", absence.event_id)
+            .maybeSingle();
+        eventData = data;
+    }
+
+    if (status === "APPROVED" && absence.event_id && absence.user_id) {
+        const { data: existingAttendance } = await supabaseAdmin
+            .from("attendance")
+            .select("id")
+            .eq("user_id", absence.user_id)
+            .eq("event_id", absence.event_id)
+            .maybeSingle();
+
+        const eventPoints = eventData?.points ?? 0;
+        const eventType = eventData?.event_type ?? null;
+
+        if (!existingAttendance) {
+            await supabaseAdmin
+                .from("attendance")
+                .insert({
+                    user_id: absence.user_id,
+                    event_id: absence.event_id,
+                    timestamp: new Date().toISOString(),
+                    points_awarded: eventPoints,
+                    point_type: eventType,
+                });
+
+            if (eventPoints > 0 && eventType) {
+                const { data: profile } = await supabaseAdmin
+                    .from("People")
+                    .select("professional_points, service_points, social_points")
+                    .eq("auth_id", absence.user_id)
+                    .maybeSingle();
+
+                if (profile) {
+                    const updates: Record<string, number> = {};
+                    const normType = eventType.toUpperCase();
+
+                    if (normType.includes("PROF")) {
+                        updates.professional_points = (profile.professional_points ?? 0) + eventPoints;
+                    } else if (normType.includes("SERV")) {
+                        updates.service_points = (profile.service_points ?? 0) + eventPoints;
+                    } else if (normType.includes("SOCI")) {
+                        updates.social_points = (profile.social_points ?? 0) + eventPoints;
+                    }
+
+                    if (Object.keys(updates).length > 0) {
+                        await supabaseAdmin
+                            .from("People")
+                            .update(updates)
+                            .eq("auth_id", absence.user_id);
+                    }
+                }
+            }
+        }
+
+        // If a strike was generated for this missed mandatory event, remove it and decrement People.strikes
+        const { data: existingStrikes } = await supabaseAdmin
+            .from("strikes")
+            .select("id")
+            .eq("user_id", absence.user_id)
+            .eq("event_id", absence.event_id)
+            .eq("status", "ACTIVE");
+
+        if (existingStrikes && existingStrikes.length > 0) {
+            await supabaseAdmin
+                .from("strikes")
+                .delete()
+                .eq("user_id", absence.user_id)
+                .eq("event_id", absence.event_id);
+
+            const { data: person } = await supabaseAdmin
+                .from("People")
+                .select("strikes")
+                .eq("auth_id", absence.user_id)
+                .maybeSingle();
+
+            if (person && typeof person.strikes === "number" && person.strikes > 0) {
+                await supabaseAdmin
+                    .from("People")
+                    .update({ strikes: Math.max(0, person.strikes - existingStrikes.length) })
+                    .eq("auth_id", absence.user_id);
+            }
+        }
+    } else if (status === "REJECTED" && absence.status?.toUpperCase() === "APPROVED" && absence.event_id && absence.user_id) {
+        const { data: existingAttendance } = await supabaseAdmin
+            .from("attendance")
+            .select("id, points_awarded, point_type")
+            .eq("user_id", absence.user_id)
+            .eq("event_id", absence.event_id)
+            .maybeSingle();
+
+        if (existingAttendance) {
+            await supabaseAdmin
+                .from("attendance")
+                .delete()
+                .eq("id", existingAttendance.id);
+
+            const pointsToDeduct = existingAttendance.points_awarded ?? (eventData?.points ?? 0);
+            const eventType = existingAttendance.point_type ?? eventData?.event_type;
+
+            if (pointsToDeduct > 0 && eventType) {
+                const { data: profile } = await supabaseAdmin
+                    .from("People")
+                    .select("professional_points, service_points, social_points")
+                    .eq("auth_id", absence.user_id)
+                    .maybeSingle();
+
+                if (profile) {
+                    const updates: Record<string, number> = {};
+                    const normType = eventType.toUpperCase();
+
+                    if (normType.includes("PROF")) {
+                        updates.professional_points = Math.max(0, (profile.professional_points ?? 0) - pointsToDeduct);
+                    } else if (normType.includes("SERV")) {
+                        updates.service_points = Math.max(0, (profile.service_points ?? 0) - pointsToDeduct);
+                    } else if (normType.includes("SOCI")) {
+                        updates.social_points = Math.max(0, (profile.social_points ?? 0) - pointsToDeduct);
+                    }
+
+                    if (Object.keys(updates).length > 0) {
+                        await supabaseAdmin
+                            .from("People")
+                            .update(updates)
+                            .eq("auth_id", absence.user_id);
+                    }
+                }
+            }
+        }
+    }
+
+    const { error } = await supabaseAdmin
+        .from("excused_absences")
+        .update({ status, reviewed_at: new Date().toISOString() })
         .eq("id", absenceId);
 
     if (error) {
@@ -295,6 +447,7 @@ export async function updateAbsenceStatus(absenceId: string, status: "APPROVED" 
     }
 
     revalidatePath("/users/admin/reviewMemberStats");
+    revalidatePath("/users/admin");
 }
 
 export async function editMemberDetails(

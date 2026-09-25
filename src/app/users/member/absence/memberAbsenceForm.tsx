@@ -195,8 +195,8 @@ export default function AbsencePage() {
                     },
                     body: JSON.stringify({
                         to: process.env.NEXT_PUBLIC_ADMIN_NOTIFICATION_EMAIL ?? '',
-                        subject: 'New Absence Form Submission',
-                        message: `An absence form has been submitted.\n\nEvent Missed: ${selectedEvent?.name ?? 'Unknown'}\n\nReason: ${formData.reason}`,
+                        subject: `New Absence Form Submission - ${selectedEvent?.name ?? 'Event'}`,
+                        message: `An absence form has been submitted.\n\nEvent Missed: ${selectedEvent?.name ?? 'Unknown'} (${selectedEvent?.is_mandatory ? 'Mandatory' : 'Optional'})\n\nReason: ${formData.reason}`,
                     }),
                 });
             } catch (emailError) {
@@ -269,17 +269,16 @@ export default function AbsencePage() {
                                     <option value="">
                                         {eventsLoading
                                             ? 'Loading events...'
-                                            : events.filter((e) => Boolean(e.is_mandatory)).length === 0
-                                            ? 'No mandatory events available'
-                                            : 'Select a mandatory event'}
+                                            : events.length === 0
+                                            ? 'No events available'
+                                            : 'Select an event'}
                                     </option>
 
                                     {(() => {
-                                        const mandatoryEvents = events.filter((event) => Boolean(event.is_mandatory));
                                         const now = Date.now();
                                         const twentyFourHoursFromNow = now + 24 * 60 * 60 * 1000;
 
-                                        return mandatoryEvents.map((event) => {
+                                        return events.map((event) => {
                                             const eventTime = new Date(event.date).getTime();
                                             const isTooLate = eventTime <= twentyFourHoursFromNow;
                                             return (
@@ -288,7 +287,7 @@ export default function AbsencePage() {
                                                     value={event.id}
                                                     disabled={isTooLate}
                                                 >
-                                                    {event.name} — {new Date(event.date).toLocaleDateString('en-US', {
+                                                    {event.name} {event.is_mandatory ? '(Mandatory)' : '(Optional)'} — {new Date(event.date).toLocaleDateString('en-US', {
                                                         month: 'short',
                                                         day: 'numeric',
                                                         year: 'numeric',
@@ -430,7 +429,7 @@ export default function AbsencePage() {
 
                                         {absence.event_id && eventsMap[absence.event_id] && (
                                             <p className="field-label" style={{ marginBottom: '8px' }}>
-                                                {eventsMap[absence.event_id].name} —{' '}
+                                                {eventsMap[absence.event_id].name} {eventsMap[absence.event_id].is_mandatory ? '(Mandatory)' : '(Optional)'} —{' '}
                                                 {new Date(eventsMap[absence.event_id].date).toLocaleDateString('en-US', {
                                                     month: 'short',
                                                     day: 'numeric',
