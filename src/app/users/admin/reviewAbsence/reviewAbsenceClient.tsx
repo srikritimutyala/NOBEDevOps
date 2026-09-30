@@ -249,6 +249,11 @@ export default function ReviewAbsenceClient({ items }: Props) {
                         </span>
                       )}
                     </div>
+                    {item.eventDate && (
+                      <p className="text-xs text-slate-500 font-medium">
+                        Event date: {formatTimestamp(item.eventDate)}
+                      </p>
+                    )}
                     <p className="text-sm opacity-80">
                       Submitted {formatTimestamp(item.submittedAt)}
                     </p>
@@ -361,6 +366,11 @@ export default function ReviewAbsenceClient({ items }: Props) {
                     </span>
                   )}
                 </div>
+                {item.eventDate && (
+                  <p className="text-xs text-slate-500 font-medium">
+                    Event date: {formatTimestamp(item.eventDate)}
+                  </p>
+                )}
                 <p className="text-sm opacity-80">
                   Submitted {formatTimestamp(item.submittedAt)}
                 </p>
@@ -560,13 +570,22 @@ function formatTimestamp(value: string | null) {
     return "N/A";
   }
 
-  const date = new Date(value);
+  // Ensure UTC indicator if no timezone offset is present (handles Postgres timestamp without time zone)
+  const cleanValue =
+    value.includes(" ") && !value.includes("T") ? value.replace(" ", "T") : value;
+  const normalizedValue =
+    cleanValue.endsWith("Z") || cleanValue.includes("+") || /-\d{2}:\d{2}$/.test(cleanValue)
+      ? cleanValue
+      : `${cleanValue}Z`;
+
+  const date = new Date(normalizedValue);
 
   if (Number.isNaN(date.getTime())) {
     return value;
   }
 
   return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Chicago",
     month: "short",
     day: "numeric",
     year: "numeric",

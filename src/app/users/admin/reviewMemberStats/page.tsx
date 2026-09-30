@@ -13,11 +13,11 @@ import ReviewMemberStatsClient, {
 export default async function ReviewMemberStats() {
     const supabase = await createClient();
 
-    const [membersRes, eventsRes, attendanceRes, absencesRes, strikesRes, settingsRes, pointRequirements] = await Promise.all([
+    const [initialMembersRes, eventsRes, attendanceRes, absencesRes, strikesRes, settingsRes, pointRequirements] = await Promise.all([
         supabase
             .from("People")
             .select(
-                "id, name, first_name, last_name, role, auth_id, illinois_email, strikes, year, college, major, committee, social_points, professional_points, service_points, created_at, gcal_refresh_token, is_PM"
+                "id, name, first_name, last_name, role, auth_id, illinois_email, strikes, year, college, major, committee, social_points, professional_points, service_points, created_at, gcal_refresh_token, is_PM, is_new_member"
             )
             .order("name", { ascending: true }),
         supabase
@@ -39,6 +39,16 @@ export default async function ReviewMemberStats() {
             .select("key, value"),
         getPointRequirements(),
     ]);
+
+    let membersRes: { data: any; error: any } = initialMembersRes;
+    if (membersRes.error && membersRes.error.message?.includes("is_new_member")) {
+        membersRes = await supabase
+            .from("People")
+            .select(
+                "id, name, first_name, last_name, role, auth_id, illinois_email, strikes, year, college, major, committee, social_points, professional_points, service_points, created_at, gcal_refresh_token, is_PM"
+            )
+            .order("name", { ascending: true });
+    }
 
     const loadError =
         membersRes.error?.message ??

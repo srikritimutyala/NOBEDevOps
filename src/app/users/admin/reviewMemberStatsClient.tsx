@@ -13,6 +13,7 @@ import {
     updateAbsenceStatus,
     editMemberDetails,
     updateMemberIsPM,
+    updateMemberIsNewMember,
 } from "./reviewMemberStats/actions";
 
 export type MemberRecord = {
@@ -34,6 +35,7 @@ export type MemberRecord = {
     created_at: string | null;
     gcal_refresh_token?: string | null;
     is_PM?: boolean | null;
+    is_new_member?: boolean | null;
 };
 
 export type EventRecord = {
@@ -126,6 +128,7 @@ export default function ReviewMemberStatsClient({
         committee: "",
         role: "MEMBER",
         is_PM: false,
+        is_new_member: false,
     });
 
     const filteredMembers = useMemo(() => {
@@ -134,7 +137,14 @@ export default function ReviewMemberStatsClient({
         return members.filter((member) => {
             const name = member.name?.toLowerCase() ?? "";
             const email = member.illinois_email?.toLowerCase() ?? "";
-            return name.includes(query) || email.includes(query);
+            const isPM = member.is_PM ? "pm" : "";
+            const isNM = member.is_new_member ? "new member" : "";
+            return (
+                name.includes(query) ||
+                email.includes(query) ||
+                (isPM && query === "pm") ||
+                (isNM && (query === "new member" || query === "nm"))
+            );
         });
     }, [members, search]);
 
@@ -170,6 +180,7 @@ export default function ReviewMemberStatsClient({
                 committee: selectedMember.committee || "",
                 role: selectedMember.role?.toUpperCase() === "ADMIN" ? "ADMIN" : "MEMBER",
                 is_PM: Boolean(selectedMember.is_PM),
+                is_new_member: Boolean(selectedMember.is_new_member),
             });
         }
     }, [selectedMember, systemSettings]);
@@ -346,6 +357,18 @@ export default function ReviewMemberStatsClient({
         });
     }
 
+    function handleToggleNewMember(is_new_member: boolean) {
+        if (!selectedMember) return;
+        setActionError(null);
+        startTransition(async () => {
+            try {
+                await updateMemberIsNewMember(selectedMember.id, is_new_member);
+            } catch (err) {
+                setActionError(err instanceof Error ? err.message : "Failed to update new member status.");
+            }
+        });
+    }
+
     function handleUpdatePoints(category: "professional" | "social" | "service", amount: number) {
         if (!selectedMember) return;
         setActionError(null);
@@ -489,7 +512,7 @@ export default function ReviewMemberStatsClient({
     }
 
     function handleDownloadRosterCsv() {
-        const headers = ["First Name", "Last Name", "netid", "year", "major", "committee", "College", "PM"];
+        const headers = ["First Name", "Last Name", "netid", "year", "major", "committee", "College", "PM", "New Member"];
 
         const rows = members.map((m) => {
             let firstName = m.first_name || "";
@@ -509,6 +532,7 @@ export default function ReviewMemberStatsClient({
             const committee = m.committee || "";
             const college = m.college || "";
             const isPM = m.is_PM ? "Yes" : "No";
+            const isNewMember = m.is_new_member ? "Yes" : "No";
 
             return [
                 escapeCsvValue(firstName),
@@ -519,6 +543,7 @@ export default function ReviewMemberStatsClient({
                 escapeCsvValue(committee),
                 escapeCsvValue(college),
                 escapeCsvValue(isPM),
+                escapeCsvValue(isNewMember),
             ].join(",");
         });
 
@@ -641,6 +666,11 @@ export default function ReviewMemberStatsClient({
                                                             PM
                                                         </span>
                                                     )}
+                                                    {m.is_new_member && (
+                                                        <span className="text-[9px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded-full bg-teal-100 text-teal-800 border border-teal-200">
+                                                            New Member
+                                                        </span>
+                                                    )}
                                                     <span className={`text-[9px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded-full ${
                                                         m.role?.toUpperCase() === "ADMIN"
                                                             ? "bg-amber-100 text-amber-800 border border-amber-200"
@@ -690,6 +720,11 @@ export default function ReviewMemberStatsClient({
                                                     {selectedMember.is_PM && (
                                                         <span className="px-2 py-0.5 rounded-full text-[9px] uppercase tracking-wider font-extrabold bg-purple-100 text-purple-800 border border-purple-200">
                                                             PM
+                                                        </span>
+                                                    )}
+                                                    {selectedMember.is_new_member && (
+                                                        <span className="px-2 py-0.5 rounded-full text-[9px] uppercase tracking-wider font-extrabold bg-teal-100 text-teal-800 border border-teal-200">
+                                                            New Member
                                                         </span>
                                                     )}
                                                 </div>
@@ -1117,7 +1152,7 @@ export default function ReviewMemberStatsClient({
                                                                 <div className="flex justify-between items-start">
                                                                     <div>
                                                                         <h5 className="font-bold text-slate-800 text-xs">{eventName}</h5>
-                                                                        <p className="text-[10px] text-slate-400 font-medium">Submitted {new Date(ab.submitted_at || "").toLocaleDateString("en-US", { month: "short", day: "numeric" })}</p>
+                                                                        <p className="text-[10px] text-slate-400 font-medium">Submitted {formatAbsenceDate(ab.submitted_at)}</p>
                                                                     </div>
                                                                     <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider ${
                                                                         isApproved
@@ -1208,7 +1243,7 @@ export default function ReviewMemberStatsClient({
                                                                                 -1 Service Point
                                                                             </button>
 
-                                                                            {/* Role, PM, Edit Profile, Deactivate, Email */}
+                                                                            {/* Role, PM, New Member, Edit Profile, Deactivate, Email */}
                                                                             <button
                                                                                 type="button"
                                                                                 onClick={() => handleTogglePM(!selectedMember.is_PM)}
@@ -1220,6 +1255,19 @@ export default function ReviewMemberStatsClient({
                                                                                 }`}
                                                                             >
                                                                                 {selectedMember.is_PM ? "Toggle PM (Remove PM)" : "Toggle PM (Make PM)"}
+                                                                            </button>
+
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => handleToggleNewMember(!selectedMember.is_new_member)}
+                                                                                disabled={isPending}
+                                                                                className={`px-3 py-2 border rounded-xl text-left text-xs font-bold transition-all cursor-pointer ${
+                                                                                    selectedMember.is_new_member
+                                                                                        ? "bg-teal-50/90 hover:bg-teal-100 text-teal-900 border-teal-300"
+                                                                                        : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200/50"
+                                                                                }`}
+                                                                            >
+                                                                                {selectedMember.is_new_member ? "Toggle New Member (Remove NM)" : "Toggle New Member (Make NM)"}
                                                                             </button>
 
                                                                             <button
@@ -1386,6 +1434,22 @@ export default function ReviewMemberStatsClient({
                                 </label>
                             </div>
 
+                            <div className="flex items-start gap-2.5 pt-2 pb-1">
+                                <input
+                                    type="checkbox"
+                                    id="edit_is_new_member"
+                                    checked={editForm.is_new_member}
+                                    onChange={(e) => setEditForm({ ...editForm, is_new_member: e.target.checked })}
+                                    className="mt-0.5 w-4 h-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
+                                />
+                                <label htmlFor="edit_is_new_member" className="text-xs font-bold text-slate-700 cursor-pointer select-none">
+                                    New Member
+                                    <span className="block text-[11px] text-slate-400 font-normal">
+                                        Mark as new member cohort inductee.
+                                    </span>
+                                </label>
+                            </div>
+
                             <div className="flex gap-3 justify-end pt-3 border-t border-slate-100 mt-4">
                                 <button
                                     type="button"
@@ -1431,4 +1495,13 @@ function formatMemberYear(year: string | null | undefined): string {
         return `'${trimmed}`;
     }
     return trimmed;
+}
+
+function formatAbsenceDate(value: string | null | undefined): string {
+    if (!value) return "N/A";
+    const clean = value.includes(" ") && !value.includes("T") ? value.replace(" ", "T") : value;
+    const normalized = clean.endsWith("Z") || clean.includes("+") || /-\d{2}:\d{2}$/.test(clean) ? clean : `${clean}Z`;
+    const d = new Date(normalized);
+    if (Number.isNaN(d.getTime())) return value;
+    return d.toLocaleDateString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric" });
 }

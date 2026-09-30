@@ -322,7 +322,9 @@ export default function AdminDashboard({
 
   // Format activity feed timestamps
   function formatRelativeActivity(timestamp: string) {
-    const actTime = new Date(timestamp).getTime();
+    const clean = timestamp.includes(" ") && !timestamp.includes("T") ? timestamp.replace(" ", "T") : timestamp;
+    const normalized = clean.endsWith("Z") || clean.includes("+") || /-\d{2}:\d{2}$/.test(clean) ? clean : `${clean}Z`;
+    const actTime = new Date(normalized).getTime();
     const diff = Date.now() - actTime;
     const mins = Math.floor(diff / 60000);
     if (mins < 1) return "Just now";

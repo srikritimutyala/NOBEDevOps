@@ -461,6 +461,7 @@ export async function editMemberDetails(
         committee: string;
         role?: string;
         is_PM?: boolean;
+        is_new_member?: boolean;
     }
 ) {
     const supabase = await createClient();
@@ -474,6 +475,7 @@ export async function editMemberDetails(
         committee: string;
         role?: string;
         is_PM?: boolean;
+        is_new_member?: boolean;
     } = {
         name: payload.name.trim(),
         illinois_email: payload.illinois_email.trim(),
@@ -491,10 +493,24 @@ export async function editMemberDetails(
         updateData.is_PM = payload.is_PM;
     }
 
-    const { error } = await supabase
+    if (typeof payload.is_new_member === "boolean") {
+        updateData.is_new_member = payload.is_new_member;
+    }
+
+    let { error } = await supabase
         .from("People")
         .update(updateData)
         .eq("id", memberId);
+
+    // If the is_new_member column does not exist yet in Supabase, retry without it
+    if (error && error.message?.includes("is_new_member")) {
+        delete updateData.is_new_member;
+        const retry = await supabase
+            .from("People")
+            .update(updateData)
+            .eq("id", memberId);
+        error = retry.error;
+    }
 
     if (error) {
         throw new Error(error.message);
@@ -513,6 +529,27 @@ export async function updateMemberIsPM(memberId: number, is_PM: boolean) {
         .eq("id", memberId);
 
     if (error) {
+        throw new Error(error.message);
+    }
+
+    revalidatePath("/users/admin/reviewMemberStats");
+    revalidatePath("/users/admin");
+}
+
+export async function updateMemberIsNewMember(memberId: number, is_new_member: boolean) {
+    const supabaseAdmin = createAdminClient();
+
+    const { error } = await supabaseAdmin
+        .from("People")
+        .update({ is_new_member })
+        .eq("id", memberId);
+
+    if (error) {
+        if (error.message?.includes("is_new_member")) {
+            throw new Error(
+                "The 'is_new_member' column does not exist in the database yet. Please run this SQL in Supabase: ALTER TABLE \"People\" ADD COLUMN IF NOT EXISTS is_new_member BOOLEAN DEFAULT false;"
+            );
+        }
         throw new Error(error.message);
     }
 

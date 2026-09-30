@@ -14,6 +14,8 @@ type MemberRecord = {
   role: string | null;
   auth_id: string | null;
   illinois_email: string | null;
+  is_PM?: boolean | null;
+  is_new_member?: boolean | null;
 };
 
 type EventRecord = {
@@ -54,6 +56,7 @@ function formatDate(dateString: string) {
   const date = new Date(dateString);
   if (Number.isNaN(date.getTime())) return dateString;
   return date.toLocaleString("en-US", {
+    timeZone: "America/Chicago",
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -63,9 +66,12 @@ function formatDate(dateString: string) {
 }
 
 function formatTimeOnly(dateString: string) {
-  const date = new Date(dateString);
+  const clean = dateString.includes(" ") && !dateString.includes("T") ? dateString.replace(" ", "T") : dateString;
+  const normalized = clean.endsWith("Z") || clean.includes("+") || /-\d{2}:\d{2}$/.test(clean) ? clean : `${clean}Z`;
+  const date = new Date(normalized);
   if (Number.isNaN(date.getTime())) return "";
   return date.toLocaleTimeString("en-US", {
+    timeZone: "America/Chicago",
     hour: "numeric",
     minute: "2-digit"
   });
@@ -101,7 +107,7 @@ function EventReviewClient() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [searchMember, setSearchMember] = useState("");
-  const [tabFilter, setTabFilter] = useState<"ALL" | "PRESENT" | "EXCUSED" | "MISSING">("ALL");
+  const [tabFilter, setTabFilter] = useState<"ALL" | "PRESENT" | "EXCUSED" | "MISSING" | "NEW_MEMBERS">("ALL");
 
   // Email modal state
   const [emailModal, setEmailModal] = useState<{ isOpen: boolean; type: "ATTENDEES" | "MISSING"; subject: string; body: string } | null>(null);
@@ -112,12 +118,20 @@ function EventReviewClient() {
     if (!eventId) return;
     setLoading(true);
     try {
-      const [eventRes, membersRes, attendanceRes, absencesRes] = await Promise.all([
+      const [eventRes, initialMembersRes, attendanceRes, absencesRes] = await Promise.all([
         supabase.from("events").select("*").eq("id", eventId).single(),
-        supabase.from("People").select("id, name, role, auth_id, illinois_email").order("name", { ascending: true }),
+        supabase.from("People").select("id, name, role, auth_id, illinois_email, is_PM, is_new_member").order("name", { ascending: true }),
         supabase.from("attendance").select("*").eq("event_id", eventId),
         supabase.from("excused_absences").select("*").eq("event_id", eventId),
       ]);
+
+      let membersRes: { data: any; error: any } = initialMembersRes;
+      if (membersRes.error && membersRes.error.message?.includes("is_new_member")) {
+        membersRes = await supabase
+          .from("People")
+          .select("id, name, role, auth_id, illinois_email, is_PM")
+          .order("name", { ascending: true });
+      }
 
       if (eventRes.error) throw eventRes.error;
       setEvent(eventRes.data as EventRecord);
@@ -295,7 +309,11 @@ function EventReviewClient() {
     const pendingExcuse = Object.values(memberStatuses).filter(m => m.status === "PENDING_EXCUSE").length;
     const rate = total > 0 ? Math.round((checkedIn / total) * 100) : 0;
     
-    return { total, checkedIn, missing, pendingExcuse, rate };
+    const newMembersTotal = members.filter(m => Boolean(m.is_new_member)).length;
+    const newMembersPresent = members.filter(m => Boolean(m.is_new_member) && memberStatuses[m.auth_id || ""]?.status === "PRESENT").length;
+    const newMembersRate = newMembersTotal > 0 ? Math.round((newMembersPresent / newMembersTotal) * 100) : 0;
+
+    return { total, checkedIn, missing, pendingExcuse, rate, newMembersTotal, newMembersPresent, newMembersRate };
   }, [members, memberStatuses]);
 
   // Filtered members list
@@ -305,14 +323,21 @@ function EventReviewClient() {
       if (!info) return false;
       
       // Search check
-      const matchesSearch = m.name?.toLowerCase().includes(searchMember.toLowerCase().trim()) ||
-                            m.illinois_email?.toLowerCase().includes(searchMember.toLowerCase().trim());
+      const query = searchMember.toLowerCase().trim();
+      const matchesSearch =
+        !query ||
+        (m.name?.toLowerCase().includes(query) ?? false) ||
+        (m.illinois_email?.toLowerCase().includes(query) ?? false) ||
+        (m.role?.toLowerCase().includes(query) ?? false) ||
+        (Boolean(m.is_PM) && ("pm".includes(query) || "project manager".includes(query))) ||
+        (Boolean(m.is_new_member) && ("new member".includes(query) || query === "new" || query === "nm"));
       if (!matchesSearch) return false;
       
       // Tab filter check
       if (tabFilter === "PRESENT" && info.status !== "PRESENT") return false;
       if (tabFilter === "EXCUSED" && info.status !== "EXCUSED" && info.status !== "PENDING_EXCUSE") return false;
       if (tabFilter === "MISSING" && info.status !== "MISSING") return false;
+      if (tabFilter === "NEW_MEMBERS" && !m.is_new_member) return false;
       
       return true;
     });
@@ -327,6 +352,9 @@ function EventReviewClient() {
         return {
           id: abs.id,
           name: member?.name || "Unknown Member",
+          role: member?.role,
+          is_PM: member?.is_PM,
+          is_new_member: member?.is_new_member,
           reason: abs.reason || "No reason provided",
         };
       });
@@ -370,13 +398,15 @@ function EventReviewClient() {
   // CSV Exporter client-side
   function handleExportCsv() {
     if (!event) return;
-    const headers = ["Name", "Email", "Role", "Status", "Check-in Time"];
+    const headers = ["Name", "Email", "Role", "PM", "New Member", "Status", "Check-in Time"];
     const rows = members.map((m) => {
       const info = memberStatuses[m.auth_id || ""];
       return [
         m.name || "N/A",
         m.illinois_email || "N/A",
         m.role || "N/A",
+        m.is_PM ? "Yes" : "No",
+        m.is_new_member ? "Yes" : "No",
         info?.status || "MISSING",
         info?.time || "N/A"
       ];
@@ -573,7 +603,7 @@ function EventReviewClient() {
           </div>
 
           {/* Section 1 — Quick Stats */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "16px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px" }}>
             {/* Card 1: Attendance Present */}
             <div className="panel" style={{ padding: "20px", borderRadius: "20px", background: "var(--surface-strong)", border: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: "4px" }}>
               <span style={{ fontSize: "0.78rem", color: "var(--muted)", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.03em" }}>Attendance</span>
@@ -588,14 +618,21 @@ function EventReviewClient() {
               <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>{stats.rate}% Attendance Rate</span>
             </div>
 
-            {/* Card 3: Points Awarded */}
+            {/* Card 3: New Members Attendance */}
+            <div className="panel" style={{ padding: "20px", borderRadius: "20px", background: "var(--surface-strong)", border: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: "4px" }}>
+              <span style={{ fontSize: "0.78rem", color: "#0f766e", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.03em" }}>New Members</span>
+              <strong style={{ fontSize: "1.7rem", fontWeight: "800", color: "#0f766e" }}>{stats.newMembersPresent} / {stats.newMembersTotal} Checked In</strong>
+              <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>{stats.newMembersRate}% New Member Attendance</span>
+            </div>
+
+            {/* Card 4: Points Awarded */}
             <div className="panel" style={{ padding: "20px", borderRadius: "20px", background: "var(--surface-strong)", border: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: "4px" }}>
               <span style={{ fontSize: "0.78rem", color: "var(--muted)", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.03em" }}>Points Awarded</span>
               <strong style={{ fontSize: "1.7rem", fontWeight: "800", color: "var(--accent-strong)" }}>{event.points ?? 0} {event.event_type ? event.event_type.split("_")[0].toLowerCase() : "event"}</strong>
               <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>Points per member</span>
             </div>
 
-            {/* Card 4: Absence Requests */}
+            {/* Card 5: Absence Requests */}
             <div className="panel" style={{ padding: "20px", borderRadius: "20px", background: "var(--surface-strong)", border: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: "4px" }}>
               <span style={{ fontSize: "0.78rem", color: "var(--muted)", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.03em" }}>Absence Requests</span>
               <strong style={{ fontSize: "1.7rem", fontWeight: "800", color: "#e65100" }}>{stats.pendingExcuse} Pending</strong>
@@ -612,7 +649,7 @@ function EventReviewClient() {
             <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "16px" }}>
               <input
                 type="text"
-                placeholder="Search member..."
+                placeholder="Search member by name, email, role, PM, or New Member..."
                 value={searchMember}
                 onChange={(e) => setSearchMember(e.target.value)}
                 className="field-input"
@@ -635,6 +672,14 @@ function EventReviewClient() {
                   style={{ fontSize: "0.78rem", minHeight: "30px", padding: "4px 12px", borderRadius: "20px", background: tabFilter === "PRESENT" ? "rgba(63,122,83,0.08)" : "transparent", color: tabFilter === "PRESENT" ? "var(--success)" : "var(--foreground)", borderColor: tabFilter === "PRESENT" ? "var(--success)" : "var(--border)" }}
                 >
                   Present ({stats.checkedIn})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTabFilter("NEW_MEMBERS")}
+                  className="btn-secondary"
+                  style={{ fontSize: "0.78rem", minHeight: "30px", padding: "4px 12px", borderRadius: "20px", background: tabFilter === "NEW_MEMBERS" ? "#ccfbf1" : "transparent", color: tabFilter === "NEW_MEMBERS" ? "#115e59" : "var(--foreground)", borderColor: tabFilter === "NEW_MEMBERS" ? "#99f6e4" : "var(--border)", fontWeight: tabFilter === "NEW_MEMBERS" ? "700" : "500" }}
+                >
+                  New Members ({stats.newMembersTotal})
                 </button>
                 <button
                   type="button"
@@ -701,7 +746,24 @@ function EventReviewClient() {
                       }}
                     >
                       <div>
-                        <div style={{ fontWeight: "700", color: "#222", fontSize: "0.95rem" }}>{member.name || "Unnamed"}</div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                          <span style={{ fontWeight: "700", color: "#222", fontSize: "0.95rem" }}>{member.name || "Unnamed"}</span>
+                          {member.role?.toUpperCase() === "ADMIN" && (
+                            <span style={{ fontSize: "0.68rem", padding: "2px 8px", borderRadius: "9999px", fontWeight: "800", background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                              Admin
+                            </span>
+                          )}
+                          {Boolean(member.is_PM) && (
+                            <span style={{ fontSize: "0.68rem", padding: "2px 8px", borderRadius: "9999px", fontWeight: "800", background: "#f3e8ff", color: "#6b21a8", border: "1px solid #e9d5ff", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                              PM
+                            </span>
+                          )}
+                          {Boolean(member.is_new_member) && (
+                            <span style={{ fontSize: "0.68rem", padding: "2px 8px", borderRadius: "9999px", fontWeight: "800", background: "#ccfbf1", color: "#115e59", border: "1px solid #99f6e4", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                              New Member
+                            </span>
+                          )}
+                        </div>
                         {info.status === "PRESENT" && info.time ? (
                           <div style={{ fontSize: "0.78rem", color: "var(--success)", fontWeight: "600", marginTop: "2px" }}>
                             {badgeText} · {info.time}
@@ -772,8 +834,25 @@ function EventReviewClient() {
                       gap: "10px"
                     }}
                   >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <strong style={{ fontSize: "0.95rem", color: "#111" }}>{req.name}</strong>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "6px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                        <strong style={{ fontSize: "0.95rem", color: "#111" }}>{req.name}</strong>
+                        {req.role?.toUpperCase() === "ADMIN" && (
+                          <span style={{ fontSize: "0.68rem", padding: "2px 8px", borderRadius: "9999px", fontWeight: "800", background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                            Admin
+                          </span>
+                        )}
+                        {Boolean(req.is_PM) && (
+                          <span style={{ fontSize: "0.68rem", padding: "2px 8px", borderRadius: "9999px", fontWeight: "800", background: "#f3e8ff", color: "#6b21a8", border: "1px solid #e9d5ff", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                            PM
+                          </span>
+                        )}
+                        {Boolean(req.is_new_member) && (
+                          <span style={{ fontSize: "0.68rem", padding: "2px 8px", borderRadius: "9999px", fontWeight: "800", background: "#ccfbf1", color: "#115e59", border: "1px solid #99f6e4", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                            New Member
+                          </span>
+                        )}
+                      </div>
                       <span style={{ fontSize: "0.75rem", padding: "3px 8px", background: "rgba(229,138,39,0.12)", color: "var(--accent-strong)", borderRadius: "6px", fontWeight: "700" }}>Awaiting Review</span>
                     </div>
                     <p style={{ fontSize: "0.88rem", color: "var(--foreground)", fontStyle: "italic", margin: 0, padding: "8px 12px", background: "white", borderRadius: "8px", border: "1px solid #eee" }}>

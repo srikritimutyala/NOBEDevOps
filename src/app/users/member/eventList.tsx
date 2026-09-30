@@ -97,6 +97,7 @@ interface MemberProfile {
   strikes: number | null;
   auth_id: string | null;
   is_PM?: boolean | null;
+  is_new_member?: boolean | null;
   role?: string | null;
 }
 
@@ -192,27 +193,45 @@ export default function EventList() {
       const supabase = createClient();
 
 
-      const { data, error: fetchError } = await supabase
+      let rawData: any = null;
+      let rawError: any = null;
+
+      const res = await supabase
         .from('People')
         .select(
-          'name, first_name, last_name, year, college, major, committee, social_points, professional_points, service_points, strikes, auth_id, is_PM, role'
+          'name, first_name, last_name, year, college, major, committee, social_points, professional_points, service_points, strikes, auth_id, is_PM, role, is_new_member'
         )
         .eq('auth_id', session.user.id)
         .single();
 
-      if (fetchError) {
-        setMemberError(fetchError.message);
+      rawData = res.data;
+      rawError = res.error;
+
+      if (rawError && rawError.message?.includes('is_new_member')) {
+        const retry = await supabase
+          .from('People')
+          .select(
+            'name, first_name, last_name, year, college, major, committee, social_points, professional_points, service_points, strikes, auth_id, is_PM, role'
+          )
+          .eq('auth_id', session.user.id)
+          .single();
+        rawData = retry.data;
+        rawError = retry.error;
+      }
+
+      if (rawError || !rawData) {
+        setMemberError(rawError?.message || "Failed to load member profile.");
         setMember(null);
         setStrikes([]);
       } else {
-        setMember(data as MemberProfile);
+        setMember(rawData as MemberProfile);
         setProfileForm({
-          first_name: data.first_name ?? '',
-          last_name: data.last_name ?? '',
-          year: data.year ?? '',
-          college: data.college ?? '',
-          major: data.major ?? '',
-          committee: data.committee ?? '',
+          first_name: rawData.first_name ?? '',
+          last_name: rawData.last_name ?? '',
+          year: rawData.year ?? '',
+          college: rawData.college ?? '',
+          major: rawData.major ?? '',
+          committee: rawData.committee ?? '',
         });
 
         try {
@@ -468,15 +487,26 @@ export default function EventList() {
                 <div className="stat-card">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <p className="stat-label">{isAdmin ? "Admin Account" : "Total points"}</p>
-                    {isAdmin ? (
-                      <span style={{ fontSize: '10px', background: 'rgba(147, 51, 234, 0.1)', color: '#7e22ce', padding: '2px 8px', borderRadius: '12px', fontWeight: 800 }}>
-                        OFFICER / EXEMPT
-                      </span>
-                    ) : isPM ? (
-                      <span style={{ fontSize: '10px', background: 'rgba(147, 51, 234, 0.1)', color: '#7e22ce', padding: '2px 8px', borderRadius: '12px', fontWeight: 700 }}>
-                        PM (4+4 Goal)
-                      </span>
-                    ) : null}
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      {isAdmin ? (
+                        <span style={{ fontSize: '10px', background: 'rgba(147, 51, 234, 0.1)', color: '#7e22ce', padding: '2px 8px', borderRadius: '12px', fontWeight: 800 }}>
+                          OFFICER / EXEMPT
+                        </span>
+                      ) : (
+                        <>
+                          {isPM && (
+                            <span style={{ fontSize: '10px', background: 'rgba(147, 51, 234, 0.1)', color: '#7e22ce', padding: '2px 8px', borderRadius: '12px', fontWeight: 700 }}>
+                              PM (4+4 Goal)
+                            </span>
+                          )}
+                          {member.is_new_member && (
+                            <span style={{ fontSize: '10px', background: 'rgba(13, 148, 136, 0.1)', color: '#0f766e', padding: '2px 8px', borderRadius: '12px', fontWeight: 700 }}>
+                              NEW MEMBER
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </div>
                   <p className="stat-value">
                     {totalPoints}{" "}

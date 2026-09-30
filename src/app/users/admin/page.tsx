@@ -23,6 +23,7 @@ type MemberRow = {
   year: string | null;
   college: string | null;
   is_PM?: boolean | null;
+  is_new_member?: boolean | null;
 };
 
 type EventRow = {
@@ -94,7 +95,7 @@ export default async function AdminPage() {
 
   // Fetch all dashboard data concurrently
   const [
-    membersRes,
+    initialMembersRes,
     eventsRes,
     attendanceRes,
     absencesRes,
@@ -105,7 +106,7 @@ export default async function AdminPage() {
     supabase
       .from("People")
       .select(
-        "id, name, first_name, last_name, auth_id, strikes, committee, major, social_points, professional_points, service_points, illinois_email, role, year, college, is_PM"
+        "id, name, first_name, last_name, auth_id, strikes, committee, major, social_points, professional_points, service_points, illinois_email, role, year, college, is_PM, is_new_member"
       ),
     supabase
       .from("events")
@@ -136,6 +137,15 @@ export default async function AdminPage() {
       .eq("key", "calendar_last_synced")
       .maybeSingle(),
   ]);
+
+  let membersRes = initialMembersRes;
+  if (membersRes.error && membersRes.error.message?.includes("is_new_member")) {
+    membersRes = await supabase
+      .from("People")
+      .select(
+        "id, name, first_name, last_name, auth_id, strikes, committee, major, social_points, professional_points, service_points, illinois_email, role, year, college, is_PM"
+      );
+  }
 
   const loadError =
     membersRes.error?.message ??
@@ -529,7 +539,7 @@ export default async function AdminPage() {
       a.email_sent === false &&
       a.email_error &&
       a.submitted_at &&
-      now - new Date(a.submitted_at).getTime() < 24 * 60 * 60 * 1000
+      now - new Date(a.submitted_at.endsWith("Z") || a.submitted_at.includes("+") ? a.submitted_at : `${a.submitted_at}Z`).getTime() < 24 * 60 * 60 * 1000
   ).length;
   const emailStatus = emailFailuresInLast24 > 0 ? "error" : "healthy";
 

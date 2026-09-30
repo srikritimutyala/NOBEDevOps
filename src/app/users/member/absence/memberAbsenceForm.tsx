@@ -23,6 +23,15 @@ interface Event {
 }
 
 
+function formatAbsenceDate(value: string | null | undefined): string {
+    if (!value) return 'N/A';
+    const clean = value.includes(' ') && !value.includes('T') ? value.replace(' ', 'T') : value;
+    const normalized = clean.endsWith('Z') || clean.includes('+') || /-\d{2}:\d{2}$/.test(clean) ? clean : `${clean}Z`;
+    const d = new Date(normalized);
+    if (Number.isNaN(d.getTime())) return value;
+    return d.toLocaleDateString('en-US', { timeZone: 'America/Chicago', month: 'short', day: 'numeric', year: 'numeric' });
+}
+
 export default function AbsencePage() {
     const supabase = createClient();
 
@@ -420,7 +429,7 @@ export default function AbsencePage() {
                                                 <p>
                                                     <strong>
                                                         {absence.submitted_at
-                                                            ? new Date(absence.submitted_at).toLocaleDateString()
+                                                            ? formatAbsenceDate(absence.submitted_at)
                                                             : 'N/A'}
                                                     </strong>
                                                 </p>
@@ -431,6 +440,7 @@ export default function AbsencePage() {
                                             <p className="field-label" style={{ marginBottom: '8px' }}>
                                                 {eventsMap[absence.event_id].name} {eventsMap[absence.event_id].is_mandatory ? '(Mandatory)' : '(Optional)'} —{' '}
                                                 {new Date(eventsMap[absence.event_id].date).toLocaleDateString('en-US', {
+                                                    timeZone: 'America/Chicago',
                                                     month: 'short',
                                                     day: 'numeric',
                                                     year: 'numeric',
@@ -444,7 +454,7 @@ export default function AbsencePage() {
 
                                         {absence.reviewed_at && (
                                             <p className="field-help" style={{ marginTop: '14px' }}>
-                                                Reviewed on {new Date(absence.reviewed_at).toLocaleDateString()}
+                                                Reviewed on {formatAbsenceDate(absence.reviewed_at)}
                                             </p>
                                         )}
                                     </div>
