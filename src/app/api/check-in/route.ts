@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/app/utils/supabase/server";
-import { getPointRequirements } from "@/app/utils/getPointRequirements";
+import { getPointRequirements, getRequirementsForMember } from "@/app/utils/getPointRequirements";
 
 function formatChicagoTime(value: string) {
   return new Date(value).toLocaleString("en-US", {
@@ -83,7 +83,10 @@ export async function POST(req: Request) {
         professional_points,
         service_points,
         social_points,
-        is_PM
+        is_PM,
+        role,
+        name,
+        first_name
       `)
       .eq("auth_id", user.id)
       .single();
@@ -110,10 +113,39 @@ export async function POST(req: Request) {
     }
 
     if (existingAttendance) {
-      return NextResponse.json(
-        { ok: false, message: "You have already checked in to this event." },
-        { status: 409 }
-      );
+      const goals = await getPointRequirements();
+      const isPM = Boolean(profile.is_PM);
+      const reqs = getRequirementsForMember(isPM, goals, profile.role);
+      const profPoints = profile.professional_points ?? 0;
+      const servPoints = profile.service_points ?? 0;
+      const socPoints = profile.social_points ?? 0;
+      const pooledPoints = servPoints + socPoints;
+      const totalPoints = profPoints + pooledPoints;
+
+      return NextResponse.json({
+        ok: true,
+        already_checked_in: true,
+        message: "You have already checked in to this event.",
+        event_name: event.name,
+        points_awarded: event.points,
+        point_type: event.event_type,
+        progress: {
+          ...profile,
+          is_PM: isPM,
+          role: profile.role,
+          isExempt: reqs.isExempt,
+          professional_points: profPoints,
+          service_points: servPoints,
+          social_points: socPoints,
+          pooled_points: pooledPoints,
+          total_points: totalPoints,
+          professional_goal: reqs.professional_goal,
+          service_social_goal: reqs.service_social_goal,
+          service_goal: reqs.service_goal,
+          social_goal: reqs.social_goal,
+          total_goal: reqs.total_goal,
+        },
+      });
     }
 
     const updates: Record<string, number> = {};
@@ -157,7 +189,10 @@ export async function POST(req: Request) {
           professional_points,
           service_points,
           social_points,
-          is_PM
+          is_PM,
+          role,
+          name,
+          first_name
         `)
         .single();
 
@@ -166,17 +201,18 @@ export async function POST(req: Request) {
       }
     }
 
-
     const goals = await getPointRequirements();
-    const isPM = Boolean(profile.is_PM);
-    const profGoal = isPM ? 4 : goals.professional_goal;
-    const serviceGoal = isPM ? 4 : goals.service_goal;
-    const socialGoal = isPM ? 4 : goals.social_goal;
-    const pooledGoal = isPM ? 4 : ((goals as any).service_social_goal ?? 5);
-    const totalGoal = isPM ? 8 : ((goals as any).total_goal ?? 10);
+    const isPM = Boolean(updatedProfile.is_PM);
+    const reqs = getRequirementsForMember(isPM, goals, updatedProfile.role);
+    const profPoints = updatedProfile.professional_points ?? 0;
+    const servPoints = updatedProfile.service_points ?? 0;
+    const socPoints = updatedProfile.social_points ?? 0;
+    const pooledPoints = servPoints + socPoints;
+    const totalPoints = profPoints + pooledPoints;
 
     return NextResponse.json({
       ok: true,
+      already_checked_in: false,
       message: `Checked in to ${event.name}!`,
       event_name: event.name,
       points_awarded: event.points,
@@ -184,11 +220,18 @@ export async function POST(req: Request) {
       progress: {
         ...updatedProfile,
         is_PM: isPM,
-        professional_goal: profGoal,
-        service_goal: serviceGoal,
-        social_goal: socialGoal,
-        service_social_goal: pooledGoal,
-        total_goal: totalGoal,
+        role: updatedProfile.role,
+        isExempt: reqs.isExempt,
+        professional_points: profPoints,
+        service_points: servPoints,
+        social_points: socPoints,
+        pooled_points: pooledPoints,
+        total_points: totalPoints,
+        professional_goal: reqs.professional_goal,
+        service_social_goal: reqs.service_social_goal,
+        service_goal: reqs.service_goal,
+        social_goal: reqs.social_goal,
+        total_goal: reqs.total_goal,
       },
     });
   } catch (error: any) {
