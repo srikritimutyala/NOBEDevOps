@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
     deleteMember,
     deleteStrike,
@@ -14,6 +15,7 @@ import {
     editMemberDetails,
     updateMemberIsPM,
     updateMemberIsNewMember,
+    refreshAllMemberPoints,
 } from "./reviewMemberStats/actions";
 
 export type MemberRecord = {
@@ -108,10 +110,13 @@ export default function ReviewMemberStatsClient({
     pointRequirements,
     loadError,
 }: ReviewMemberStatsClientProps) {
+    const router = useRouter();
     const [search, setSearch] = useState("");
     const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
     const [isPending, startTransition] = useTransition();
     const [actionError, setActionError] = useState<string | null>(null);
+    const [isRefreshingPoints, setIsRefreshingPoints] = useState(false);
+    const [refreshSuccessFeedback, setRefreshSuccessFeedback] = useState<string | null>(null);
     
     // Notes editing state
     const [noteText, setNoteText] = useState("");
@@ -198,6 +203,24 @@ export default function ReviewMemberStatsClient({
         if (!selectedMember?.auth_id) return [];
         return strikes.filter((s) => s.user_id === selectedMember.auth_id);
     }, [strikes, selectedMember]);
+
+    // Manual points given by admin (stored in SystemSettings)
+    const selectedManualPoints = useMemo(() => {
+        if (!selectedMember) return { professional: 0, social: 0, service: 0 };
+        const key = `manual_points_member_id_${selectedMember.id}`;
+        const setting = systemSettings.find((s) => s.key === key);
+        if (!setting?.value) return { professional: 0, social: 0, service: 0 };
+        try {
+            const parsed = JSON.parse(setting.value);
+            return {
+                professional: Number(parsed.professional) || 0,
+                social: Number(parsed.social) || 0,
+                service: Number(parsed.service) || 0,
+            };
+        } catch {
+            return { professional: 0, social: 0, service: 0 };
+        }
+    }, [selectedMember, systemSettings]);
 
     // Attendance stats and health indicators
     const memberDashboardData = useMemo(() => {
@@ -345,6 +368,26 @@ export default function ReviewMemberStatsClient({
     }, [selectedMember, events, attendance, absences, allMemberStrikes, pointRequirements, memberStrikes]);
 
     // Admin Action Handlers
+    function handleRefreshPoints() {
+        setActionError(null);
+        setRefreshSuccessFeedback(null);
+        setIsRefreshingPoints(true);
+        startTransition(async () => {
+            try {
+                const result = await refreshAllMemberPoints();
+                router.refresh();
+                setRefreshSuccessFeedback(
+                    `Points refreshed successfully! Aligned points with attendance breakdown for all members (${result.updatedCount} updated).`
+                );
+                setTimeout(() => setRefreshSuccessFeedback(null), 6000);
+            } catch (err) {
+                setActionError(err instanceof Error ? err.message : "Failed to refresh points.");
+            } finally {
+                setIsRefreshingPoints(false);
+            }
+        });
+    }
+
     function handleTogglePM(is_PM: boolean) {
         if (!selectedMember) return;
         setActionError(null);
@@ -577,11 +620,54 @@ export default function ReviewMemberStatsClient({
                         </div>
                     </div>
                     <div className="flex items-center gap-3">
+                        <button
+                            type="button"
+                            onClick={handleRefreshPoints}
+                            disabled={isRefreshingPoints || isPending}
+                            className="group relative inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-500 active:from-emerald-700 active:to-teal-700 text-white shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed border border-emerald-500/40"
+                            title="Recalculate and align points for all members based on attendance breakdown"
+                        >
+                            <span className="flex items-center justify-center w-5 h-5 rounded-lg bg-white/20 text-white shrink-0">
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    width="13"
+                                    height="13"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2.5"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    className={isRefreshingPoints ? "animate-spin" : "group-hover:rotate-180 transition-transform duration-500"}
+                                >
+                                    <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+                                </svg>
+                            </span>
+                            <span className="font-semibold text-xs tracking-tight normal-case text-white antialiased drop-shadow-2xs">
+                                {isRefreshingPoints ? "Refreshing Points..." : "Refresh Points"}
+                            </span>
+                        </button>
                         <Link href="/users/admin" className="btn-secondary" style={{ fontSize: "0.85rem", padding: "8px 16px", borderRadius: "12px" }}>
                             ← Back to Dashboard
                         </Link>
                     </div>
                 </header>
+
+                {refreshSuccessFeedback && (
+                    <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl text-sm font-semibold flex items-center justify-between shadow-xs">
+                        <div className="flex items-center gap-2">
+                            <span className="text-base">✓</span>
+                            <span>{refreshSuccessFeedback}</span>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setRefreshSuccessFeedback(null)}
+                            className="text-emerald-700 hover:text-emerald-950 font-bold ml-4 text-xs uppercase tracking-wider cursor-pointer"
+                        >
+                            Dismiss
+                        </button>
+                    </div>
+                )}
 
                 {loadError && (
                     <div className="p-4 bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl text-sm font-semibold">
@@ -988,9 +1074,36 @@ export default function ReviewMemberStatsClient({
                                     {/* Points Breakdown */}
                                     <section className="panel flex flex-col justify-between" style={{ minHeight: "380px" }}>
                                         <div>
-                                            <div className="border-b border-slate-100 pb-3 mb-3">
-                                                <h3 className="font-bold text-slate-800 text-sm tracking-wide uppercase">Point Breakdown</h3>
-                                                <p className="text-[11px] text-slate-400 mt-0.5">Breakdown of requirements earned by categories</p>
+                                            <div className="border-b border-slate-100 pb-3 mb-3 flex items-center justify-between gap-2">
+                                                <div>
+                                                    <h3 className="font-bold text-slate-800 text-sm tracking-wide uppercase">Point Breakdown</h3>
+                                                    <p className="text-[11px] text-slate-400 mt-0.5">Breakdown of requirements earned by categories</p>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleRefreshPoints}
+                                                    disabled={isRefreshingPoints || isPending}
+                                                    className="group inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 active:bg-emerald-200 border border-emerald-300/80 text-emerald-800 transition-all shadow-2xs hover:shadow-xs cursor-pointer shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
+                                                    title="Refresh points to align with attendance breakdown"
+                                                >
+                                                    <svg
+                                                        xmlns="http://www.w3.org/2000/svg"
+                                                        width="12"
+                                                        height="12"
+                                                        viewBox="0 0 24 24"
+                                                        fill="none"
+                                                        stroke="currentColor"
+                                                        strokeWidth="2.5"
+                                                        strokeLinecap="round"
+                                                        strokeLinejoin="round"
+                                                        className={`text-emerald-600 ${isRefreshingPoints ? "animate-spin" : "group-hover:rotate-180 transition-transform duration-500"}`}
+                                                    >
+                                                        <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+                                                    </svg>
+                                                    <span className="font-semibold text-xs tracking-tight normal-case text-emerald-800">
+                                                        {isRefreshingPoints ? "Refreshing..." : "Refresh Points"}
+                                                    </span>
+                                                </button>
                                             </div>
 
                                             {memberDashboardData && (
@@ -1002,7 +1115,7 @@ export default function ReviewMemberStatsClient({
                                                             <span>Professional ({selectedMember.professional_points || 0} pts)</span>
                                                             <span className="text-slate-500">Goal: {memberDashboardData.pGoal}</span>
                                                         </h5>
-                                                        {memberDashboardData.pointsBreakdown.professional.length === 0 ? (
+                                                        {memberDashboardData.pointsBreakdown.professional.length === 0 && selectedManualPoints.professional === 0 ? (
                                                             <p className="text-[10px] text-slate-400 italic">No professional check-ins recorded.</p>
                                                         ) : (
                                                             <ul className="space-y-1">
@@ -1012,6 +1125,21 @@ export default function ReviewMemberStatsClient({
                                                                         <span className="text-amber-700 font-bold">+{e.points || 1}</span>
                                                                     </li>
                                                                 ))}
+                                                                {selectedManualPoints.professional !== 0 && (
+                                                                    <li className={`p-1.5 rounded-lg text-[11px] font-semibold flex justify-between ${
+                                                                        selectedManualPoints.professional > 0
+                                                                            ? "bg-amber-50/80 border border-amber-200/60 text-slate-700"
+                                                                            : "bg-rose-50/80 border border-rose-200/60 text-slate-700"
+                                                                    }`}>
+                                                                        <span className="flex items-center gap-1">
+                                                                            <span className={selectedManualPoints.professional > 0 ? "text-amber-600 font-bold" : "text-rose-600 font-bold"}>★</span>
+                                                                            <span>Admin Manual Adjustment</span>
+                                                                        </span>
+                                                                        <span className={`font-bold ${selectedManualPoints.professional > 0 ? "text-amber-700" : "text-rose-700"}`}>
+                                                                            {selectedManualPoints.professional > 0 ? `+${selectedManualPoints.professional}` : selectedManualPoints.professional}
+                                                                        </span>
+                                                                    </li>
+                                                                )}
                                                             </ul>
                                                         )}
                                                     </div>
@@ -1022,7 +1150,7 @@ export default function ReviewMemberStatsClient({
                                                             <span>Social ({selectedMember.social_points || 0} pts)</span>
                                                             <span className="text-slate-500">Pooled Goal: {memberDashboardData.pooledGoal}</span>
                                                         </h5>
-                                                        {memberDashboardData.pointsBreakdown.social.length === 0 ? (
+                                                        {memberDashboardData.pointsBreakdown.social.length === 0 && selectedManualPoints.social === 0 ? (
                                                             <p className="text-[10px] text-slate-400 italic">No social check-ins recorded.</p>
                                                         ) : (
                                                             <ul className="space-y-1">
@@ -1032,6 +1160,21 @@ export default function ReviewMemberStatsClient({
                                                                         <span className="text-amber-700 font-bold">+{e.points || 1}</span>
                                                                     </li>
                                                                 ))}
+                                                                {selectedManualPoints.social !== 0 && (
+                                                                    <li className={`p-1.5 rounded-lg text-[11px] font-semibold flex justify-between ${
+                                                                        selectedManualPoints.social > 0
+                                                                            ? "bg-amber-50/80 border border-amber-200/60 text-slate-700"
+                                                                            : "bg-rose-50/80 border border-rose-200/60 text-slate-700"
+                                                                    }`}>
+                                                                        <span className="flex items-center gap-1">
+                                                                            <span className={selectedManualPoints.social > 0 ? "text-amber-600 font-bold" : "text-rose-600 font-bold"}>★</span>
+                                                                            <span>Admin Manual Adjustment</span>
+                                                                        </span>
+                                                                        <span className={`font-bold ${selectedManualPoints.social > 0 ? "text-amber-700" : "text-rose-700"}`}>
+                                                                            {selectedManualPoints.social > 0 ? `+${selectedManualPoints.social}` : selectedManualPoints.social}
+                                                                        </span>
+                                                                    </li>
+                                                                )}
                                                             </ul>
                                                         )}
                                                     </div>
@@ -1042,7 +1185,7 @@ export default function ReviewMemberStatsClient({
                                                             <span>Service ({selectedMember.service_points || 0} pts)</span>
                                                             <span className="text-slate-500">Pooled Goal: {memberDashboardData.pooledGoal}</span>
                                                         </h5>
-                                                        {memberDashboardData.pointsBreakdown.service.length === 0 ? (
+                                                        {memberDashboardData.pointsBreakdown.service.length === 0 && selectedManualPoints.service === 0 ? (
                                                             <p className="text-[10px] text-slate-400 italic">No service check-ins recorded.</p>
                                                         ) : (
                                                             <ul className="space-y-1">
@@ -1052,6 +1195,21 @@ export default function ReviewMemberStatsClient({
                                                                         <span className="text-amber-700 font-bold">+{e.points || 1}</span>
                                                                     </li>
                                                                 ))}
+                                                                {selectedManualPoints.service !== 0 && (
+                                                                    <li className={`p-1.5 rounded-lg text-[11px] font-semibold flex justify-between ${
+                                                                        selectedManualPoints.service > 0
+                                                                            ? "bg-amber-50/80 border border-amber-200/60 text-slate-700"
+                                                                            : "bg-rose-50/80 border border-rose-200/60 text-slate-700"
+                                                                    }`}>
+                                                                        <span className="flex items-center gap-1">
+                                                                            <span className={selectedManualPoints.service > 0 ? "text-amber-600 font-bold" : "text-rose-600 font-bold"}>★</span>
+                                                                            <span>Admin Manual Adjustment</span>
+                                                                        </span>
+                                                                        <span className={`font-bold ${selectedManualPoints.service > 0 ? "text-amber-700" : "text-rose-700"}`}>
+                                                                            {selectedManualPoints.service > 0 ? `+${selectedManualPoints.service}` : selectedManualPoints.service}
+                                                                        </span>
+                                                                    </li>
+                                                                )}
                                                             </ul>
                                                         )}
                                                     </div>

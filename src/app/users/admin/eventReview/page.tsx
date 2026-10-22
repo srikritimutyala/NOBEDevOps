@@ -155,12 +155,42 @@ function EventReviewClient() {
     if (!memberAuthId) return;
     setActionLoading(true);
     try {
+      const eventPoints = event?.points || 1;
+      const eventType = event?.event_type;
+      const isPointBearing = ["PROFESSIONAL", "SOCIAL", "SERVICE"].includes((eventType || "").toUpperCase());
+
       const { error } = await supabase.from("attendance").insert({
         user_id: memberAuthId,
         event_id: eventId,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        points_awarded: isPointBearing ? eventPoints : 0,
+        point_type: eventType,
       });
       if (error) throw error;
+
+      if (isPointBearing) {
+        const { data: profile } = await supabase
+          .from("People")
+          .select("professional_points, social_points, service_points")
+          .eq("auth_id", memberAuthId)
+          .maybeSingle();
+
+        if (profile) {
+          const normType = (eventType || "").toUpperCase();
+          const updates: Record<string, number> = {};
+          if (normType === "PROFESSIONAL" || normType.includes("PROF")) {
+            updates.professional_points = (profile.professional_points ?? 0) + eventPoints;
+          } else if (normType === "SOCIAL" || normType.includes("SOCI")) {
+            updates.social_points = (profile.social_points ?? 0) + eventPoints;
+          } else if (normType.includes("SERVICE") || normType.includes("SERV")) {
+            updates.service_points = (profile.service_points ?? 0) + eventPoints;
+          }
+          if (Object.keys(updates).length > 0) {
+            await supabase.from("People").update(updates).eq("auth_id", memberAuthId);
+          }
+        }
+      }
+
       await loadData();
     } catch (err: any) {
       alert("Failed to mark present: " + err.message);
@@ -174,12 +204,40 @@ function EventReviewClient() {
     if (!confirm("Are you sure you want to remove attendance for this member?")) return;
     setActionLoading(true);
     try {
+      const eventPoints = event?.points || 1;
+      const eventType = event?.event_type;
+      const isPointBearing = ["PROFESSIONAL", "SOCIAL", "SERVICE"].includes((eventType || "").toUpperCase());
+
       const { error } = await supabase
         .from("attendance")
         .delete()
         .eq("user_id", memberAuthId)
         .eq("event_id", eventId);
       if (error) throw error;
+
+      if (isPointBearing) {
+        const { data: profile } = await supabase
+          .from("People")
+          .select("professional_points, social_points, service_points")
+          .eq("auth_id", memberAuthId)
+          .maybeSingle();
+
+        if (profile) {
+          const normType = (eventType || "").toUpperCase();
+          const updates: Record<string, number> = {};
+          if (normType === "PROFESSIONAL" || normType.includes("PROF")) {
+            updates.professional_points = Math.max(0, (profile.professional_points ?? 0) - eventPoints);
+          } else if (normType === "SOCIAL" || normType.includes("SOCI")) {
+            updates.social_points = Math.max(0, (profile.social_points ?? 0) - eventPoints);
+          } else if (normType.includes("SERVICE") || normType.includes("SERV")) {
+            updates.service_points = Math.max(0, (profile.service_points ?? 0) - eventPoints);
+          }
+          if (Object.keys(updates).length > 0) {
+            await supabase.from("People").update(updates).eq("auth_id", memberAuthId);
+          }
+        }
+      }
+
       await loadData();
     } catch (err: any) {
       alert("Failed to remove attendance: " + err.message);

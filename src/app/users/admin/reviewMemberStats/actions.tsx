@@ -71,11 +71,14 @@ export async function deleteMember(
             .eq("user_id", uid);
     }
 
-    // 4. Delete officer notes for this member
+    // 4. Delete officer notes & manual points for this member
     await supabaseAdmin
         .from("SystemSettings")
         .delete()
-        .eq("key", `officer_notes_member_id_${memberId}`);
+        .in("key", [
+            `officer_notes_member_id_${memberId}`,
+            `manual_points_member_id_${memberId}`,
+        ]);
 
     // 5. Delete member from People table
     const { error: deletePeopleError } = await supabaseAdmin
@@ -198,11 +201,11 @@ export async function deleteStrike(strikeId: string) {
 }
 
 export async function updateMemberPoints(memberId: number, category: "professional" | "social" | "service", amount: number) {
-    const supabase = await createClient();
+    const supabaseAdmin = createAdminClient();
 
-    const { data: member, error: fetchError } = await supabase
+    const { data: member, error: fetchError } = await supabaseAdmin
         .from("People")
-        .select("professional_points, social_points, service_points")
+        .select("id, auth_id, professional_points, social_points, service_points")
         .eq("id", memberId)
         .single();
 
@@ -210,20 +213,58 @@ export async function updateMemberPoints(memberId: number, category: "profession
         throw new Error(fetchError?.message || "Member not found");
     }
 
-    let newPoints = 0;
+    // 1. Fetch current manual points setting for this member
+    const settingKey = `manual_points_member_id_${memberId}`;
+    const { data: settingRow } = await supabaseAdmin
+        .from("SystemSettings")
+        .select("key, value")
+        .eq("key", settingKey)
+        .maybeSingle();
+
+    let manualPoints = { professional: 0, social: 0, service: 0 };
+    if (settingRow?.value) {
+        try {
+            const parsed = JSON.parse(settingRow.value);
+            manualPoints = {
+                professional: Number(parsed.professional) || 0,
+                social: Number(parsed.social) || 0,
+                service: Number(parsed.service) || 0,
+            };
+        } catch {
+            // default
+        }
+    }
+
+    // Update manual points for this category
+    manualPoints[category] = (manualPoints[category] || 0) + amount;
+
+    // Save updated manual points in SystemSettings
+    const { error: saveSettingError } = await supabaseAdmin
+        .from("SystemSettings")
+        .upsert({
+            key: settingKey,
+            value: JSON.stringify(manualPoints),
+            updated_at: new Date().toISOString(),
+        });
+
+    if (saveSettingError) {
+        console.error("Failed to persist manual points setting:", saveSettingError);
+    }
+
+    // Update People points
     let updateField = "";
     if (category === "professional") {
-        newPoints = Math.max((member.professional_points || 0) + amount, 0);
         updateField = "professional_points";
     } else if (category === "social") {
-        newPoints = Math.max((member.social_points || 0) + amount, 0);
         updateField = "social_points";
     } else if (category === "service") {
-        newPoints = Math.max((member.service_points || 0) + amount, 0);
         updateField = "service_points";
     }
 
-    const { error: updateError } = await supabase
+    const currentPoints = (member as any)[updateField] ?? 0;
+    const newPoints = Math.max(currentPoints + amount, 0);
+
+    const { error: updateError } = await supabaseAdmin
         .from("People")
         .update({ [updateField]: newPoints })
         .eq("id", memberId);
@@ -233,6 +274,7 @@ export async function updateMemberPoints(memberId: number, category: "profession
     }
 
     revalidatePath("/users/admin/reviewMemberStats");
+    revalidatePath("/users/admin");
 }
 
 export async function updateOfficerNotes(memberId: number, notes: string) {
@@ -555,4 +597,175 @@ export async function updateMemberIsNewMember(memberId: number, is_new_member: b
 
     revalidatePath("/users/admin/reviewMemberStats");
     revalidatePath("/users/admin");
+}
+
+export async function refreshAllMemberPoints() {
+    const supabaseAdmin = createAdminClient();
+
+    // 1. Fetch all events
+    const { data: events, error: eventsErr } = await supabaseAdmin
+        .from("events")
+        .select("id, name, points, event_type");
+
+    if (eventsErr || !events) {
+        throw new Error(eventsErr?.message || "Failed to load events");
+    }
+
+    // 2. Fetch all attendance records
+    const { data: attendance, error: attErr } = await supabaseAdmin
+        .from("attendance")
+        .select("id, user_id, event_id, points_awarded, point_type");
+
+    if (attErr || !attendance) {
+        throw new Error(attErr?.message || "Failed to load attendance");
+    }
+
+    // 3. Fetch all members
+    const { data: people, error: peopleErr } = await supabaseAdmin
+        .from("People")
+        .select("id, auth_id, name, role, professional_points, social_points, service_points");
+
+    if (peopleErr || !people) {
+        throw new Error(peopleErr?.message || "Failed to load members");
+    }
+
+    // Ensure events with missing points are updated if they are professional/social workshops
+    const eventsToUpdate = events.filter(
+        (e) =>
+            (e.points === 0 || e.points === null) &&
+            ["PROFESSIONAL", "SOCIAL", "SERVICE"].includes((e.event_type || "").toUpperCase())
+    );
+    for (const evt of eventsToUpdate) {
+        await supabaseAdmin
+            .from("events")
+            .update({ points: 1 })
+            .eq("id", evt.id);
+        evt.points = 1;
+    }
+
+    const eventMap = new Map<string, (typeof events)[0]>();
+    for (const e of events) {
+        eventMap.set(e.id, e);
+    }
+
+    // Update attendance rows where points_awarded or point_type is missing for point-bearing events
+    const attendanceUpdates = [];
+    for (const att of attendance) {
+        if (!att.event_id) continue;
+        const evt = eventMap.get(att.event_id);
+        if (!evt) continue;
+
+        const isPointBearing = ["PROFESSIONAL", "SOCIAL", "SERVICE"].includes((evt.event_type || "").toUpperCase());
+        if (isPointBearing) {
+            const expectedPoints = evt.points || 1;
+            const expectedType = evt.event_type;
+            if (att.points_awarded !== expectedPoints || att.point_type !== expectedType) {
+                attendanceUpdates.push(
+                    supabaseAdmin
+                        .from("attendance")
+                        .update({
+                            points_awarded: expectedPoints,
+                            point_type: expectedType,
+                        })
+                        .eq("id", att.id)
+                );
+            }
+        }
+    }
+    if (attendanceUpdates.length > 0) {
+        await Promise.all(attendanceUpdates);
+    }
+
+    // 4. Fetch all manual points settings from SystemSettings
+    const { data: manualSettingsRows } = await supabaseAdmin
+        .from("SystemSettings")
+        .select("key, value")
+        .like("key", "manual_points_member_id_%");
+
+    const manualPointsMap = new Map<number, { professional: number; social: number; service: number }>();
+    if (manualSettingsRows) {
+        for (const row of manualSettingsRows) {
+            const memberIdStr = row.key.replace("manual_points_member_id_", "");
+            const memberId = parseInt(memberIdStr, 10);
+            if (!isNaN(memberId)) {
+                try {
+                    const parsed = JSON.parse(row.value);
+                    manualPointsMap.set(memberId, {
+                        professional: Number(parsed.professional) || 0,
+                        social: Number(parsed.social) || 0,
+                        service: Number(parsed.service) || 0,
+                    });
+                } catch {
+                    // Ignore parse error
+                }
+            }
+        }
+    }
+
+    // 5. Update people points to align with attendance breakdown + admin manual points
+    let updatedCount = 0;
+    const peopleUpdates = [];
+    for (const person of people) {
+        if (!person.auth_id) continue;
+
+        const attendedEventIds = new Set(
+            attendance
+                .filter((row) => row.user_id === person.auth_id && row.event_id)
+                .map((row) => row.event_id as string)
+        );
+
+        const attendedEventList = events.filter((e) => attendedEventIds.has(e.id));
+
+        const profEvents = attendedEventList.filter(
+            (e) => (e.event_type || "").toUpperCase() === "PROFESSIONAL" || (e.event_type || "").toUpperCase().includes("PROF")
+        );
+        const socEvents = attendedEventList.filter(
+            (e) => (e.event_type || "").toUpperCase() === "SOCIAL" || (e.event_type || "").toUpperCase().includes("SOCI")
+        );
+        const servEvents = attendedEventList.filter(
+            (e) => (e.event_type || "").toUpperCase().includes("SERVICE") || (e.event_type || "").toUpperCase().includes("SERV")
+        );
+
+        const breakdownProf = profEvents.reduce((sum, e) => sum + (e.points || 1), 0);
+        const breakdownSoc = socEvents.reduce((sum, e) => sum + (e.points || 1), 0);
+        const breakdownServ = servEvents.reduce((sum, e) => sum + (e.points || 1), 0);
+
+        const manual = manualPointsMap.get(person.id) || { professional: 0, social: 0, service: 0 };
+
+        const newProf = Math.max(0, breakdownProf + (manual.professional || 0));
+        const newSoc = Math.max(0, breakdownSoc + (manual.social || 0));
+        const newServ = Math.max(0, breakdownServ + (manual.service || 0));
+
+        const curProf = person.professional_points ?? 0;
+        const curSoc = person.social_points ?? 0;
+        const curServ = person.service_points ?? 0;
+
+        if (curProf !== newProf || curSoc !== newSoc || curServ !== newServ) {
+            updatedCount++;
+            peopleUpdates.push(
+                supabaseAdmin
+                    .from("People")
+                    .update({
+                        professional_points: newProf,
+                        social_points: newSoc,
+                        service_points: newServ,
+                    })
+                    .eq("id", person.id)
+            );
+        }
+    }
+
+    if (peopleUpdates.length > 0) {
+        await Promise.all(peopleUpdates);
+    }
+
+    revalidatePath("/users/admin/reviewMemberStats");
+    revalidatePath("/users/admin");
+    revalidatePath("/users/member");
+
+    return {
+        success: true,
+        updatedCount,
+        totalMembers: people.length,
+    };
 }
