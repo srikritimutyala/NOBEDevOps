@@ -93,12 +93,24 @@ export default function AdminUI() {
                 qr_code_secret: secret,
             };
 
-            const { error } = await supabase.from("events").insert(payload);
+            const { data: insertedEvent, error } = await supabase.from("events").insert(payload).select("id").single();
 
             if (error) {
               setMessage(error.message);
               setCheckInUrl("");
               return;
+            }
+
+            if (insertedEvent?.id) {
+              fetch("/api/admin/record-activity", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  action: "set_event_creator",
+                  eventId: insertedEvent.id,
+                  eventName: form.name,
+                }),
+              }).catch(console.error);
             }
 
             //success message + localized link

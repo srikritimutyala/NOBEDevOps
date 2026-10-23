@@ -515,6 +515,17 @@ function CreateEventContent() {
           return;
         }
         newEventId = inserted?.id ?? null;
+        if (newEventId) {
+          fetch("/api/admin/record-activity", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "set_event_creator",
+              eventId: newEventId,
+              eventName: payload.name,
+            }),
+          }).catch(console.error);
+        }
       }
 
       // Push new events to the NOBE Google Calendar (skip on update to avoid duplicates)

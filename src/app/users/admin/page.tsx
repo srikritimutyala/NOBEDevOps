@@ -56,6 +56,8 @@ type AbsenceRow = {
   status: string | null;
   reason: string | null;
   submitted_at: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
   email_sent: boolean | null;
   email_error: string | null;
 };
@@ -119,7 +121,7 @@ export default async function AdminPage() {
     supabase
       .from("excused_absences")
       .select(
-        "id, user_id, event_id, status, reason, submitted_at, email_sent, email_error"
+        "id, user_id, event_id, status, reason, submitted_at, reviewed_by, reviewed_at, email_sent, email_error"
       ),
     supabase
       .from("strikes")
@@ -133,9 +135,7 @@ export default async function AdminPage() {
       .order("uploaded_at", { ascending: false }),
     supabase
       .from("SystemSettings")
-      .select("value")
-      .eq("key", "calendar_last_synced")
-      .maybeSingle(),
+      .select("key, value"),
   ]);
 
   let membersRes = initialMembersRes;
@@ -196,7 +196,28 @@ export default async function AdminPage() {
   const absences = (absencesRes.data ?? []) as AbsenceRow[];
   const strikes = (strikesRes.data ?? []) as StrikeRow[];
   const csvUploads = (uploadsRes.data ?? []) as CsvUploadRow[];
-  const syncSetting = syncSettingRes.data;
+  const settingsRows = (syncSettingRes.data ?? []) as Array<{ key: string; value: string | null }>;
+  const syncSetting = settingsRows.find((s) => s.key === "calendar_last_synced");
+
+  const eventCreatorMap = new Map<string, { admin_id: string; admin_name: string; email?: string }>();
+  settingsRows.forEach((s) => {
+    if (s.key.startsWith("event_creator_") && s.value) {
+      try {
+        const parsed = JSON.parse(s.value);
+        const evId = s.key.replace("event_creator_", "");
+        eventCreatorMap.set(evId, parsed);
+      } catch (_) {}
+    }
+  });
+
+  const recentAdminActivitiesRow = settingsRows.find((s) => s.key === "recent_admin_activities");
+  let customAdminActivities: Array<{ id: string; type: string; description: string; timestamp: string }> = [];
+  if (recentAdminActivitiesRow?.value) {
+    try {
+      const parsed = JSON.parse(recentAdminActivitiesRow.value);
+      if (Array.isArray(parsed)) customAdminActivities = parsed;
+    } catch (_) {}
+  }
 
   // Resolve logged-in admin's name
   const currentMember = members.find((m) => m.auth_id === user?.id);
@@ -430,31 +451,78 @@ export default async function AdminPage() {
     });
   });
 
-  // 2. Absences
+  // 2. Member Drops & Absences
   absences.forEach((abs) => {
-    if (!abs.submitted_at) return;
     const memberName = abs.user_id ? memberNameByAuthId.get(abs.user_id) || "Member" : "Member";
     const eventName = abs.event_id ? eventNameById.get(abs.event_id) || "Event" : "Event";
-    activityList.push({
-      id: `absence-${abs.id}`,
-      type: "absence",
-      description: `${memberName} submitted absence request for ${eventName}`,
-      timestamp: abs.submitted_at,
-    });
+
+    // 2a. Drop requested by member
+    if (abs.submitted_at) {
+      activityList.push({
+        id: `drop-req-${abs.id}`,
+        type: "drop",
+        description: `${memberName} dropped ${eventName} (Absence requested)`,
+        timestamp: abs.submitted_at,
+      });
+    }
+
+    // 2b. Drop confirmed / excuse approved by an admin
+    if (abs.status?.trim().toUpperCase() === "APPROVED" && abs.reviewed_at) {
+      const reviewerName = abs.reviewed_by ? memberNameByAuthId.get(abs.reviewed_by) || "Admin" : "Admin";
+      activityList.push({
+        id: `drop-app-${abs.id}`,
+        type: "drop",
+        description: `${memberName} dropped from ${eventName} (Excuse approved by ${reviewerName})`,
+        timestamp: abs.reviewed_at,
+      });
+    }
   });
 
-  // 3. Creations
+  // 3. Custom Logged Drops & Admin Activities
+  customAdminActivities.forEach((act) => {
+    if (act.timestamp && act.description) {
+      activityList.push({
+        id: act.id,
+        type: act.type || "drop",
+        description: act.description,
+        timestamp: act.timestamp,
+      });
+    }
+  });
+
+  // 4. Events Added (Tracking whether current admin or another admin created the event)
   events.forEach((evt) => {
     if (!evt.created_at) return;
+    const creator = eventCreatorMap.get(evt.id);
+    let eventDesc: string;
+    let eventType = "event_create";
+
+    if (creator) {
+      if (creator.admin_id === user?.id) {
+        eventDesc = `You added event "${evt.name}"`;
+      } else {
+        eventType = "admin_event";
+        eventDesc = `Another admin (${creator.admin_name}) added event "${evt.name}"`;
+      }
+    } else {
+      // Legacy / imported events fallback
+      if (evt.gcal_event_id && !evt.gcal_event_id.startsWith("local_") && !evt.gcal_event_id.startsWith("imported:")) {
+        eventDesc = `Event "${evt.name}" was synced from Google Calendar`;
+      } else {
+        eventType = "admin_event";
+        eventDesc = `Another admin added event "${evt.name}"`;
+      }
+    }
+
     activityList.push({
       id: `event-create-${evt.id}`,
-      type: "event_create",
-      description: `Event "${evt.name}" was created`,
+      type: eventType,
+      description: eventDesc,
       timestamp: evt.created_at,
     });
   });
 
-  // 4. CSV Uploads
+  // 5. CSV Uploads
   csvUploads.forEach((up) => {
     if (!up.uploaded_at) return;
     const rowCount =
@@ -469,7 +537,7 @@ export default async function AdminPage() {
     });
   });
 
-  // 5. Strikes
+  // 6. Strikes
   strikes.forEach((st) => {
     if (!st.created_at) return;
     const memberName = st.user_id ? memberNameByAuthId.get(st.user_id) || "Member" : "Member";
@@ -485,9 +553,15 @@ export default async function AdminPage() {
     });
   });
 
+  const seenActivityIds = new Set<string>();
   const recentActivity = activityList
+    .filter((a) => {
+      if (seenActivityIds.has(a.id)) return false;
+      seenActivityIds.add(a.id);
+      return true;
+    })
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-    .slice(0, 25);
+    .slice(0, 40);
 
   // Requirements Completion Progress (excluding Admins, who are exempt from points)
   const regularMembers = members.filter((m) => m.role?.toUpperCase() !== "ADMIN");

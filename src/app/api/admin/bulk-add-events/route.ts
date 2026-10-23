@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/app/utils/supabase/server";
+import { setEventCreator, logAdminActivity } from "@/app/utils/activityLogger";
 import { google } from "googleapis";
 import crypto from "crypto";
 
@@ -96,7 +97,7 @@ export async function POST(request: Request) {
     // Verify Admin privileges
     const { data: userProfile, error: profileError } = await supabase
       .from("People")
-      .select("role")
+      .select("role, name, first_name, last_name")
       .eq("auth_id", user.id)
       .single();
 
@@ -106,6 +107,12 @@ export async function POST(request: Request) {
         { status: 403 }
       );
     }
+
+    const adminName =
+      userProfile.first_name ||
+      userProfile.name ||
+      user.email?.split("@")[0] ||
+      "Admin";
 
     // Fetch custom calendar ID if it exists in SystemSettings
     const { data: dbSettings } = await supabase
@@ -225,6 +232,18 @@ export async function POST(request: Request) {
           date: dateISO,
           event_type: eventType,
         });
+
+        if (inserted?.id) {
+          await setEventCreator(
+            inserted.id,
+            {
+              id: user.id,
+              name: adminName,
+              email: user.email,
+            },
+            name
+          );
+        }
       } catch (err: any) {
         failedEvents.push({
           event: rawEvent,

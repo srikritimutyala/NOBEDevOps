@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/app/utils/supabase/server";
+import { logAdminActivity } from "@/app/utils/activityLogger";
 
 type ReviewPayload = {
   absenceId?: string;
@@ -271,6 +272,7 @@ export async function POST(request: Request) {
       .update({
         status,
         admin_response: responseMessage,
+        reviewed_by: user.id,
         reviewed_at: reviewedAt,
         email_sent: emailSent,
         email_error: emailError,
@@ -284,6 +286,34 @@ export async function POST(request: Request) {
         { error: updateError?.message || "Failed to save review." },
         { status: 500 }
       );
+    }
+
+    // Log the drop activity if approved
+    if (status === "APPROVED") {
+      const { data: adminPerson } = await adminClient
+        .from("People")
+        .select("name, first_name")
+        .eq("auth_id", user.id)
+        .maybeSingle();
+      const reviewerName = adminPerson?.first_name || adminPerson?.name || user.email?.split("@")[0] || "Admin";
+
+      const { data: memberPerson } = await adminClient
+        .from("People")
+        .select("name, first_name, last_name")
+        .eq("auth_id", absence.user_id)
+        .maybeSingle();
+      const memberName = memberPerson?.first_name
+        ? `${memberPerson.first_name} ${memberPerson.last_name || ""}`.trim()
+        : memberPerson?.name || "Member";
+
+      await logAdminActivity({
+        type: "drop",
+        description: `${memberName} dropped from "${eventName || "Event"}" (Excuse approved by ${reviewerName})`,
+        admin_id: user.id,
+        admin_name: reviewerName,
+        event_id: absence.event_id,
+        member_id: absence.user_id,
+      });
     }
 
     return NextResponse.json({

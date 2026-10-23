@@ -48,6 +48,8 @@ type AbsenceRecord = {
   status: string | null;
   reason: string | null;
   submitted_at: string | null;
+  reviewed_at?: string | null;
+  reviewed_by?: string | null;
 };
 
 const supabase = createClient();
@@ -237,6 +239,22 @@ function EventReviewClient() {
           }
         }
       }
+
+      const member = members.find((m) => m.auth_id === memberAuthId);
+      const memberName = member?.name || "Member";
+      const eventTitle = event?.name || "Event";
+
+      fetch("/api/admin/record-activity", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "log_activity",
+          type: "drop",
+          description: `${memberName} was dropped from "${eventTitle}" attendance`,
+          eventId,
+          memberId: memberAuthId,
+        }),
+      }).catch(console.error);
 
       await loadData();
     } catch (err: any) {
@@ -441,6 +459,25 @@ function EventReviewClient() {
       }
     });
 
+    absences.forEach(abs => {
+      const member = members.find(m => m.auth_id === abs.user_id);
+      const memberName = member?.name || "Member";
+      if (abs.submitted_at) {
+        logs.push({
+          id: `drop-${abs.id}`,
+          time: new Date(abs.submitted_at),
+          text: `${memberName} dropped event (Absence requested)`
+        });
+      }
+      if (abs.status?.trim().toUpperCase() === "APPROVED" && abs.reviewed_at) {
+        logs.push({
+          id: `drop-app-${abs.id}`,
+          time: new Date(abs.reviewed_at),
+          text: `${memberName} dropped event (Excuse approved)`
+        });
+      }
+    });
+
     if (event?.check_in_starts_at) {
       logs.push({
         id: "qr_gen",
@@ -451,7 +488,7 @@ function EventReviewClient() {
 
     logs.sort((a, b) => b.time.getTime() - a.time.getTime());
     return logs;
-  }, [event, attendance, members]);
+  }, [event, attendance, members, absences]);
 
   // CSV Exporter client-side
   function handleExportCsv() {

@@ -147,6 +147,35 @@ export default function AdminDashboard({
   const [reminderMessage, setReminderMessage] = useState<string | null>(null);
   const [deletingEventId, setDeletingEventId] = useState<string | null>(null);
 
+  // Activity Breakdown Filter state
+  const [activityFilter, setActivityFilter] = useState<"all" | "drops" | "events" | "checkins" | "strikes">("all");
+
+  const activityCounts = useMemo(() => {
+    return {
+      all: recentActivity.length,
+      drops: recentActivity.filter((a) => a.type === "drop" || a.type === "absence").length,
+      events: recentActivity.filter((a) => a.type === "event_create" || a.type === "admin_event").length,
+      checkins: recentActivity.filter((a) => a.type === "checkin").length,
+      strikes: recentActivity.filter((a) => a.type === "strike").length,
+    };
+  }, [recentActivity]);
+
+  const filteredActivity = useMemo(() => {
+    if (activityFilter === "drops") {
+      return recentActivity.filter((a) => a.type === "drop" || a.type === "absence");
+    }
+    if (activityFilter === "events") {
+      return recentActivity.filter((a) => a.type === "event_create" || a.type === "admin_event");
+    }
+    if (activityFilter === "checkins") {
+      return recentActivity.filter((a) => a.type === "checkin");
+    }
+    if (activityFilter === "strikes") {
+      return recentActivity.filter((a) => a.type === "strike");
+    }
+    return recentActivity;
+  }, [recentActivity, activityFilter]);
+
   const qrRef = useRef<HTMLDivElement>(null);
 
   // Run strike processor action
@@ -905,31 +934,111 @@ export default function AdminDashboard({
       {/* ROW 4: Recent Activity & System Status */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* Recent Activity Feed */}
+        {/* Recent Activity / Activity Breakdown Feed */}
         <section className="lg:col-span-2 panel flex flex-col justify-between" style={{ minHeight: "360px" }}>
           <div>
-            <div className="panel-header border-b border-slate-100 pb-3">
+            <div className="panel-header border-b border-slate-100 pb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
-                <h2 className="section-title text-slate-800" style={{ fontSize: "1.4rem" }}>Recent Activity</h2>
-                <p className="section-copy">Recent check-ins and admin actions</p>
+                <h2 className="section-title text-slate-800" style={{ fontSize: "1.4rem" }}>Activity Breakdown</h2>
+                <p className="section-copy">Recent check-ins, member drops, and admin event additions</p>
+              </div>
+
+              {/* Filter pills */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setActivityFilter("all")}
+                  className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                    activityFilter === "all"
+                      ? "bg-slate-900 text-white shadow-xs"
+                      : "bg-slate-100 hover:bg-slate-200 text-slate-600"
+                  }`}
+                >
+                  All ({activityCounts.all})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActivityFilter("drops")}
+                  className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                    activityFilter === "drops"
+                      ? "bg-amber-600 text-white shadow-xs"
+                      : "bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/60"
+                  }`}
+                >
+                  Drops ({activityCounts.drops})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActivityFilter("events")}
+                  className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                    activityFilter === "events"
+                      ? "bg-purple-600 text-white shadow-xs"
+                      : "bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200/60"
+                  }`}
+                >
+                  Events ({activityCounts.events})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActivityFilter("checkins")}
+                  className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                    activityFilter === "checkins"
+                      ? "bg-emerald-600 text-white shadow-xs"
+                      : "bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/60"
+                  }`}
+                >
+                  Check-ins ({activityCounts.checkins})
+                </button>
+                {activityCounts.strikes > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setActivityFilter("strikes")}
+                    className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                      activityFilter === "strikes"
+                        ? "bg-rose-600 text-white shadow-xs"
+                        : "bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200/60"
+                    }`}
+                  >
+                    Strikes ({activityCounts.strikes})
+                  </button>
+                )}
               </div>
             </div>
 
-            {recentActivity.length === 0 ? (
-              <p className="text-slate-400 text-xs py-12 text-center">No recent activity logs available.</p>
+            {filteredActivity.length === 0 ? (
+              <p className="text-slate-400 text-xs py-12 text-center">
+                {activityFilter === "all" ? "No recent activity logs available." : `No ${activityFilter} activity found.`}
+              </p>
             ) : (
-              <div className="space-y-3.5 mt-4 overflow-y-auto pr-1.5" style={{ maxHeight: "250px" }}>
-                {recentActivity.map((activity) => (
+              <div className="space-y-3.5 mt-4 overflow-y-auto pr-1.5" style={{ maxHeight: "260px" }}>
+                {filteredActivity.map((activity) => (
                   <div key={activity.id} className="flex gap-3 text-xs items-start">
                     <span className="shrink-0 mt-1.5 flex items-center justify-center">
                       {activity.type === "checkin" && <span className="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>}
-                      {activity.type === "absence" && <span className="inline-block w-2 h-2 rounded-full bg-sky-500"></span>}
-                      {activity.type === "event_create" && <span className="inline-block w-2 h-2 rounded-full bg-purple-500"></span>}
+                      {(activity.type === "drop" || activity.type === "absence") && <span className="inline-block w-2 h-2 rounded-full bg-amber-500"></span>}
+                      {(activity.type === "event_create" || activity.type === "admin_event") && <span className="inline-block w-2 h-2 rounded-full bg-purple-500"></span>}
                       {activity.type === "csv_import" && <span className="inline-block w-2 h-2 rounded-full bg-indigo-500"></span>}
                       {activity.type === "strike" && <span className="inline-block w-2 h-2 rounded-full bg-rose-500"></span>}
                     </span>
-                    <div className="flex-1 bg-white/40 p-2.5 rounded-xl border border-slate-100/60">
+                    <div className="flex-1 bg-white/40 p-2.5 rounded-xl border border-slate-100/60 flex items-center justify-between gap-2">
                       <p className="text-slate-800 font-semibold">{activity.description}</p>
+                      <span className="shrink-0">
+                        {activity.type === "checkin" && (
+                          <span className="px-2 py-0.5 rounded-md text-[9px] font-extrabold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-100">Check-in</span>
+                        )}
+                        {(activity.type === "drop" || activity.type === "absence") && (
+                          <span className="px-2 py-0.5 rounded-md text-[9px] font-extrabold uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-200">Drop</span>
+                        )}
+                        {(activity.type === "event_create" || activity.type === "admin_event") && (
+                          <span className="px-2 py-0.5 rounded-md text-[9px] font-extrabold uppercase tracking-wider bg-purple-50 text-purple-700 border border-purple-100">Event Added</span>
+                        )}
+                        {activity.type === "strike" && (
+                          <span className="px-2 py-0.5 rounded-md text-[9px] font-extrabold uppercase tracking-wider bg-rose-50 text-rose-700 border border-rose-100">Strike</span>
+                        )}
+                        {activity.type === "csv_import" && (
+                          <span className="px-2 py-0.5 rounded-md text-[9px] font-extrabold uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-100">Import</span>
+                        )}
+                      </span>
                     </div>
                     <span className="shrink-0 text-[10px] text-slate-400 font-semibold self-center">
                       {formatRelativeActivity(activity.timestamp)}

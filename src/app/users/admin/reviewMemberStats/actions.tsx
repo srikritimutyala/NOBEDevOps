@@ -2,6 +2,7 @@
 
 import { createClient } from "@/app/utils/supabase/server";
 import { createAdminClient } from "@/app/utils/supabase/admin";
+import { logAdminActivity } from "@/app/utils/activityLogger";
 import { revalidatePath } from "next/cache";
 
 export async function deleteMember(
@@ -17,7 +18,7 @@ export async function deleteMember(
 
     const { data: memberRecord } = await supabaseAdmin
         .from("People")
-        .select("id, auth_id, illinois_email")
+        .select("id, auth_id, illinois_email, name, first_name, last_name")
         .eq("id", memberId)
         .maybeSingle();
 
@@ -116,7 +117,15 @@ export async function deleteMember(
         }
     }
 
+    const memberName = memberRecord?.name || memberRecord?.first_name || targetEmail || "Member";
+    await logAdminActivity({
+        type: "drop",
+        description: `${memberName} was dropped / permanently removed from roster`,
+        member_id: String(memberId),
+    });
+
     revalidatePath("/users/admin/reviewMemberStats");
+    revalidatePath("/users/admin");
 }
 
 export async function addStrike(formData: FormData) {
@@ -312,6 +321,24 @@ export async function updateMemberRole(memberId: number, role: string) {
 export async function deactivateMember(memberId: number) {
     const supabase = await createClient();
 
+    const { data: memberRecord } = await supabase
+        .from("People")
+        .select("name, first_name, last_name")
+        .eq("id", memberId)
+        .maybeSingle();
+    const memberName = memberRecord?.first_name ? `${memberRecord.first_name} ${memberRecord.last_name || ""}`.trim() : memberRecord?.name || "Member";
+
+    const { data: { user } } = await supabase.auth.getUser();
+    let adminName = "Admin";
+    if (user?.id) {
+        const { data: adminPerson } = await supabase
+            .from("People")
+            .select("name, first_name")
+            .eq("auth_id", user.id)
+            .maybeSingle();
+        adminName = adminPerson?.first_name || adminPerson?.name || "Admin";
+    }
+
     const { error } = await supabase
         .from("People")
         .update({ auth_id: null })
@@ -321,7 +348,16 @@ export async function deactivateMember(memberId: number) {
         throw new Error(error.message);
     }
 
+    await logAdminActivity({
+        type: "drop",
+        description: `${memberName} was dropped / deactivated from member portal by ${adminName}`,
+        admin_id: user?.id,
+        admin_name: adminName,
+        member_id: String(memberId),
+    });
+
     revalidatePath("/users/admin/reviewMemberStats");
+    revalidatePath("/users/admin");
 }
 
 export async function updateAbsenceStatus(absenceId: string, status: "APPROVED" | "REJECTED") {
@@ -339,6 +375,7 @@ export async function updateAbsenceStatus(absenceId: string, status: "APPROVED" 
 
     let eventData: {
         id: string;
+        name?: string | null;
         points: number | null;
         event_type: string | null;
         is_mandatory: boolean | null;
@@ -347,7 +384,7 @@ export async function updateAbsenceStatus(absenceId: string, status: "APPROVED" 
     if (absence.event_id) {
         const { data } = await supabaseAdmin
             .from("events")
-            .select("id, points, event_type, is_mandatory")
+            .select("id, name, points, event_type, is_mandatory")
             .eq("id", absence.event_id)
             .maybeSingle();
         eventData = data;
@@ -479,13 +516,48 @@ export async function updateAbsenceStatus(absenceId: string, status: "APPROVED" 
         }
     }
 
+    const { data: { user } } = await supabaseAdmin.auth.getUser();
+    let adminName = "Admin";
+    if (user?.id) {
+        const { data: adminPerson } = await supabaseAdmin
+            .from("People")
+            .select("name, first_name")
+            .eq("auth_id", user.id)
+            .maybeSingle();
+        adminName = adminPerson?.first_name || adminPerson?.name || "Admin";
+    }
+
     const { error } = await supabaseAdmin
         .from("excused_absences")
-        .update({ status, reviewed_at: new Date().toISOString() })
+        .update({
+            status,
+            reviewed_at: new Date().toISOString(),
+            reviewed_by: user?.id || null,
+        })
         .eq("id", absenceId);
 
     if (error) {
         throw new Error(error.message);
+    }
+
+    if (status === "APPROVED") {
+        const { data: memberPerson } = await supabaseAdmin
+            .from("People")
+            .select("name, first_name, last_name")
+            .eq("auth_id", absence.user_id)
+            .maybeSingle();
+        const memberName = memberPerson?.first_name
+            ? `${memberPerson.first_name} ${memberPerson.last_name || ""}`.trim()
+            : memberPerson?.name || "Member";
+
+        await logAdminActivity({
+            type: "drop",
+            description: `${memberName} dropped from "${eventData?.name || "Event"}" (Excuse approved by ${adminName})`,
+            admin_id: user?.id,
+            admin_name: adminName,
+            event_id: absence.event_id,
+            member_id: absence.user_id,
+        });
     }
 
     revalidatePath("/users/admin/reviewMemberStats");
