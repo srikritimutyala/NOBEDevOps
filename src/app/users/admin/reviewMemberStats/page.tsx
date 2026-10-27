@@ -22,7 +22,7 @@ export default async function ReviewMemberStats() {
             .order("name", { ascending: true }),
         supabase
             .from("events")
-            .select("id, name, date, event_type, points, is_mandatory")
+            .select("id, name, date, event_type, points, is_mandatory, description")
             .order("date", { ascending: true }),
         supabase
             .from("attendance")

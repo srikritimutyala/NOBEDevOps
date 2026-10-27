@@ -8,6 +8,7 @@ import { createClient } from '@/app/utils/supabase/client';
 import { useAuth } from '../authprovider';
 import { getMemberStrikes, updateMemberProfile } from './actions';
 import LogoutButton from '../login/logout';
+import { isNewMemberMandatory, getEventPointsForMember } from '@/app/utils/eventPoints';
 
 interface Event {
   id: string;
@@ -18,6 +19,7 @@ interface Event {
   points: number;
   is_mandatory: boolean;
   location?: string;
+  description?: string;
 }
 
 interface Strike {
@@ -516,10 +518,10 @@ export default function EventList() {
                   </p>
                 </div>
 
-                {!isAdmin && member.strikes ? (
+                {!isAdmin && (strikes.length > 0 || Boolean(member.strikes)) ? (
                   <div className="stat-card" style={{ backgroundColor: 'rgba(239, 83, 80, 0.1)', borderColor: '#EF5350' }}>
                     <p className="stat-label" style={{ color: '#D32F2F' }}>Strikes</p>
-                    <p className="stat-value" style={{ color: '#D32F2F' }}>{member.strikes}</p>
+                    <p className="stat-value" style={{ color: '#D32F2F' }}>{strikes.length || member.strikes || 0}</p>
                   </div>
                 ) : null}
 
@@ -741,6 +743,8 @@ export default function EventList() {
                     label: event.event_type.replaceAll('_', ' '),
                   };
                   const isGCal = event.event_type === 'GOOGLE_CALENDAR';
+                  const isNewMandatory = Boolean(member?.is_new_member) && isNewMemberMandatory(event);
+                  const effectivePts = getEventPointsForMember(event, member?.is_new_member);
 
                   const cardContent = (
                     <>
@@ -764,10 +768,14 @@ export default function EventList() {
                             {getEventEmoji(event)} {config.label}
                           </span>
                           {' · '}
-                          {event.points} point{event.points === 1 ? '' : 's'}
+                          {effectivePts} point{effectivePts === 1 ? '' : 's'}
                           {event.is_mandatory ? (
                             <span style={{ marginLeft: '8px', backgroundColor: '#EF5350', color: 'white', padding: '2px 6px', borderRadius: '3px', fontSize: '10px', fontWeight: '600' }}>
                               ⚠️ Mandatory
+                            </span>
+                          ) : isNewMandatory ? (
+                            <span style={{ marginLeft: '8px', backgroundColor: '#F59E0B', color: 'white', padding: '2px 6px', borderRadius: '3px', fontSize: '10px', fontWeight: '600' }}>
+                              ⚠️ Mandatory (New Members)
                             </span>
                           ) : null}
                         </p>
@@ -1110,11 +1118,15 @@ export default function EventList() {
                                       minute: '2-digit',
                                     })}
                                   </div>
-                                  {event.is_mandatory && (
+                                  {event.is_mandatory ? (
                                     <span className="calendar-event-chip" style={{ backgroundColor: '#EF5350', color: 'white', fontSize: '8px', padding: '1px 6px' }}>
                                       ⚠️ Mandatory
                                     </span>
-                                  )}
+                                  ) : (Boolean(member?.is_new_member) && isNewMemberMandatory(event)) ? (
+                                    <span className="calendar-event-chip" style={{ backgroundColor: '#F59E0B', color: 'white', fontSize: '8px', padding: '1px 6px' }}>
+                                      ⚠️ Mandatory (New)
+                                    </span>
+                                  ) : null}
                                 </div>
                                 <div className="calendar-event-name" style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#333' }}>
                                   <span style={{ fontSize: '11px', flexShrink: 0 }}>{getEventEmoji(event)}</span>
@@ -1125,7 +1137,7 @@ export default function EventList() {
                                 </div>
                                 <div className="calendar-event-meta">
                                   <span>{event.location || 'TBD'}</span>
-                                  <span>{event.points} pt</span>
+                                  <span>{getEventPointsForMember(event, member?.is_new_member)} pt</span>
                                 </div>
                               </Link>
                             );
@@ -1167,6 +1179,8 @@ export default function EventList() {
                       label: event.event_type.replaceAll('_', ' '),
                     };
                     const isGCal = event.event_type === 'GOOGLE_CALENDAR';
+                    const isNewMandatory = Boolean(member?.is_new_member) && isNewMemberMandatory(event);
+                    const effectivePts = getEventPointsForMember(event, member?.is_new_member);
                     const eventDate = new Date(event.date);
                     const isUpcoming = eventDate >= new Date();
 
@@ -1193,9 +1207,11 @@ export default function EventList() {
                           ) : (
                             <span style={{ fontSize: "0.7rem", padding: "2px 6px", borderRadius: "10px", background: "rgba(107,108,112,0.06)", color: "var(--muted)", fontWeight: "700" }}>Completed</span>
                           )}
-                          {event.is_mandatory && (
+                          {event.is_mandatory ? (
                             <span style={{ fontSize: "0.7rem", padding: "2px 6px", borderRadius: "10px", background: "rgba(154,59,49,0.08)", color: "var(--danger)", fontWeight: "700" }}>⚠️ Mandatory</span>
-                          )}
+                          ) : isNewMandatory ? (
+                            <span style={{ fontSize: "0.7rem", padding: "2px 6px", borderRadius: "10px", background: "rgba(217,119,6,0.12)", color: "#b45309", fontWeight: "700" }}>⚠️ Mandatory (New Members)</span>
+                          ) : null}
                         </div>
 
                         <strong style={{ fontSize: "1.05rem", color: "#111", display: "flex", alignItems: "center", gap: "6px", lineHeight: "1.3" }}>
@@ -1219,7 +1235,7 @@ export default function EventList() {
                             <span>{getEventEmoji(event)}</span>
                             <span>{config.label}</span>
                           </span>
-                          <span>{event.points} pt{event.points === 1 ? '' : 's'}</span>
+                          <span>{effectivePts} pt{effectivePts === 1 ? '' : 's'}</span>
                         </div>
                       </div>
                     );

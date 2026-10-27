@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/app/utils/supabase/client";
 import { useAuth } from "../../authprovider";
 import RequireAuth from "../../RequireAuth";
+import { isNewMemberMandatory, getEventPointsForMember } from "@/app/utils/eventPoints";
 
 type EventItem = {
   id: string;
@@ -86,6 +87,7 @@ function EventDetailsClient() {
   const [event, setEvent] = useState<EventItem | null>(null);
   const [attendance, setAttendance] = useState<AttendanceRecord | null>(null);
   const [absence, setAbsence] = useState<AbsenceRecord | null>(null);
+  const [isNewMember, setIsNewMember] = useState<boolean>(false);
   
   const [loading, setLoading] = useState(true);
   const [addingToCal, setAddingToCal] = useState(false);
@@ -94,16 +96,18 @@ function EventDetailsClient() {
     if (!eventId || !session?.user?.id) return;
     setLoading(true);
     try {
-      const [eventRes, attendanceRes, absenceRes] = await Promise.all([
+      const [eventRes, attendanceRes, absenceRes, profileRes] = await Promise.all([
         supabase.from("events").select("*").eq("id", eventId).single(),
         supabase.from("attendance").select("*").eq("event_id", eventId).eq("user_id", session.user.id).maybeSingle(),
         supabase.from("excused_absences").select("*").eq("event_id", eventId).eq("user_id", session.user.id).maybeSingle(),
+        supabase.from("People").select("is_new_member").eq("auth_id", session.user.id).maybeSingle(),
       ]);
 
       if (eventRes.error) throw eventRes.error;
       setEvent(eventRes.data as EventItem);
       setAttendance(attendanceRes.data as AttendanceRecord | null);
       setAbsence(absenceRes.data as AbsenceRecord | null);
+      setIsNewMember(Boolean(profileRes.data?.is_new_member));
     } catch (err: any) {
       console.error("Error loading event:", err.message);
     } finally {
@@ -209,6 +213,8 @@ function EventDetailsClient() {
     );
   }
 
+  const isNewMandatory = isNewMember && isNewMemberMandatory(event);
+  const effectivePoints = getEventPointsForMember(event, isNewMember);
   const categoryLabel = event.event_type.replaceAll("_", " ");
   const googleMapsUrl = event.location 
     ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location)}`
@@ -233,11 +239,15 @@ function EventDetailsClient() {
               <span style={{ fontSize: "0.75rem", padding: "3px 8px", background: "var(--surface-alt)", color: "var(--foreground)", borderRadius: "6px", fontWeight: "600" }}>
                 {categoryLabel}
               </span>
-              {event.is_mandatory && (
+              {event.is_mandatory ? (
                 <span style={{ fontSize: "0.75rem", padding: "3px 8px", background: "rgba(154,59,49,0.12)", color: "var(--danger)", borderRadius: "6px", fontWeight: "700" }}>
                   Mandatory
                 </span>
-              )}
+              ) : isNewMandatory ? (
+                <span style={{ fontSize: "0.75rem", padding: "3px 8px", background: "rgba(217,119,6,0.12)", color: "#b45309", borderRadius: "6px", fontWeight: "700" }}>
+                  Mandatory (New Members)
+                </span>
+              ) : null}
             </div>
 
             <h1 className="page-title" style={{ fontSize: "2rem", marginBottom: "12px", letterSpacing: "-0.02em", color: "#111" }}>{event.name}</h1>
@@ -300,9 +310,11 @@ function EventDetailsClient() {
           <div style={{ padding: "18px", background: "var(--surface-strong)", border: "1px solid var(--border)", borderRadius: "20px", display: "flex", flexDirection: "column", gap: "4px" }}>
             <span style={{ fontSize: "0.75rem", color: "var(--muted)", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.03em" }}>Points</span>
             <strong style={{ fontSize: "1.3rem", fontWeight: "800", color: "var(--accent-strong)" }}>
-              Worth {event.points ?? 0} {categoryLabel} Point{event.points === 1 ? "" : "s"}
+              Worth {effectivePoints} {categoryLabel} Point{effectivePoints === 1 ? "" : "s"}
             </strong>
-            <span style={{ fontSize: "0.8rem", color: "var(--muted)", fontWeight: "500" }}>Category: {categoryLabel}</span>
+            <span style={{ fontSize: "0.8rem", color: "var(--muted)", fontWeight: "500" }}>
+              Category: {categoryLabel} {isNewMandatory && "(Mandatory attendance for New Members)"}
+            </span>
           </div>
         </div>
 

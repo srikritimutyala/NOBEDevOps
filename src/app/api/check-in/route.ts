@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/app/utils/supabase/server";
 import { getPointRequirements, getRequirementsForMember } from "@/app/utils/getPointRequirements";
+import { getEventPointsForMember } from "@/app/utils/eventPoints";
 
 function formatChicagoTime(value: string) {
   return new Date(value).toLocaleString("en-US", {
@@ -38,7 +39,7 @@ export async function POST(req: Request) {
 
     const { data: event, error: eventError } = await supabase
       .from("events")
-      .select("id, name, points, event_type, check_in_starts_at, check_in_ends_at")
+      .select("id, name, points, event_type, description, check_in_starts_at, check_in_ends_at")
       .eq("qr_code_secret", qr_code_secret)
       .single();
 
@@ -86,7 +87,8 @@ export async function POST(req: Request) {
         is_PM,
         role,
         name,
-        first_name
+        first_name,
+        is_new_member
       `)
       .eq("auth_id", user.id)
       .single();
@@ -100,7 +102,7 @@ export async function POST(req: Request) {
 
     const { data: existingAttendance, error: existingError } = await supabase
       .from("attendance")
-      .select("id")
+      .select("id, points_awarded, point_type")
       .eq("user_id", user.id)
       .eq("event_id", event.id)
       .maybeSingle();
@@ -111,6 +113,8 @@ export async function POST(req: Request) {
         { status: 500 }
       );
     }
+
+    const effectivePoints = getEventPointsForMember(event, profile.is_new_member);
 
     if (existingAttendance) {
       const goals = await getPointRequirements();
@@ -127,7 +131,7 @@ export async function POST(req: Request) {
         already_checked_in: true,
         message: "You have already checked in to this event.",
         event_name: event.name,
-        points_awarded: event.points,
+        points_awarded: existingAttendance.points_awarded ?? effectivePoints,
         point_type: event.event_type,
         progress: {
           ...profile,
@@ -153,13 +157,13 @@ export async function POST(req: Request) {
 
     if (normType.includes("PROF")) {
       updates.professional_points =
-        (profile.professional_points ?? 0) + (event.points ?? 0);
+        (profile.professional_points ?? 0) + effectivePoints;
     } else if (normType.includes("SERV")) {
       updates.service_points =
-        (profile.service_points ?? 0) + (event.points ?? 0);
+        (profile.service_points ?? 0) + effectivePoints;
     } else if (normType.includes("SOCI")) {
       updates.social_points =
-        (profile.social_points ?? 0) + (event.points ?? 0);
+        (profile.social_points ?? 0) + effectivePoints;
     }
 
     const { error: attendanceError } = await supabase
@@ -168,7 +172,7 @@ export async function POST(req: Request) {
         user_id: user.id,
         event_id: event.id,
         timestamp: new Date().toISOString(),
-        points_awarded: event.points,
+        points_awarded: effectivePoints,
         point_type: event.event_type,
       });
 
@@ -192,7 +196,8 @@ export async function POST(req: Request) {
           is_PM,
           role,
           name,
-          first_name
+          first_name,
+          is_new_member
         `)
         .single();
 
@@ -215,7 +220,7 @@ export async function POST(req: Request) {
       already_checked_in: false,
       message: `Checked in to ${event.name}!`,
       event_name: event.name,
-      points_awarded: event.points,
+      points_awarded: effectivePoints,
       point_type: event.event_type,
       progress: {
         ...updatedProfile,

@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/app/utils/supabase/client";
 import QRCode from "react-qr-code";
 import AdminGuard from "../AdminGuard";
+import { getEventPointsForMember } from "@/app/utils/eventPoints";
 
 
 type MemberRecord = {
@@ -39,6 +40,8 @@ type AttendanceRecord = {
   user_id: string;
   event_id: string;
   timestamp: string | null;
+  points_awarded?: number | null;
+  point_type?: string | null;
 };
 
 type AbsenceRecord = {
@@ -157,9 +160,10 @@ function EventReviewClient() {
     if (!memberAuthId) return;
     setActionLoading(true);
     try {
-      const eventPoints = event?.points || 1;
+      const targetMember = members.find((m) => m.auth_id === memberAuthId);
       const eventType = event?.event_type;
       const isPointBearing = ["PROFESSIONAL", "SOCIAL", "SERVICE"].includes((eventType || "").toUpperCase());
+      const eventPoints = getEventPointsForMember(event, targetMember?.is_new_member);
 
       const { error } = await supabase.from("attendance").insert({
         user_id: memberAuthId,
@@ -170,7 +174,7 @@ function EventReviewClient() {
       });
       if (error) throw error;
 
-      if (isPointBearing) {
+      if (isPointBearing && eventPoints > 0) {
         const { data: profile } = await supabase
           .from("People")
           .select("professional_points, social_points, service_points")
@@ -193,6 +197,37 @@ function EventReviewClient() {
         }
       }
 
+      // If the member had any active strikes for missing this event, remove them and sync strikes
+      const { data: existingActiveStrikes } = await supabase
+        .from("strikes")
+        .select("id")
+        .eq("user_id", memberAuthId)
+        .eq("event_id", eventId)
+        .eq("status", "ACTIVE");
+
+      if (existingActiveStrikes && existingActiveStrikes.length > 0) {
+        await supabase
+          .from("strikes")
+          .update({
+            status: "REMOVED",
+            removed_at: new Date().toISOString(),
+            admin_note: "Automatically removed upon being marked present by admin.",
+          })
+          .eq("user_id", memberAuthId)
+          .eq("event_id", eventId);
+
+        const { count: activeCount } = await supabase
+          .from("strikes")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", memberAuthId)
+          .eq("status", "ACTIVE");
+
+        await supabase
+          .from("People")
+          .update({ strikes: activeCount ?? 0 })
+          .eq("auth_id", memberAuthId);
+      }
+
       await loadData();
     } catch (err: any) {
       alert("Failed to mark present: " + err.message);
@@ -206,9 +241,11 @@ function EventReviewClient() {
     if (!confirm("Are you sure you want to remove attendance for this member?")) return;
     setActionLoading(true);
     try {
-      const eventPoints = event?.points || 1;
+      const targetMember = members.find((m) => m.auth_id === memberAuthId);
+      const existingAttendance = attendance.find((a) => a.user_id === memberAuthId);
       const eventType = event?.event_type;
       const isPointBearing = ["PROFESSIONAL", "SOCIAL", "SERVICE"].includes((eventType || "").toUpperCase());
+      const pointsToDeduct = existingAttendance?.points_awarded ?? getEventPointsForMember(event, targetMember?.is_new_member);
 
       const { error } = await supabase
         .from("attendance")
@@ -217,7 +254,7 @@ function EventReviewClient() {
         .eq("event_id", eventId);
       if (error) throw error;
 
-      if (isPointBearing) {
+      if (isPointBearing && pointsToDeduct > 0) {
         const { data: profile } = await supabase
           .from("People")
           .select("professional_points, social_points, service_points")
@@ -228,11 +265,11 @@ function EventReviewClient() {
           const normType = (eventType || "").toUpperCase();
           const updates: Record<string, number> = {};
           if (normType === "PROFESSIONAL" || normType.includes("PROF")) {
-            updates.professional_points = Math.max(0, (profile.professional_points ?? 0) - eventPoints);
+            updates.professional_points = Math.max(0, (profile.professional_points ?? 0) - pointsToDeduct);
           } else if (normType === "SOCIAL" || normType.includes("SOCI")) {
-            updates.social_points = Math.max(0, (profile.social_points ?? 0) - eventPoints);
+            updates.social_points = Math.max(0, (profile.social_points ?? 0) - pointsToDeduct);
           } else if (normType.includes("SERVICE") || normType.includes("SERV")) {
-            updates.service_points = Math.max(0, (profile.service_points ?? 0) - eventPoints);
+            updates.service_points = Math.max(0, (profile.service_points ?? 0) - pointsToDeduct);
           }
           if (Object.keys(updates).length > 0) {
             await supabase.from("People").update(updates).eq("auth_id", memberAuthId);
@@ -333,10 +370,15 @@ function EventReviewClient() {
   async function handleProcessStrikes() {
     setActionLoading(true);
     try {
-      const res = await fetch("/api/admin/process-strikes", { method: "POST" });
+      const res = await fetch("/api/admin/process-strikes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventId }),
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to process strikes");
       alert(data.message || "Strikes processed successfully!");
+      await loadData();
     } catch (err: any) {
       alert("Error processing strikes: " + err.message);
     } finally {

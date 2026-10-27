@@ -17,6 +17,7 @@ import {
     updateMemberIsNewMember,
     refreshAllMemberPoints,
 } from "./reviewMemberStats/actions";
+import { isNewMemberMandatory } from "@/app/utils/eventPoints";
 
 export type MemberRecord = {
     id: number;
@@ -47,6 +48,7 @@ export type EventRecord = {
     event_type?: string | null;
     points?: number | null;
     is_mandatory?: boolean | null;
+    description?: string | null;
 };
 
 export type AttendanceRecord = {
@@ -100,6 +102,32 @@ type ReviewMemberStatsClientProps = {
 
 const excusedStatuses = new Set(["APPROVED", "EXCUSED", "ACCEPTED", "CLEARED"]);
 
+export function normalizeCommittee(raw?: string | null): string {
+    if (!raw || !raw.trim()) return "Unassigned";
+    const cleaned = raw.trim();
+    const lower = cleaned.toLowerCase();
+    if (lower.includes("consult")) return "Consulting";
+    if (lower.includes("prod") || lower === "pd" || lower.startsWith("pd")) return "Product Development";
+    if (lower.includes("tech")) return "Technology";
+    if (lower.includes("exec")) return "Exec";
+    return cleaned;
+}
+
+function getCommitteeBadgeColor(normCommittee: string): string {
+    switch (normCommittee) {
+        case "Consulting":
+            return "bg-blue-50 text-blue-700 border-blue-200";
+        case "Product Development":
+            return "bg-emerald-50 text-emerald-700 border-emerald-200";
+        case "Technology":
+            return "bg-cyan-50 text-cyan-700 border-cyan-200";
+        case "Exec":
+            return "bg-amber-50 text-amber-800 border-amber-200";
+        default:
+            return "bg-slate-50 text-slate-500 border-slate-200";
+    }
+}
+
 export default function ReviewMemberStatsClient({
     members,
     events,
@@ -117,6 +145,85 @@ export default function ReviewMemberStatsClient({
     const [actionError, setActionError] = useState<string | null>(null);
     const [isRefreshingPoints, setIsRefreshingPoints] = useState(false);
     const [refreshSuccessFeedback, setRefreshSuccessFeedback] = useState<string | null>(null);
+
+    // Filters and Grouping State
+    const [statusFilter, setStatusFilter] = useState<"ALL" | "NEW_MEMBER" | "EXEC" | "PM" | "MEMBER" | "WITH_STRIKES">("ALL");
+    const [committeeFilter, setCommitteeFilter] = useState<string>("ALL");
+    const [groupByCommittee, setGroupByCommittee] = useState<boolean>(false);
+    const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+
+    const toggleGroupCollapse = (committeeName: string) => {
+        setCollapsedGroups((prev) => {
+            const next = new Set(prev);
+            if (next.has(committeeName)) next.delete(committeeName);
+            else next.add(committeeName);
+            return next;
+        });
+    };
+
+    const activeStrikesCountMap = useMemo(() => {
+        const map = new Map<string, number>();
+        for (const s of strikes) {
+            if (s.user_id && s.status === "ACTIVE") {
+                map.set(s.user_id, (map.get(s.user_id) || 0) + 1);
+            }
+        }
+        return map;
+    }, [strikes]);
+
+    const getMemberStrikesCount = (m: MemberRecord) => {
+        return m.auth_id ? (activeStrikesCountMap.get(m.auth_id) ?? (m.strikes || 0)) : (m.strikes || 0);
+    };
+
+    const availableCommittees = useMemo(() => {
+        const set = new Set<string>();
+        for (const m of members) {
+            set.add(normalizeCommittee(m.committee));
+        }
+        const order = ["Consulting", "Product Development", "Technology", "Exec"];
+        const list = Array.from(set);
+        list.sort((a, b) => {
+            if (a === "Unassigned") return 1;
+            if (b === "Unassigned") return -1;
+            const idxA = order.indexOf(a);
+            const idxB = order.indexOf(b);
+            if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+            if (idxA !== -1) return -1;
+            if (idxB !== -1) return 1;
+            return a.localeCompare(b);
+        });
+        return list;
+    }, [members]);
+
+    const countsByStatus = useMemo(() => {
+        let newMembers = 0;
+        let exec = 0;
+        let pm = 0;
+        let regularMember = 0;
+        let withStrikes = 0;
+
+        for (const m of members) {
+            const isExec = m.role?.toUpperCase() === "ADMIN" || normalizeCommittee(m.committee) === "Exec";
+            const isPM = Boolean(m.is_PM);
+            const isNew = Boolean(m.is_new_member);
+            const strikesCount = getMemberStrikesCount(m);
+
+            if (isNew) newMembers++;
+            if (isExec) exec++;
+            if (isPM) pm++;
+            if (!isExec && !isPM && !isNew) regularMember++;
+            if (strikesCount > 0 && m.role?.toUpperCase() !== "ADMIN") withStrikes++;
+        }
+
+        return {
+            all: members.length,
+            newMembers,
+            exec,
+            pm,
+            regularMember,
+            withStrikes,
+        };
+    }, [members, activeStrikesCountMap]);
     
     // Notes editing state
     const [noteText, setNoteText] = useState("");
@@ -138,20 +245,65 @@ export default function ReviewMemberStatsClient({
 
     const filteredMembers = useMemo(() => {
         const query = search.trim().toLowerCase();
-        if (!query) return members;
+
         return members.filter((member) => {
-            const name = member.name?.toLowerCase() ?? "";
-            const email = member.illinois_email?.toLowerCase() ?? "";
-            const isPM = member.is_PM ? "pm" : "";
-            const isNM = member.is_new_member ? "new member" : "";
-            return (
-                name.includes(query) ||
-                email.includes(query) ||
-                (isPM && query === "pm") ||
-                (isNM && (query === "new member" || query === "nm"))
-            );
+            // 1. Text search
+            if (query) {
+                const name = (member.name || `${member.first_name || ""} ${member.last_name || ""}`).toLowerCase();
+                const email = (member.illinois_email || "").toLowerCase();
+                const committee = (member.committee || "").toLowerCase();
+                const major = (member.major || "").toLowerCase();
+                const matchesText =
+                    name.includes(query) ||
+                    email.includes(query) ||
+                    committee.includes(query) ||
+                    major.includes(query);
+                if (!matchesText) return false;
+            }
+
+            // 2. Status filter
+            const isExec = member.role?.toUpperCase() === "ADMIN" || normalizeCommittee(member.committee) === "Exec";
+            const isPM = Boolean(member.is_PM);
+            const isNew = Boolean(member.is_new_member);
+            const strikesCount = getMemberStrikesCount(member);
+            const hasStrikes = strikesCount > 0 && member.role?.toUpperCase() !== "ADMIN";
+
+            if (statusFilter === "NEW_MEMBER" && !isNew) return false;
+            if (statusFilter === "EXEC" && !isExec) return false;
+            if (statusFilter === "PM" && !isPM) return false;
+            if (statusFilter === "MEMBER" && (isExec || isPM || isNew)) return false;
+            if (statusFilter === "WITH_STRIKES" && !hasStrikes) return false;
+
+            // 3. Committee filter
+            if (committeeFilter !== "ALL") {
+                const norm = normalizeCommittee(member.committee);
+                if (norm !== committeeFilter) return false;
+            }
+
+            return true;
         });
-    }, [members, search]);
+    }, [members, search, statusFilter, committeeFilter, activeStrikesCountMap]);
+
+    const groupedMembers = useMemo(() => {
+        if (!groupByCommittee) return null;
+
+        const groups = new Map<string, MemberRecord[]>();
+        for (const c of availableCommittees) {
+            groups.set(c, []);
+        }
+
+        for (const m of filteredMembers) {
+            const c = normalizeCommittee(m.committee);
+            const existing = groups.get(c);
+            if (existing) {
+                existing.push(m);
+            } else {
+                groups.set(c, [m]);
+            }
+        }
+
+        return Array.from(groups.entries()).filter(([_, list]) => list.length > 0);
+    }, [filteredMembers, groupByCommittee, availableCommittees]);
 
     useEffect(() => {
         if (filteredMembers.length === 0) {
@@ -602,6 +754,67 @@ export default function ReviewMemberStatsClient({
         URL.revokeObjectURL(url);
     }
 
+    const renderMemberCard = (m: MemberRecord) => {
+        const isSelected = m.id === selectedMemberId;
+        const activeCount = getMemberStrikesCount(m);
+        const normComm = normalizeCommittee(m.committee);
+        const totalPts = (m.professional_points || 0) + (m.social_points || 0) + (m.service_points || 0);
+
+        return (
+            <button
+                key={m.id}
+                type="button"
+                onClick={() => setSelectedMemberId(m.id)}
+                className={`w-full text-left p-2 rounded-xl border transition-all flex flex-col gap-0.5 cursor-pointer ${
+                    isSelected
+                        ? "bg-amber-50/70 border-amber-300 shadow-xs ring-1 ring-amber-300/50"
+                        : "bg-white/60 border-slate-200/70 hover:bg-slate-50/80 hover:border-slate-300/80"
+                }`}
+            >
+                <div className="flex justify-between items-start gap-1">
+                    <span className="font-bold text-xs text-slate-800 line-clamp-1">
+                        {m.name || `${m.first_name || ""} ${m.last_name || ""}`}
+                    </span>
+                    <span className="text-[10px] font-extrabold text-slate-600 shrink-0">
+                        {totalPts} pts
+                    </span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-1 my-0.5">
+                    {normComm !== "Unassigned" && (
+                        <span className={`text-[8.5px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded border ${getCommitteeBadgeColor(normComm)}`}>
+                            {normComm}
+                        </span>
+                    )}
+                    {m.is_PM && (
+                        <span className="text-[8.5px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200">
+                            PM
+                        </span>
+                    )}
+                    {m.is_new_member && (
+                        <span className="text-[8.5px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded-full bg-teal-100 text-teal-800 border border-teal-200">
+                            New Member
+                        </span>
+                    )}
+                    {m.role?.toUpperCase() === "ADMIN" && (
+                        <span className="text-[8.5px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                            Exec
+                        </span>
+                    )}
+                </div>
+
+                <div className="flex justify-between items-center text-[10px] text-slate-400 font-medium">
+                    <span className="line-clamp-1 text-[10px]">{m.illinois_email}</span>
+                    {activeCount > 0 && m.role?.toUpperCase() !== "ADMIN" && (
+                        <span className="px-1.5 py-0.5 bg-rose-100 text-rose-700 border border-rose-200 rounded-full font-extrabold text-[8.5px] shrink-0">
+                            {activeCount} {activeCount === 1 ? "Strike" : "Strikes"}
+                        </span>
+                    )}
+                </div>
+            </button>
+        );
+    };
+
     return (
         <main className="app-shell" style={{ padding: "2rem max(1.5rem, 3vw)" }}>
             <div className="max-w-[1400px] mx-auto space-y-6">
@@ -682,20 +895,22 @@ export default function ReviewMemberStatsClient({
                 )}
 
                 {/* Main Content Layout Grid */}
-                <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6 items-start">
+                <div className="grid grid-cols-1 lg:grid-cols-[330px_1fr] xl:grid-cols-[350px_1fr] gap-6 items-start">
                     
                     {/* LEFT PANEL: Member Selection List */}
-                    <aside className="panel flex flex-col" style={{ minHeight: "600px", maxHeight: "850px" }}>
-                        <div className="border-b border-slate-100 pb-3 mb-4 flex items-center justify-between gap-2">
+                    <aside className="panel flex flex-col gap-2.5" style={{ minHeight: "680px", maxHeight: "940px" }}>
+                        <div className="border-b border-slate-100 pb-2 flex items-center justify-between gap-2">
                             <div>
-                                <h3 className="font-bold text-slate-800 text-sm tracking-wide uppercase">Member Registry</h3>
-                                <p className="text-[11px] text-slate-400 mt-0.5">Quick search and select profile card</p>
+                                <h3 className="font-bold text-slate-800 text-xs tracking-wide uppercase">Member Registry</h3>
+                                <p className="text-[10px] text-slate-400">
+                                    {filteredMembers.length} of {members.length} members
+                                </p>
                             </div>
                             <button
                                 type="button"
                                 onClick={handleDownloadRosterCsv}
                                 title="Download complete member roster as CSV"
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-slate-800 border border-amber-200 text-[10px] font-extrabold uppercase tracking-wider transition-all shadow-2xs hover:shadow-xs cursor-pointer shrink-0"
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-slate-800 border border-amber-200 text-[11px] font-extrabold uppercase tracking-wider transition-all shadow-2xs hover:shadow-xs cursor-pointer shrink-0"
                             >
                                 <svg
                                     xmlns="http://www.w3.org/2000/svg"
@@ -716,67 +931,177 @@ export default function ReviewMemberStatsClient({
                             </button>
                         </div>
 
-                        <div className="relative mb-3">
+                        {/* Search Input */}
+                        <div className="relative">
                             <input
                                 type="text"
-                                placeholder="Search by name or email..."
+                                placeholder="Search members..."
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
-                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-hidden focus:border-amber-500 transition-colors"
+                                className="w-full bg-slate-50 hover:bg-white border border-slate-200 rounded-xl pl-8 pr-7 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-hidden focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500/20 transition-all shadow-2xs"
                             />
+                            <svg className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                <circle cx="11" cy="11" r="8" />
+                                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                            </svg>
+                            {search && (
+                                <button
+                                    type="button"
+                                    onClick={() => setSearch("")}
+                                    className="absolute right-2 top-1.5 text-slate-400 hover:text-slate-600 text-xs font-bold p-0.5 rounded-full hover:bg-slate-200/50 cursor-pointer transition-colors"
+                                    title="Clear search"
+                                >
+                                    ✕
+                                </button>
+                            )}
                         </div>
 
-                        <div className="flex-1 overflow-y-auto space-y-2 pr-1" style={{ maxHeight: "680px" }}>
-                            {filteredMembers.length === 0 ? (
-                                <p className="text-slate-400 text-xs text-center py-10">No matching members found.</p>
-                            ) : (
-                                filteredMembers.map((m) => {
-                                    const isSelected = m.id === selectedMemberId;
-                                    const activeCount = strikes.filter(s => s.user_id === m.auth_id && s.status === "ACTIVE").length;
-                                    
+                        {/* Filter Controls: Committee + Group Toggle */}
+                        <div className="flex items-center gap-1.5">
+                            <select
+                                id="committee-filter"
+                                value={committeeFilter}
+                                onChange={(e) => setCommitteeFilter(e.target.value)}
+                                className="flex-1 min-w-0 bg-slate-50 hover:bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-semibold text-slate-700 focus:outline-hidden focus:border-amber-500 shadow-2xs cursor-pointer truncate"
+                                title="Filter by Committee"
+                            >
+                                <option value="ALL">All Committees ({members.length})</option>
+                                {availableCommittees.map((c) => {
+                                    const count = members.filter((m) => normalizeCommittee(m.committee) === c).length;
                                     return (
+                                        <option key={c} value={c}>
+                                            {c} ({count})
+                                        </option>
+                                    );
+                                })}
+                            </select>
+
+                            <button
+                                type="button"
+                                onClick={() => setGroupByCommittee(!groupByCommittee)}
+                                title={groupByCommittee ? "Switch to flat list" : "Group members by committee"}
+                                className={`px-2 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer flex items-center gap-1 shadow-2xs shrink-0 ${
+                                    groupByCommittee
+                                        ? "bg-amber-100 text-amber-900 border-amber-300 shadow-xs"
+                                        : "bg-slate-50 hover:bg-white text-slate-600 border-slate-200"
+                                }`}
+                            >
+                                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                    <rect x="3" y="3" width="7" height="7" rx="1" />
+                                    <rect x="14" y="3" width="7" height="7" rx="1" />
+                                    <rect x="14" y="14" width="7" height="7" rx="1" />
+                                    <rect x="3" y="14" width="7" height="7" rx="1" />
+                                </svg>
+                                <span className="text-[11px]">{groupByCommittee ? "Grouped" : "Group"}</span>
+                            </button>
+                        </div>
+
+                        {/* Compact Status Chips */}
+                        <div className="flex flex-wrap gap-1 items-center">
+                            {[
+                                { key: "ALL", label: "All", count: countsByStatus.all },
+                                { key: "NEW_MEMBER", label: "New", count: countsByStatus.newMembers },
+                                { key: "EXEC", label: "Exec", count: countsByStatus.exec },
+                                { key: "PM", label: "PM", count: countsByStatus.pm },
+                                { key: "MEMBER", label: "Members", count: countsByStatus.regularMember },
+                                { key: "WITH_STRIKES", label: "Strikes", count: countsByStatus.withStrikes },
+                            ].map((f) => {
+                                const isActive = statusFilter === f.key;
+                                return (
+                                    <button
+                                        key={f.key}
+                                        type="button"
+                                        onClick={() => setStatusFilter(f.key as any)}
+                                        className={`px-2 py-0.5 rounded-md font-bold text-[10.5px] transition-all cursor-pointer flex items-center gap-1 ${
+                                            isActive
+                                                ? "bg-slate-900 text-white shadow-2xs"
+                                                : "bg-slate-100/80 hover:bg-slate-200/70 text-slate-600 border border-slate-200/60"
+                                        }`}
+                                    >
+                                        <span>{f.label}</span>
+                                        <span className={`text-[9px] px-1 py-0 rounded-full font-extrabold ${
+                                            isActive ? "bg-slate-700 text-slate-200" : "bg-slate-200/80 text-slate-500"
+                                        }`}>
+                                            {f.count}
+                                        </span>
+                                    </button>
+                                );
+                            })}
+
+                            {(statusFilter !== "ALL" || committeeFilter !== "ALL" || search) && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setStatusFilter("ALL");
+                                        setCommitteeFilter("ALL");
+                                        setSearch("");
+                                    }}
+                                    className="text-[10px] text-amber-700 hover:text-amber-900 font-bold ml-auto px-1 hover:underline cursor-pointer"
+                                    title="Reset all filters"
+                                >
+                                    Reset
+                                </button>
+                            )}
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto space-y-2 pr-1 pt-0.5" style={{ minHeight: "380px", maxHeight: "640px" }}>
+                            {filteredMembers.length === 0 ? (
+                                <div className="text-center py-12 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                                    <p className="text-slate-400 text-xs font-medium">No members found matching these filters.</p>
+                                    {(statusFilter !== "ALL" || committeeFilter !== "ALL" || search) && (
                                         <button
-                                            key={m.id}
-                                            onClick={() => setSelectedMemberId(m.id)}
-                                            className={`w-full text-left p-3 rounded-xl border transition-all flex flex-col gap-1 cursor-pointer ${
-                                                isSelected
-                                                    ? "bg-amber-50/60 border-amber-300 shadow-xs"
-                                                    : "bg-white/40 border-slate-100/60 hover:bg-slate-50/60"
-                                            }`}
+                                            type="button"
+                                            onClick={() => {
+                                                setStatusFilter("ALL");
+                                                setCommitteeFilter("ALL");
+                                                setSearch("");
+                                            }}
+                                            className="mt-2.5 text-xs text-amber-700 font-bold hover:underline cursor-pointer inline-flex items-center gap-1"
                                         >
-                                            <div className="flex justify-between items-start gap-1">
-                                                <span className="font-bold text-xs text-slate-800 line-clamp-1">{m.name || `${m.first_name} ${m.last_name}`}</span>
-                                                <div className="flex items-center gap-1 shrink-0">
-                                                    {m.is_PM && (
-                                                        <span className="text-[9px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200">
-                                                            PM
+                                            Reset all filters
+                                        </button>
+                                    )}
+                                </div>
+                            ) : groupByCommittee && groupedMembers ? (
+                                <div className="space-y-3">
+                                    {groupedMembers.map(([commName, memberList]) => {
+                                        const isCollapsed = collapsedGroups.has(commName);
+                                        return (
+                                            <div key={commName} className="rounded-xl border border-slate-200/80 bg-slate-50/40 overflow-hidden shadow-2xs">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => toggleGroupCollapse(commName)}
+                                                    className="w-full flex items-center justify-between p-2.5 bg-slate-100/70 hover:bg-slate-200/60 transition-colors cursor-pointer text-left"
+                                                >
+                                                    <div className="flex items-center gap-2 min-w-0">
+                                                        <svg
+                                                            className={`w-3.5 h-3.5 text-slate-500 transition-transform ${isCollapsed ? "-rotate-90" : ""}`}
+                                                            fill="none"
+                                                            viewBox="0 0 24 24"
+                                                            stroke="currentColor"
+                                                            strokeWidth="2.5"
+                                                        >
+                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                                                        </svg>
+                                                        <span className="font-extrabold text-xs uppercase tracking-wider text-slate-700 truncate">
+                                                            {commName}
                                                         </span>
-                                                    )}
-                                                    {m.is_new_member && (
-                                                        <span className="text-[9px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded-full bg-teal-100 text-teal-800 border border-teal-200">
-                                                            New Member
-                                                        </span>
-                                                    )}
-                                                    <span className={`text-[9px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded-full ${
-                                                        m.role?.toUpperCase() === "ADMIN"
-                                                            ? "bg-amber-100 text-amber-800 border border-amber-200"
-                                                            : "bg-slate-100 text-slate-500"
-                                                    }`}>
-                                                        {m.role || "Member"}
+                                                    </div>
+                                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-white text-slate-600 font-extrabold border border-slate-200 shadow-2xs">
+                                                        {memberList.length}
                                                     </span>
-                                                </div>
-                                            </div>
-                                            <div className="flex justify-between items-center text-[10px] text-slate-400 font-medium">
-                                                <span className="line-clamp-1">{m.illinois_email}</span>
-                                                {activeCount > 0 && m.role?.toUpperCase() !== "ADMIN" && (
-                                                    <span className="px-1.5 py-0.5 bg-rose-50 text-rose-600 rounded-full font-bold text-[9px]">
-                                                        {activeCount} {activeCount === 1 ? "Strike" : "Strikes"}
-                                                    </span>
+                                                </button>
+                                                {!isCollapsed && (
+                                                    <div className="p-2 space-y-1.5">
+                                                        {memberList.map((m) => renderMemberCard(m))}
+                                                    </div>
                                                 )}
                                             </div>
-                                        </button>
-                                    );
-                                })
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                filteredMembers.map((m) => renderMemberCard(m))
                             )}
                         </div>
                     </aside>
@@ -1119,12 +1444,26 @@ export default function ReviewMemberStatsClient({
                                                             <p className="text-[10px] text-slate-400 italic">No professional check-ins recorded.</p>
                                                         ) : (
                                                             <ul className="space-y-1">
-                                                                {memberDashboardData.pointsBreakdown.professional.map(e => (
-                                                                    <li key={e.id} className="p-1.5 bg-slate-50 rounded-lg text-[11px] font-semibold text-slate-700 flex justify-between">
-                                                                        <span>✓ {e.name}</span>
-                                                                        <span className="text-amber-700 font-bold">+{e.points || 1}</span>
-                                                                    </li>
-                                                                ))}
+                                                                {memberDashboardData.pointsBreakdown.professional.map(e => {
+                                                                    const isMandatoryForNew = Boolean(selectedMember.is_new_member) && isNewMemberMandatory(e);
+                                                                    const pts = isMandatoryForNew ? 0 : (e.points || 1);
+
+                                                                    return (
+                                                                        <li key={e.id} className="p-1.5 bg-slate-50 rounded-lg text-[11px] font-semibold text-slate-700 flex justify-between items-center gap-2">
+                                                                            <span className="truncate">✓ {e.name}</span>
+                                                                            {isMandatoryForNew ? (
+                                                                                <span className="inline-flex items-center gap-1.5 shrink-0">
+                                                                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 uppercase">
+                                                                                        New Member Mandatory
+                                                                                    </span>
+                                                                                    <span className="text-slate-400 font-bold">+0</span>
+                                                                                </span>
+                                                                            ) : (
+                                                                                <span className="text-amber-700 font-bold shrink-0">+{pts}</span>
+                                                                            )}
+                                                                        </li>
+                                                                    );
+                                                                })}
                                                                 {selectedManualPoints.professional !== 0 && (
                                                                     <li className={`p-1.5 rounded-lg text-[11px] font-semibold flex justify-between ${
                                                                         selectedManualPoints.professional > 0
@@ -1154,12 +1493,26 @@ export default function ReviewMemberStatsClient({
                                                             <p className="text-[10px] text-slate-400 italic">No social check-ins recorded.</p>
                                                         ) : (
                                                             <ul className="space-y-1">
-                                                                {memberDashboardData.pointsBreakdown.social.map(e => (
-                                                                    <li key={e.id} className="p-1.5 bg-slate-50 rounded-lg text-[11px] font-semibold text-slate-700 flex justify-between">
-                                                                        <span>✓ {e.name}</span>
-                                                                        <span className="text-amber-700 font-bold">+{e.points || 1}</span>
-                                                                    </li>
-                                                                ))}
+                                                                {memberDashboardData.pointsBreakdown.social.map(e => {
+                                                                    const isMandatoryForNew = Boolean(selectedMember.is_new_member) && isNewMemberMandatory(e);
+                                                                    const pts = isMandatoryForNew ? 0 : (e.points || 1);
+
+                                                                    return (
+                                                                        <li key={e.id} className="p-1.5 bg-slate-50 rounded-lg text-[11px] font-semibold text-slate-700 flex justify-between items-center gap-2">
+                                                                            <span className="truncate">✓ {e.name}</span>
+                                                                            {isMandatoryForNew ? (
+                                                                                <span className="inline-flex items-center gap-1.5 shrink-0">
+                                                                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 uppercase">
+                                                                                        New Member Mandatory
+                                                                                    </span>
+                                                                                    <span className="text-slate-400 font-bold">+0</span>
+                                                                                </span>
+                                                                            ) : (
+                                                                                <span className="text-amber-700 font-bold shrink-0">+{pts}</span>
+                                                                            )}
+                                                                        </li>
+                                                                    );
+                                                                })}
                                                                 {selectedManualPoints.social !== 0 && (
                                                                     <li className={`p-1.5 rounded-lg text-[11px] font-semibold flex justify-between ${
                                                                         selectedManualPoints.social > 0

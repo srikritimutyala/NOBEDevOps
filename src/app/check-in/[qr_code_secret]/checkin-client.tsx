@@ -290,6 +290,11 @@ export default function CheckInClient() {
                 <p style={{ fontWeight: 700, fontSize: "1.05rem", margin: "2px 0 0" }}>
                   {checkInResult.point_type ? checkInResult.point_type.replaceAll("_", " ") : "Event Point"}
                 </p>
+                {checkInResult.points_awarded === 0 && (
+                  <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: "2px 0 0", fontWeight: 500 }}>
+                    Mandatory attendance recorded (0 pts)
+                  </p>
+                )}
               </div>
               <div style={{ textAlign: "right" }}>
                 <span

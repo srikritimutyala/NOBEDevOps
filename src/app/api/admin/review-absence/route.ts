@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/app/utils/supabase/server";
 import { logAdminActivity } from "@/app/utils/activityLogger";
+import { getEventPointsForMember } from "@/app/utils/eventPoints";
 
 type ReviewPayload = {
   absenceId?: string;
@@ -80,12 +81,13 @@ export async function POST(request: Request) {
       points: number | null;
       event_type: string | null;
       is_mandatory: boolean | null;
+      description?: string | null;
     } | null = null;
 
     if (absence.event_id) {
       const { data } = await adminClient
         .from("events")
-        .select("id, name, points, event_type, is_mandatory")
+        .select("id, name, points, event_type, is_mandatory, description")
         .eq("id", absence.event_id)
         .maybeSingle();
       eventData = data;
@@ -100,7 +102,13 @@ export async function POST(request: Request) {
         .eq("event_id", absence.event_id)
         .maybeSingle();
 
-      const eventPoints = eventData?.points ?? 0;
+      const { data: profile } = await adminClient
+        .from("People")
+        .select("professional_points, service_points, social_points, is_new_member")
+        .eq("auth_id", absence.user_id)
+        .maybeSingle();
+
+      const eventPoints = getEventPointsForMember(eventData, profile?.is_new_member);
       const eventType = eventData?.event_type ?? null;
 
       if (!existingAttendance) {
@@ -119,31 +127,23 @@ export async function POST(request: Request) {
         }
 
         // Award points to the member profile if the event has points
-        if (eventPoints > 0 && eventType) {
-          const { data: profile } = await adminClient
-            .from("People")
-            .select("professional_points, service_points, social_points")
-            .eq("auth_id", absence.user_id)
-            .maybeSingle();
+        if (eventPoints > 0 && eventType && profile) {
+          const updates: Record<string, number> = {};
+          const normType = eventType.toUpperCase();
 
-          if (profile) {
-            const updates: Record<string, number> = {};
-            const normType = eventType.toUpperCase();
+          if (normType.includes("PROF")) {
+            updates.professional_points = (profile.professional_points ?? 0) + eventPoints;
+          } else if (normType.includes("SERV")) {
+            updates.service_points = (profile.service_points ?? 0) + eventPoints;
+          } else if (normType.includes("SOCI")) {
+            updates.social_points = (profile.social_points ?? 0) + eventPoints;
+          }
 
-            if (normType.includes("PROF")) {
-              updates.professional_points = (profile.professional_points ?? 0) + eventPoints;
-            } else if (normType.includes("SERV")) {
-              updates.service_points = (profile.service_points ?? 0) + eventPoints;
-            } else if (normType.includes("SOCI")) {
-              updates.social_points = (profile.social_points ?? 0) + eventPoints;
-            }
-
-            if (Object.keys(updates).length > 0) {
-              await adminClient
-                .from("People")
-                .update(updates)
-                .eq("auth_id", absence.user_id);
-            }
+          if (Object.keys(updates).length > 0) {
+            await adminClient
+              .from("People")
+              .update(updates)
+              .eq("auth_id", absence.user_id);
           }
         }
       }
@@ -159,22 +159,24 @@ export async function POST(request: Request) {
       if (existingStrikes && existingStrikes.length > 0) {
         await adminClient
           .from("strikes")
-          .delete()
+          .update({
+            status: "REMOVED",
+            removed_at: new Date().toISOString(),
+            admin_note: "Absence approved by admin.",
+          })
           .eq("user_id", absence.user_id)
           .eq("event_id", absence.event_id);
 
-        const { data: person } = await adminClient
-          .from("People")
-          .select("strikes")
-          .eq("auth_id", absence.user_id)
-          .maybeSingle();
+        const { count: activeCount } = await adminClient
+          .from("strikes")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", absence.user_id)
+          .eq("status", "ACTIVE");
 
-        if (person && typeof person.strikes === "number" && person.strikes > 0) {
-          await adminClient
-            .from("People")
-            .update({ strikes: Math.max(0, person.strikes - existingStrikes.length) })
-            .eq("auth_id", absence.user_id);
-        }
+        await adminClient
+          .from("People")
+          .update({ strikes: activeCount ?? 0 })
+          .eq("auth_id", absence.user_id);
       }
     } else if (status === "DENIED" && absence.status?.toUpperCase() === "APPROVED" && absence.event_id) {
       // If previously approved and now disapproved, reverse the attendance and points awarded
@@ -191,34 +193,32 @@ export async function POST(request: Request) {
           .delete()
           .eq("id", existingAttendance.id);
 
-        const pointsToDeduct = existingAttendance.points_awarded ?? (eventData?.points ?? 0);
+        const { data: profile } = await adminClient
+          .from("People")
+          .select("professional_points, service_points, social_points, is_new_member")
+          .eq("auth_id", absence.user_id)
+          .maybeSingle();
+
+        const pointsToDeduct = existingAttendance.points_awarded ?? getEventPointsForMember(eventData, profile?.is_new_member);
         const eventType = existingAttendance.point_type ?? eventData?.event_type;
 
-        if (pointsToDeduct > 0 && eventType) {
-          const { data: profile } = await adminClient
-            .from("People")
-            .select("professional_points, service_points, social_points")
-            .eq("auth_id", absence.user_id)
-            .maybeSingle();
+        if (pointsToDeduct > 0 && eventType && profile) {
+          const updates: Record<string, number> = {};
+          const normType = eventType.toUpperCase();
 
-          if (profile) {
-            const updates: Record<string, number> = {};
-            const normType = eventType.toUpperCase();
+          if (normType.includes("PROF")) {
+            updates.professional_points = Math.max(0, (profile.professional_points ?? 0) - pointsToDeduct);
+          } else if (normType.includes("SERV")) {
+            updates.service_points = Math.max(0, (profile.service_points ?? 0) - pointsToDeduct);
+          } else if (normType.includes("SOCI")) {
+            updates.social_points = Math.max(0, (profile.social_points ?? 0) - pointsToDeduct);
+          }
 
-            if (normType.includes("PROF")) {
-              updates.professional_points = Math.max(0, (profile.professional_points ?? 0) - pointsToDeduct);
-            } else if (normType.includes("SERV")) {
-              updates.service_points = Math.max(0, (profile.service_points ?? 0) - pointsToDeduct);
-            } else if (normType.includes("SOCI")) {
-              updates.social_points = Math.max(0, (profile.social_points ?? 0) - pointsToDeduct);
-            }
-
-            if (Object.keys(updates).length > 0) {
-              await adminClient
-                .from("People")
-                .update(updates)
-                .eq("auth_id", absence.user_id);
-            }
+          if (Object.keys(updates).length > 0) {
+            await adminClient
+              .from("People")
+              .update(updates)
+              .eq("auth_id", absence.user_id);
           }
         }
       }

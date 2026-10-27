@@ -4,6 +4,7 @@ import { createClient } from "@/app/utils/supabase/server";
 import { createAdminClient } from "@/app/utils/supabase/admin";
 import { logAdminActivity } from "@/app/utils/activityLogger";
 import { revalidatePath } from "next/cache";
+import { getEventPointsForMember } from "@/app/utils/eventPoints";
 
 export async function deleteMember(
     memberId: number,
@@ -178,7 +179,22 @@ export async function addStrike(formData: FormData) {
         throw new Error(error.message);
     }
 
+    // Accurately synchronize People.strikes with active strikes count
+    const supabaseAdmin = createAdminClient();
+    const { count: activeCount } = await supabaseAdmin
+        .from("strikes")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", memberAuthId)
+        .eq("status", "ACTIVE");
+
+    await supabaseAdmin
+        .from("People")
+        .update({ strikes: activeCount ?? 0 })
+        .eq("auth_id", memberAuthId);
+
     revalidatePath("/users/admin/reviewMemberStats");
+    revalidatePath("/users/admin");
+    revalidatePath("/users/member");
 }
 
 export async function deleteStrike(strikeId: string) {
@@ -193,6 +209,13 @@ export async function deleteStrike(strikeId: string) {
         throw new Error(userError.message);
     }
 
+    // Get strike user_id first
+    const { data: strikeData } = await supabase
+        .from("strikes")
+        .select("user_id")
+        .eq("id", strikeId)
+        .maybeSingle();
+
     const { error } = await supabase
         .from("strikes")
         .update({
@@ -206,7 +229,24 @@ export async function deleteStrike(strikeId: string) {
         throw new Error(error.message);
     }
 
+    // Accurately synchronize People.strikes with active strikes count
+    if (strikeData?.user_id) {
+        const supabaseAdmin = createAdminClient();
+        const { count: activeCount } = await supabaseAdmin
+            .from("strikes")
+            .select("*", { count: "exact", head: true })
+            .eq("user_id", strikeData.user_id)
+            .eq("status", "ACTIVE");
+
+        await supabaseAdmin
+            .from("People")
+            .update({ strikes: activeCount ?? 0 })
+            .eq("auth_id", strikeData.user_id);
+    }
+
     revalidatePath("/users/admin/reviewMemberStats");
+    revalidatePath("/users/admin");
+    revalidatePath("/users/member");
 }
 
 export async function updateMemberPoints(memberId: number, category: "professional" | "social" | "service", amount: number) {
@@ -303,19 +343,63 @@ export async function updateOfficerNotes(memberId: number, notes: string) {
 
 export async function updateMemberRole(memberId: number, role: string) {
     const supabase = await createClient();
+    const supabaseAdmin = createAdminClient();
 
     const normalizedRole = role.trim().toUpperCase();
 
-    const { error } = await supabase
+    const { data: person } = await supabaseAdmin
         .from("People")
-        .update({ role: normalizedRole })
-        .eq("id", memberId);
+        .select("auth_id")
+        .eq("id", memberId)
+        .maybeSingle();
 
-    if (error) {
-        throw new Error(error.message);
+    if (normalizedRole === "ADMIN") {
+        // Admins are officers and exempt from strikes - clear any strikes count and active strikes
+        const { error } = await supabaseAdmin
+            .from("People")
+            .update({ role: normalizedRole, strikes: 0 })
+            .eq("id", memberId);
+
+        if (error) {
+            throw new Error(error.message);
+        }
+
+        if (person?.auth_id) {
+            await supabaseAdmin
+                .from("strikes")
+                .update({
+                    status: "REMOVED",
+                    removed_at: new Date().toISOString(),
+                    admin_note: "Member promoted to Admin (exempt from strikes).",
+                })
+                .eq("user_id", person.auth_id)
+                .eq("status", "ACTIVE");
+        }
+    } else {
+        // Synchronize strikes count from active strikes
+        let activeCount = 0;
+        if (person?.auth_id) {
+            const { count } = await supabaseAdmin
+                .from("strikes")
+                .select("*", { count: "exact", head: true })
+                .eq("user_id", person.auth_id)
+                .eq("status", "ACTIVE");
+            activeCount = count ?? 0;
+        }
+
+        const { error } = await supabaseAdmin
+            .from("People")
+            .update({ role: normalizedRole, strikes: activeCount })
+            .eq("id", memberId);
+
+        if (error) {
+            throw new Error(error.message);
+        }
     }
 
     revalidatePath("/users/admin/reviewMemberStats");
+    revalidatePath("/users/admin");
+    revalidatePath("/users/member");
 }
 
 export async function deactivateMember(memberId: number) {
@@ -379,12 +463,13 @@ export async function updateAbsenceStatus(absenceId: string, status: "APPROVED" 
         points: number | null;
         event_type: string | null;
         is_mandatory: boolean | null;
+        description?: string | null;
     } | null = null;
 
     if (absence.event_id) {
         const { data } = await supabaseAdmin
             .from("events")
-            .select("id, name, points, event_type, is_mandatory")
+            .select("id, name, points, event_type, is_mandatory, description")
             .eq("id", absence.event_id)
             .maybeSingle();
         eventData = data;
@@ -398,7 +483,13 @@ export async function updateAbsenceStatus(absenceId: string, status: "APPROVED" 
             .eq("event_id", absence.event_id)
             .maybeSingle();
 
-        const eventPoints = eventData?.points ?? 0;
+        const { data: profile } = await supabaseAdmin
+            .from("People")
+            .select("professional_points, service_points, social_points, is_new_member")
+            .eq("auth_id", absence.user_id)
+            .maybeSingle();
+
+        const eventPoints = getEventPointsForMember(eventData, profile?.is_new_member);
         const eventType = eventData?.event_type ?? null;
 
         if (!existingAttendance) {
@@ -412,31 +503,23 @@ export async function updateAbsenceStatus(absenceId: string, status: "APPROVED" 
                     point_type: eventType,
                 });
 
-            if (eventPoints > 0 && eventType) {
-                const { data: profile } = await supabaseAdmin
-                    .from("People")
-                    .select("professional_points, service_points, social_points")
-                    .eq("auth_id", absence.user_id)
-                    .maybeSingle();
+            if (eventPoints > 0 && eventType && profile) {
+                const updates: Record<string, number> = {};
+                const normType = eventType.toUpperCase();
 
-                if (profile) {
-                    const updates: Record<string, number> = {};
-                    const normType = eventType.toUpperCase();
+                if (normType.includes("PROF")) {
+                    updates.professional_points = (profile.professional_points ?? 0) + eventPoints;
+                } else if (normType.includes("SERV")) {
+                    updates.service_points = (profile.service_points ?? 0) + eventPoints;
+                } else if (normType.includes("SOCI")) {
+                    updates.social_points = (profile.social_points ?? 0) + eventPoints;
+                }
 
-                    if (normType.includes("PROF")) {
-                        updates.professional_points = (profile.professional_points ?? 0) + eventPoints;
-                    } else if (normType.includes("SERV")) {
-                        updates.service_points = (profile.service_points ?? 0) + eventPoints;
-                    } else if (normType.includes("SOCI")) {
-                        updates.social_points = (profile.social_points ?? 0) + eventPoints;
-                    }
-
-                    if (Object.keys(updates).length > 0) {
-                        await supabaseAdmin
-                            .from("People")
-                            .update(updates)
-                            .eq("auth_id", absence.user_id);
-                    }
+                if (Object.keys(updates).length > 0) {
+                    await supabaseAdmin
+                        .from("People")
+                        .update(updates)
+                        .eq("auth_id", absence.user_id);
                 }
             }
         }
@@ -452,22 +535,24 @@ export async function updateAbsenceStatus(absenceId: string, status: "APPROVED" 
         if (existingStrikes && existingStrikes.length > 0) {
             await supabaseAdmin
                 .from("strikes")
-                .delete()
+                .update({
+                    status: "REMOVED",
+                    removed_at: new Date().toISOString(),
+                    admin_note: "Absence approved by admin.",
+                })
                 .eq("user_id", absence.user_id)
                 .eq("event_id", absence.event_id);
 
-            const { data: person } = await supabaseAdmin
-                .from("People")
-                .select("strikes")
-                .eq("auth_id", absence.user_id)
-                .maybeSingle();
+            const { count: activeCount } = await supabaseAdmin
+                .from("strikes")
+                .select("*", { count: "exact", head: true })
+                .eq("user_id", absence.user_id)
+                .eq("status", "ACTIVE");
 
-            if (person && typeof person.strikes === "number" && person.strikes > 0) {
-                await supabaseAdmin
-                    .from("People")
-                    .update({ strikes: Math.max(0, person.strikes - existingStrikes.length) })
-                    .eq("auth_id", absence.user_id);
-            }
+            await supabaseAdmin
+                .from("People")
+                .update({ strikes: activeCount ?? 0 })
+                .eq("auth_id", absence.user_id);
         }
     } else if (status === "REJECTED" && absence.status?.toUpperCase() === "APPROVED" && absence.event_id && absence.user_id) {
         const { data: existingAttendance } = await supabaseAdmin
@@ -483,34 +568,32 @@ export async function updateAbsenceStatus(absenceId: string, status: "APPROVED" 
                 .delete()
                 .eq("id", existingAttendance.id);
 
-            const pointsToDeduct = existingAttendance.points_awarded ?? (eventData?.points ?? 0);
+            const { data: profile } = await supabaseAdmin
+                .from("People")
+                .select("professional_points, service_points, social_points, is_new_member")
+                .eq("auth_id", absence.user_id)
+                .maybeSingle();
+
+            const pointsToDeduct = existingAttendance.points_awarded ?? getEventPointsForMember(eventData, profile?.is_new_member);
             const eventType = existingAttendance.point_type ?? eventData?.event_type;
 
-            if (pointsToDeduct > 0 && eventType) {
-                const { data: profile } = await supabaseAdmin
-                    .from("People")
-                    .select("professional_points, service_points, social_points")
-                    .eq("auth_id", absence.user_id)
-                    .maybeSingle();
+            if (pointsToDeduct > 0 && eventType && profile) {
+                const updates: Record<string, number> = {};
+                const normType = eventType.toUpperCase();
 
-                if (profile) {
-                    const updates: Record<string, number> = {};
-                    const normType = eventType.toUpperCase();
+                if (normType.includes("PROF")) {
+                    updates.professional_points = Math.max(0, (profile.professional_points ?? 0) - pointsToDeduct);
+                } else if (normType.includes("SERV")) {
+                    updates.service_points = Math.max(0, (profile.service_points ?? 0) - pointsToDeduct);
+                } else if (normType.includes("SOCI")) {
+                    updates.social_points = Math.max(0, (profile.social_points ?? 0) - pointsToDeduct);
+                }
 
-                    if (normType.includes("PROF")) {
-                        updates.professional_points = Math.max(0, (profile.professional_points ?? 0) - pointsToDeduct);
-                    } else if (normType.includes("SERV")) {
-                        updates.service_points = Math.max(0, (profile.service_points ?? 0) - pointsToDeduct);
-                    } else if (normType.includes("SOCI")) {
-                        updates.social_points = Math.max(0, (profile.social_points ?? 0) - pointsToDeduct);
-                    }
-
-                    if (Object.keys(updates).length > 0) {
-                        await supabaseAdmin
-                            .from("People")
-                            .update(updates)
-                            .eq("auth_id", absence.user_id);
-                    }
+                if (Object.keys(updates).length > 0) {
+                    await supabaseAdmin
+                        .from("People")
+                        .update(updates)
+                        .eq("auth_id", absence.user_id);
                 }
             }
         }
@@ -677,7 +760,7 @@ export async function refreshAllMemberPoints() {
     // 1. Fetch all events
     const { data: events, error: eventsErr } = await supabaseAdmin
         .from("events")
-        .select("id, name, points, event_type");
+        .select("id, name, points, event_type, description");
 
     if (eventsErr || !events) {
         throw new Error(eventsErr?.message || "Failed to load events");
@@ -695,10 +778,23 @@ export async function refreshAllMemberPoints() {
     // 3. Fetch all members
     const { data: people, error: peopleErr } = await supabaseAdmin
         .from("People")
-        .select("id, auth_id, name, role, professional_points, social_points, service_points");
+        .select("id, auth_id, name, role, strikes, professional_points, social_points, service_points, is_new_member");
 
     if (peopleErr || !people) {
         throw new Error(peopleErr?.message || "Failed to load members");
+    }
+
+    // 4. Fetch all active strikes to synchronize People.strikes
+    const { data: allActiveStrikes } = await supabaseAdmin
+        .from("strikes")
+        .select("user_id")
+        .eq("status", "ACTIVE");
+
+    const activeStrikesMap = new Map<string, number>();
+    for (const s of (allActiveStrikes || [])) {
+        if (s.user_id) {
+            activeStrikesMap.set(s.user_id, (activeStrikesMap.get(s.user_id) || 0) + 1);
+        }
     }
 
     // Ensure events with missing points are updated if they are professional/social workshops
@@ -720,7 +816,14 @@ export async function refreshAllMemberPoints() {
         eventMap.set(e.id, e);
     }
 
-    // Update attendance rows where points_awarded or point_type is missing for point-bearing events
+    const peopleMap = new Map<string, (typeof people)[0]>();
+    for (const p of people) {
+        if (p.auth_id) {
+            peopleMap.set(p.auth_id, p);
+        }
+    }
+
+    // Update attendance rows where points_awarded or point_type is missing or inaccurate
     const attendanceUpdates = [];
     for (const att of attendance) {
         if (!att.event_id) continue;
@@ -729,7 +832,8 @@ export async function refreshAllMemberPoints() {
 
         const isPointBearing = ["PROFESSIONAL", "SOCIAL", "SERVICE"].includes((evt.event_type || "").toUpperCase());
         if (isPointBearing) {
-            const expectedPoints = evt.points || 1;
+            const person = att.user_id ? peopleMap.get(att.user_id) : undefined;
+            const expectedPoints = getEventPointsForMember(evt, person?.is_new_member);
             const expectedType = evt.event_type;
             if (att.points_awarded !== expectedPoints || att.point_type !== expectedType) {
                 attendanceUpdates.push(
@@ -798,9 +902,10 @@ export async function refreshAllMemberPoints() {
             (e) => (e.event_type || "").toUpperCase().includes("SERVICE") || (e.event_type || "").toUpperCase().includes("SERV")
         );
 
-        const breakdownProf = profEvents.reduce((sum, e) => sum + (e.points || 1), 0);
-        const breakdownSoc = socEvents.reduce((sum, e) => sum + (e.points || 1), 0);
-        const breakdownServ = servEvents.reduce((sum, e) => sum + (e.points || 1), 0);
+        const isNew = Boolean(person.is_new_member);
+        const breakdownProf = profEvents.reduce((sum, e) => sum + getEventPointsForMember(e, isNew), 0);
+        const breakdownSoc = socEvents.reduce((sum, e) => sum + getEventPointsForMember(e, isNew), 0);
+        const breakdownServ = servEvents.reduce((sum, e) => sum + getEventPointsForMember(e, isNew), 0);
 
         const manual = manualPointsMap.get(person.id) || { professional: 0, social: 0, service: 0 };
 
@@ -811,8 +916,13 @@ export async function refreshAllMemberPoints() {
         const curProf = person.professional_points ?? 0;
         const curSoc = person.social_points ?? 0;
         const curServ = person.service_points ?? 0;
+        const curStrikes = person.strikes ?? 0;
 
-        if (curProf !== newProf || curSoc !== newSoc || curServ !== newServ) {
+        const expectedStrikes = (person.role?.toUpperCase() === "ADMIN")
+            ? 0
+            : (person.auth_id ? (activeStrikesMap.get(person.auth_id) || 0) : 0);
+
+        if (curProf !== newProf || curSoc !== newSoc || curServ !== newServ || curStrikes !== expectedStrikes) {
             updatedCount++;
             peopleUpdates.push(
                 supabaseAdmin
@@ -821,6 +931,7 @@ export async function refreshAllMemberPoints() {
                         professional_points: newProf,
                         social_points: newSoc,
                         service_points: newServ,
+                        strikes: expectedStrikes,
                     })
                     .eq("id", person.id)
             );

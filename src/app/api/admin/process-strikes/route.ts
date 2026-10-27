@@ -4,42 +4,60 @@ import { createClient } from "@/app/utils/supabase/server";
 
 export async function POST(request: Request) {
   try {
-    // Check if this is an automated Vercel Cron Job
-    const authHeader = request.headers.get('authorization');
-    const isCronJob = authHeader === `Bearer ${process.env.CRON_SECRET}`;
+    // 1. Verify authenticated admin user. No automatic/cron execution permitted.
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
 
-    // If it's not a cron job, verifyn it's an admin user clicking the button
-    if (!isCronJob) {
-      const supabase = await createClient();
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
-
-      if (userError || !user) {
-        console.log("Process Strikes: Unauthorized access attempt.");
-        return NextResponse.json(
-          { error: "Unauthorized" },
-          { status: 401 }
-        );
-      }
-    } else {
-        console.log("Process Strikes: Triggered automatically by Vercel Cron.");
+    if (userError || !user) {
+      return NextResponse.json(
+        { error: "Unauthorized: Please log in." },
+        { status: 401 }
+      );
     }
+
+    const { data: profile } = await supabase
+      .from("People")
+      .select("role")
+      .eq("auth_id", user.id)
+      .maybeSingle();
+
+    if (profile?.role?.toUpperCase() !== "ADMIN") {
+      return NextResponse.json(
+        { error: "Forbidden: Admin privileges required." },
+        { status: 403 }
+      );
+    }
+
+    // Parse optional eventId from body if processing a specific event
+    let targetEventId: string | null = null;
+    try {
+      const body = await request.json().catch(() => null);
+      if (body?.eventId) {
+        targetEventId = String(body.eventId).trim();
+      }
+    } catch (_) {}
 
     // Initialize Supabase admin client for batch updates
     const adminClient = createAdminClient();
+    const now = new Date();
 
-    // 1. Fetch mandatory events that have ended and not processed
-    const now = new Date().toISOString();
-    console.log(`Process Strikes: Fetching events ending before ${now}`);
-    
-    const { data: unprocessedEvents, error: eventsError } = await adminClient
+    // 2. Fetch events to process
+    let eventsQuery = adminClient
       .from("events")
-      .select("id, name, check_in_ends_at")
-      .eq("is_mandatory", true)
-      .eq("strikes_processed", false)
-      .lt("check_in_ends_at", now);
+      .select("id, name, check_in_ends_at, date, event_type, is_mandatory, strikes_processed");
+
+    if (targetEventId) {
+      eventsQuery = eventsQuery.eq("id", targetEventId);
+    } else {
+      eventsQuery = eventsQuery
+        .eq("is_mandatory", true)
+        .eq("strikes_processed", false);
+    }
+
+    const { data: rawEvents, error: eventsError } = await eventsQuery;
 
     if (eventsError) {
       console.error("Process Strikes: Failed to fetch events", eventsError);
@@ -49,28 +67,40 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!unprocessedEvents || unprocessedEvents.length === 0) {
-      console.log("Process Strikes: No events to process.");
-      return NextResponse.json({ ok: true, message: "No events to process." });
+    // Filter to events that have concluded
+    const unprocessedEvents = (rawEvents || []).filter((e) => {
+      const eventEnd = e.check_in_ends_at || e.date;
+      if (!eventEnd) return false;
+      const endDate = new Date(eventEnd);
+      return !isNaN(endDate.getTime()) && endDate.getTime() <= now.getTime();
+    });
+
+    if (unprocessedEvents.length === 0) {
+      return NextResponse.json({
+        ok: true,
+        message: targetEventId
+          ? "Event has either not concluded yet or already has strikes processed."
+          : "No mandatory events currently require strike processing.",
+        results: [],
+      });
     }
 
-    console.log(`Process Strikes: Found ${unprocessedEvents.length} events to process.`);
     const results = [];
 
     for (const event of unprocessedEvents) {
-      console.log(`Processing event: ${event.name} (${event.id})`);
-      
-      // 2. Get all people
+      console.log(`Processing strikes for event: ${event.name} (${event.id})`);
+
+      // 3. Get all people
       const { data: people, error: peopleError } = await adminClient
         .from("People")
-        .select("auth_id, name, illinois_email, strikes, role");
+        .select("auth_id, name, illinois_email, strikes, role, is_new_member");
 
       if (peopleError || !people) {
         console.error("Process Strikes: Failed to fetch people", peopleError);
         continue;
       }
 
-      // 3. Get attendance for this event
+      // 4. Get attendance for this event
       const { data: attendance, error: attendanceError } = await adminClient
         .from("attendance")
         .select("user_id")
@@ -81,111 +111,211 @@ export async function POST(request: Request) {
         continue;
       }
 
-      const attendedUserIds = new Set(attendance.map((a) => a.user_id));
-      console.log(`Event ${event.id}: Found ${attendedUserIds.size} attendees.`);
+      const attendedUserIds = new Set((attendance || []).map((a) => a.user_id));
 
-      // 4. Get approved absences for this event
-      const { data: excusedAbsences, error: excusedError } = await adminClient
+      // 5. Get absences for this event (distinguishing APPROVED vs PENDING)
+      const { data: absences, error: absencesError } = await adminClient
         .from("excused_absences")
-        .select("user_id")
-        .eq("event_id", event.id)
-        .eq("status", "APPROVED");
+        .select("user_id, status")
+        .eq("event_id", event.id);
 
-      if (excusedError) {
-        console.error(`Process Strikes: Failed to fetch excused absences for event ${event.id}`, excusedError);
+      if (absencesError) {
+        console.error(`Process Strikes: Failed to fetch absences for event ${event.id}`, absencesError);
         continue;
       }
 
-      const excusedUserIds = new Set(excusedAbsences.map((ea) => ea.user_id));
-      console.log(`Event ${event.id}: Found ${excusedUserIds.size} approved absences.`);
+      const approvedAbsenceUserIds = new Set(
+        (absences || [])
+          .filter((a) => a.status?.toUpperCase() === "APPROVED")
+          .map((a) => a.user_id)
+      );
+
+      const pendingAbsenceUserIds = new Set(
+        (absences || [])
+          .filter((a) => !a.status || a.status?.toUpperCase() === "PENDING")
+          .map((a) => a.user_id)
+      );
+
+      // Event audience targeting
+      const evNameLower = (event.name || "").toLowerCase();
+      const isCurrentMemberOnly =
+        evNameLower.includes("current member") || evNameLower.includes("returning member");
+      const isNewMemberOnly =
+        evNameLower.includes("new member") || event.event_type === "NEW_MEMBER_WORKSHOP";
 
       const struckUsers = [];
+      let pendingSkippedCount = 0;
 
       for (const person of people) {
         if (!person.auth_id) continue;
-        // Admins are officers and exempt from point requirements and strikes
-        if (person.role?.toUpperCase() === "ADMIN") continue;
 
-        // If not attended and not excused
-        if (!attendedUserIds.has(person.auth_id) && !excusedUserIds.has(person.auth_id)) {
-          console.log(`User ${person.name} (${person.illinois_email}) missed event ${event.name}. Adding strike.`);
-          
-          // 5. Increment strike
-          const { data: existingStrike } = await adminClient
+        // Admins are officers and exempt from strikes
+        if (person.role?.toUpperCase() === "ADMIN") {
+          // Ensure admin has 0 strikes
+          if ((person.strikes || 0) > 0) {
+            await adminClient
+              .from("People")
+              .update({ strikes: 0 })
+              .eq("auth_id", person.auth_id);
+          }
+          continue;
+        }
+
+        // Audience check
+        if (isCurrentMemberOnly && person.is_new_member) continue;
+        if (isNewMemberOnly && !person.is_new_member) continue;
+
+        // If person attended: Ensure no active strike exists for this event
+        if (attendedUserIds.has(person.auth_id)) {
+          const { data: existingActive } = await adminClient
             .from("strikes")
             .select("id")
             .eq("user_id", person.auth_id)
             .eq("event_id", event.id)
-            .eq("strike_type", "MISSED_MANDATORY_EVENT")
-            .maybeSingle();
+            .eq("status", "ACTIVE");
 
-          if (existingStrike) {
-            console.log(`Strike already exists for ${person.name} and event ${event.name}. Skipping.`);
-            continue;
-          }
+          if (existingActive && existingActive.length > 0) {
+            await adminClient
+              .from("strikes")
+              .update({
+                status: "REMOVED",
+                removed_at: new Date().toISOString(),
+                admin_note: "Automatically removed because member attended the event.",
+              })
+              .eq("user_id", person.auth_id)
+              .eq("event_id", event.id);
 
-          const { error: insertError } = await adminClient
-            .from("strikes")
-            .insert({
-              user_id: person.auth_id,
-              event_id: event.id,
-              strike_type: "MISSED_MANDATORY_EVENT",
-              reason: `Missed mandatory event: ${event.name || "Mandatory Event"}`,
-              status: "ACTIVE",
-              source: "AUTOMATIC",
-              admin_note: "Automatically generated because the member missed a mandatory event without an approved absence.",
-              created_by: null,
-            });
+            // Sync strikes
+            const { count } = await adminClient
+              .from("strikes")
+              .select("*", { count: "exact", head: true })
+              .eq("user_id", person.auth_id)
+              .eq("status", "ACTIVE");
 
-          if (!insertError) {
-            struckUsers.push(person);
-
-            const newStrikes = (person.strikes || 0) + 1;
-
-            const { error: updatePeopleError } = await adminClient
+            await adminClient
               .from("People")
-              .update({ strikes: newStrikes })
+              .update({ strikes: count ?? 0 })
               .eq("auth_id", person.auth_id);
-
-            if (updatePeopleError) {
-              console.error(`Failed to update People strikes for user ${person.name}:`, updatePeopleError);
-            }
-
-            if (person.illinois_email) {
-              await sendStrikeEmail(
-                person.illinois_email,
-                person.name || "Member",
-                event.name || "Mandatory Event",
-                newStrikes
-              );
-            } else {
-              console.log(`Warning: User ${person.name} has no illinois_email to send strike to.`);
-            }
-          } else {
-            console.error(`Failed to insert strike for user ${person.name}`, insertError);
           }
+          continue;
+        }
+
+        // If person has approved absence: Ensure no active strike exists for this event
+        if (approvedAbsenceUserIds.has(person.auth_id)) {
+          const { data: existingActive } = await adminClient
+            .from("strikes")
+            .select("id")
+            .eq("user_id", person.auth_id)
+            .eq("event_id", event.id)
+            .eq("status", "ACTIVE");
+
+          if (existingActive && existingActive.length > 0) {
+            await adminClient
+              .from("strikes")
+              .update({
+                status: "REMOVED",
+                removed_at: new Date().toISOString(),
+                admin_note: "Automatically removed because absence was approved.",
+              })
+              .eq("user_id", person.auth_id)
+              .eq("event_id", event.id);
+
+            // Sync strikes
+            const { count } = await adminClient
+              .from("strikes")
+              .select("*", { count: "exact", head: true })
+              .eq("user_id", person.auth_id)
+              .eq("status", "ACTIVE");
+
+            await adminClient
+              .from("People")
+              .update({ strikes: count ?? 0 })
+              .eq("auth_id", person.auth_id);
+          }
+          continue;
+        }
+
+        // If person has a PENDING absence: DO NOT STRIKE!
+        // Admin must review their excuse form first.
+        if (pendingAbsenceUserIds.has(person.auth_id)) {
+          pendingSkippedCount++;
+          continue;
+        }
+
+        // Member did not attend and has no excused absence
+        // Check if an active strike already exists for this event
+        const { data: existingStrike } = await adminClient
+          .from("strikes")
+          .select("id")
+          .eq("user_id", person.auth_id)
+          .eq("event_id", event.id)
+          .eq("status", "ACTIVE")
+          .maybeSingle();
+
+        if (existingStrike) {
+          continue;
+        }
+
+        // Insert new strike
+        const { error: insertError } = await adminClient
+          .from("strikes")
+          .insert({
+            user_id: person.auth_id,
+            event_id: event.id,
+            strike_type: "MISSED_MANDATORY_EVENT",
+            reason: `Missed mandatory event: ${event.name || "Mandatory Event"}`,
+            status: "ACTIVE",
+            source: "ADMIN_MANUAL",
+            admin_note: "Generated because member missed a mandatory event without an approved absence.",
+            created_by: user.id,
+          });
+
+        if (!insertError) {
+          struckUsers.push(person);
+
+          // Synchronize People.strikes accurately from the count of active strikes in strikes table
+          const { count: activeCount } = await adminClient
+            .from("strikes")
+            .select("*", { count: "exact", head: true })
+            .eq("user_id", person.auth_id)
+            .eq("status", "ACTIVE");
+
+          await adminClient
+            .from("People")
+            .update({ strikes: activeCount ?? 1 })
+            .eq("auth_id", person.auth_id);
+
+          if (person.illinois_email) {
+            await sendStrikeEmail(
+              person.illinois_email,
+              person.name || "Member",
+              event.name || "Mandatory Event",
+              activeCount ?? 1
+            );
+          }
+        } else {
+          console.error(`Failed to insert strike for user ${person.name}`, insertError);
         }
       }
 
-      // 7. Mark event as processed
-      const { error: markError } = await adminClient
+      // Mark event strikes_processed = true
+      await adminClient
         .from("events")
         .update({ strikes_processed: true })
         .eq("id", event.id);
-        
-      if(markError) {
-          console.error(`Failed to mark event ${event.id} as processed`, markError);
-      } else {
-          console.log(`Successfully marked event ${event.id} as processed.`);
-      }
 
       results.push({
         event: event.name,
         struckCount: struckUsers.length,
+        pendingExcusesSkipped: pendingSkippedCount,
       });
     }
 
-    return NextResponse.json({ ok: true, results });
+    return NextResponse.json({
+      ok: true,
+      message: `Successfully processed strikes for ${results.length} event(s).`,
+      results,
+    });
   } catch (error: any) {
     console.error("Process Strikes: Unexpected error", error);
     return NextResponse.json(
@@ -211,7 +341,6 @@ function createAdminClient() {
   });
 }
 
-
 async function sendStrikeEmail(to: string, name: string, eventName: string, strikeCount: number) {
   const gasUrl = process.env.GAS_EMAIL_URL;
   const gasSecret = process.env.GAS_EMAIL_SECRET;
@@ -224,8 +353,6 @@ async function sendStrikeEmail(to: string, name: string, eventName: string, stri
   const message = `Hello ${name},\n\nYou are receiving this email because you did not check in to the mandatory event "${eventName}" and do not have an approved absence request.\n\nAs a result, a strike has been added to your account. Your total strike count is now: ${strikeCount}.\n\nPlease refer to the organization's policy regarding mandatory events and strikes.\n\nBest regards,\nNOBE Administration`;
 
   try {
-    console.log(`Attempting to send strike email to ${to} for event ${eventName} via GAS...`);
-
     const res = await fetch(gasUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -244,12 +371,9 @@ async function sendStrikeEmail(to: string, name: string, eventName: string, stri
       const data = await res.json();
       if (!data.success) {
         console.error(`GAS email failed:`, data.error);
-      } else {
-        console.log(`Successfully sent strike email to ${to}`);
       }
     }
   } catch (error) {
     console.error("Failed to execute fetch for strike email:", error);
   }
 }
-
