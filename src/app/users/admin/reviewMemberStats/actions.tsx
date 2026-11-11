@@ -5,6 +5,7 @@ import { createAdminClient } from "@/app/utils/supabase/admin";
 import { logAdminActivity } from "@/app/utils/activityLogger";
 import { revalidatePath } from "next/cache";
 import { getEventPointsForMember } from "@/app/utils/eventPoints";
+import { fetchAllRows } from "@/app/utils/supabase/fetchAll";
 
 export async function deleteMember(
     memberId: number,
@@ -766,14 +767,18 @@ export async function refreshAllMemberPoints() {
         throw new Error(eventsErr?.message || "Failed to load events");
     }
 
-    // 2. Fetch all attendance records
-    const { data: attendance, error: attErr } = await supabaseAdmin
-        .from("attendance")
-        .select("id, user_id, event_id, points_awarded, point_type");
-
-    if (attErr || !attendance) {
-        throw new Error(attErr?.message || "Failed to load attendance");
-    }
+    // 2. Fetch all attendance records (paginated to avoid 1,000 row truncation limit)
+    const attendance = await fetchAllRows<{
+        id: string;
+        user_id: string | null;
+        event_id: string | null;
+        points_awarded: number | null;
+        point_type: string | null;
+    }>(
+        supabaseAdmin,
+        "attendance",
+        "id, user_id, event_id, points_awarded, point_type"
+    );
 
     // 3. Fetch all members
     const { data: people, error: peopleErr } = await supabaseAdmin

@@ -1,5 +1,6 @@
 import { createClient } from "@/app/utils/supabase/server";
 import { getPointRequirements } from "@/app/utils/getPointRequirements";
+import { fetchAllRows } from "@/app/utils/supabase/fetchAll";
 import AdminGuard from "../AdminGuard";
 import ReviewMemberStatsClient, {
     type AbsenceRecord,
@@ -13,7 +14,7 @@ import ReviewMemberStatsClient, {
 export default async function ReviewMemberStats() {
     const supabase = await createClient();
 
-    const [initialMembersRes, eventsRes, attendanceRes, absencesRes, strikesRes, settingsRes, pointRequirements] = await Promise.all([
+    const [initialMembersRes, eventsRes, allAttendance, absencesRes, strikesRes, settingsRes, pointRequirements] = await Promise.all([
         supabase
             .from("People")
             .select(
@@ -24,9 +25,7 @@ export default async function ReviewMemberStats() {
             .from("events")
             .select("id, name, date, event_type, points, is_mandatory, description")
             .order("date", { ascending: true }),
-        supabase
-            .from("attendance")
-            .select("id, user_id, event_id, timestamp"),
+        fetchAllRows<AttendanceRecord>(supabase, "attendance", "id, user_id, event_id, timestamp"),
         supabase
             .from("excused_absences")
             .select("id, user_id, event_id, status, reason, submitted_at"),
@@ -53,7 +52,6 @@ export default async function ReviewMemberStats() {
     const loadError =
         membersRes.error?.message ??
         eventsRes.error?.message ??
-        attendanceRes.error?.message ??
         absencesRes.error?.message ??
         strikesRes.error?.message ??
         settingsRes.error?.message ??
@@ -64,7 +62,7 @@ export default async function ReviewMemberStats() {
             <ReviewMemberStatsClient
                 members={(membersRes.data ?? []) as MemberRecord[]}
                 events={(eventsRes.data ?? []) as EventRecord[]}
-                attendance={(attendanceRes.data ?? []) as AttendanceRecord[]}
+                attendance={allAttendance}
                 absences={(absencesRes.data ?? []) as AbsenceRecord[]}
                 strikes={(strikesRes.data ?? []) as StrikeRecord[]}
                 systemSettings={(settingsRes.data ?? []) as SystemSettingRecord[]}

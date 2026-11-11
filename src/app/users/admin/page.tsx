@@ -1,5 +1,6 @@
 import { createClient } from "@/app/utils/supabase/server";
 import { getPointRequirements } from "@/app/utils/getPointRequirements";
+import { fetchAllRows } from "@/app/utils/supabase/fetchAll";
 import AdminDashboard from "./adminDashboard";
 import AdminGuard from "./AdminGuard";
 
@@ -99,7 +100,7 @@ export default async function AdminPage() {
   const [
     initialMembersRes,
     eventsRes,
-    attendanceRes,
+    allAttendance,
     absencesRes,
     strikesRes,
     uploadsRes,
@@ -115,9 +116,7 @@ export default async function AdminPage() {
       .select(
         "id, name, date, event_type, is_mandatory, check_in_ends_at, strikes_processed, qr_code_secret, points, created_at, location, gcal_event_id, dresscode"
       ),
-    supabase
-      .from("attendance")
-      .select("id, user_id, event_id, timestamp"),
+    fetchAllRows<AttendanceDbRow>(supabase, "attendance", "id, user_id, event_id, timestamp"),
     supabase
       .from("excused_absences")
       .select(
@@ -150,7 +149,6 @@ export default async function AdminPage() {
   const loadError =
     membersRes.error?.message ??
     eventsRes.error?.message ??
-    attendanceRes.error?.message ??
     absencesRes.error?.message ??
     strikesRes.error?.message ??
     uploadsRes.error?.message ??
@@ -192,7 +190,7 @@ export default async function AdminPage() {
   }
   const events = Array.from(eventMap.values());
 
-  const attendance = (attendanceRes.data ?? []) as AttendanceDbRow[];
+  const attendance = allAttendance;
   const absences = (absencesRes.data ?? []) as AbsenceRow[];
   const strikes = (strikesRes.data ?? []) as StrikeRow[];
   const csvUploads = (uploadsRes.data ?? []) as CsvUploadRow[];

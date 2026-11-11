@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/app/utils/supabase/client";
+import { fetchAllRows } from "@/app/utils/supabase/fetchAll";
 import QRCode from "react-qr-code";
 
 import AdminGuard from "../AdminGuard";
@@ -97,15 +98,15 @@ export default function ViewAllEvents() {
   async function fetchData() {
     setLoading(true);
     try {
-      const [eventsRes, attendanceRes, peopleRes] = await Promise.all([
+      const [eventsRes, attendanceList, peopleRes] = await Promise.all([
         supabase.from("events").select("*").order("date", { ascending: true }),
-        supabase.from("attendance").select("user_id, event_id"),
+        fetchAllRows<{ user_id: string; event_id: string }>(supabase, "attendance", "user_id, event_id"),
         supabase.from("People").select("id, auth_id")
       ]);
 
       if (eventsRes.error) throw eventsRes.error;
       setEvents((eventsRes.data as EventItem[]) || []);
-      setAttendance(attendanceRes.data || []);
+      setAttendance(attendanceList || []);
       setPeople(peopleRes.data || []);
     } catch (err: any) {
       console.error("Error loading events data:", err.message);

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/app/utils/supabase/server";
+import { createAdminClient } from "@/app/utils/supabase/admin";
 import { getPointRequirements, getRequirementsForMember } from "@/app/utils/getPointRequirements";
 import { getEventPointsForMember } from "@/app/utils/eventPoints";
 
@@ -166,7 +167,9 @@ export async function POST(req: Request) {
         (profile.social_points ?? 0) + effectivePoints;
     }
 
-    const { error: attendanceError } = await supabase
+    const adminClient = createAdminClient();
+
+    const { error: attendanceError } = await adminClient
       .from("attendance")
       .insert({
         user_id: user.id,
@@ -185,7 +188,7 @@ export async function POST(req: Request) {
 
     let updatedProfile = profile;
     if (Object.keys(updates).length > 0) {
-      const { data: updated, error: updateError } = await supabase
+      const { data: updated, error: updateError } = await adminClient
         .from("People")
         .update(updates)
         .eq("auth_id", user.id)
