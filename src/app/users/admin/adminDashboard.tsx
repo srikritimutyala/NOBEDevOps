@@ -377,7 +377,10 @@ export default function AdminDashboard({
               style={{ width: "52px", height: "52px" }}
             />
             <div>
-              <p className="eyebrow" style={{ marginBottom: "2px" }}>Administration</p>
+              <div className="flex items-center gap-2" style={{ marginBottom: "2px" }}>
+                <p className="eyebrow" style={{ margin: 0 }}>Administration</p>
+                <span className="fall-seasonal-badge">🍁 Fall 2026</span>
+              </div>
               <h1 className="page-title" style={{ fontSize: "2.4rem", fontWeight: 800 }}>
                 Welcome back, {adminName}!
               </h1>

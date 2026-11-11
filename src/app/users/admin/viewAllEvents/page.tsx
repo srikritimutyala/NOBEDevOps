@@ -490,12 +490,15 @@ export default function ViewAllEvents() {
             <Link href="/users/admin" style={{ fontSize: "0.85rem", color: "var(--muted)", textDecoration: "none", fontWeight: "600", display: "inline-flex", alignItems: "center", gap: "6px" }}>
               ← Admin Dashboard
             </Link>
-            <span style={{ fontSize: "0.85rem", color: "var(--muted)" }}>NOBE Chapter Management</span>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ fontSize: "0.85rem", color: "var(--muted)" }}>NOBE Chapter Management</span>
+              <span className="fall-seasonal-badge">🍁 Fall 2026</span>
+            </div>
           </div>
 
           {/* Header Section */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px" }}>
-            <h1 style={{ fontSize: "2.2rem", fontWeight: "800", letterSpacing: "-0.03em", margin: 0, color: "#1a1a1a" }}>Events</h1>
+            <h1 style={{ fontSize: "2.2rem", fontWeight: "800", letterSpacing: "-0.03em", margin: 0, color: "var(--foreground)" }}>Events</h1>
             <Link href="/users/admin/createEvent" className="btn" style={{ background: "linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%)", border: "none", color: "white", padding: "12px 24px", borderRadius: "14px", fontWeight: "700", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "6px", boxShadow: "0 4px 12px rgba(229,138,39,0.2)" }}>
               + Create Event
             </Link>

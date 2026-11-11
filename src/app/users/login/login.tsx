@@ -218,9 +218,12 @@ export default function LoginForm() {
           src="/nobe_logo_f.svg"
           alt="NOBE Illinois"
           className="brand-logo brand-logo-header"
-          style={{ width: '150px', height: '150px' }}
+          style={{ width: '130px', height: '130px', marginBottom: '12px' }}
         />
-        <h1 className="page-title" style={{ fontSize: '2.5rem' }}>
+        <div style={{ marginBottom: '8px' }}>
+          <span className="fall-seasonal-badge">🍂 Fall 2026 Edition</span>
+        </div>
+        <h1 className="page-title" style={{ fontSize: '2.4rem' }}>
           {mode === 'forgot' ? 'Reset Password' : 'NOBE Attendance Portal'}
         </h1>
         <p className="page-subtitle">

@@ -134,7 +134,10 @@ export default function CheckInClient() {
               alt="NOBE Illinois"
               style={{ width: "52px", height: "52px", marginBottom: "10px" }}
             />
-            <p className="eyebrow" style={{ marginBottom: "4px" }}>Event Access</p>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
+              <p className="eyebrow" style={{ margin: 0 }}>Event Access</p>
+              <span className="fall-seasonal-badge">🍂 Fall 2026</span>
+            </div>
             <h1 className="page-title" style={{ fontSize: "2rem", textAlign: "center" }}>Event Check-In</h1>
             <p className="page-subtitle" style={{ textAlign: "center", marginTop: "6px" }}>
               Sign in to record your attendance.

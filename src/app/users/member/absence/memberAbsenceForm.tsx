@@ -237,9 +237,12 @@ export default function AbsencePage() {
                         </span>
                     </div>
 
-                    <p className="eyebrow" style={{ marginTop: '20px' }}>
-                        Member
-                    </p>
+                    <div className="flex items-center gap-2" style={{ marginTop: '20px', marginBottom: '8px' }}>
+                        <p className="eyebrow" style={{ margin: 0 }}>
+                            Member
+                        </p>
+                        <span className="fall-seasonal-badge">🍂 Fall 2026</span>
+                    </div>
 
                     <h1 className="page-title">Absence requests</h1>
                     <p className="page-subtitle">Submit a request and review your excused absences.</p>

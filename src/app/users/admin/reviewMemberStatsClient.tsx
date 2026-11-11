@@ -828,7 +828,10 @@ export default function ReviewMemberStatsClient({
                             style={{ width: "48px", height: "48px" }}
                         />
                         <div>
-                            <p className="eyebrow" style={{ marginBottom: "2px" }}>NOBE Illinois Portal</p>
+                            <div className="flex items-center gap-2" style={{ marginBottom: "2px" }}>
+                                <p className="eyebrow" style={{ margin: 0 }}>NOBE Illinois Portal</p>
+                                <span className="fall-seasonal-badge">🍂 Fall 2026</span>
+                            </div>
                             <h1 className="page-title" style={{ fontSize: "2.0rem", fontWeight: 800, margin: 0 }}>Member Report Card</h1>
                         </div>
                     </div>

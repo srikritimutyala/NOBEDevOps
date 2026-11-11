@@ -34,24 +34,24 @@ interface Strike {
 }
 
 const EVENT_TYPE_CONFIG: Record<string, { label: string; color: string; borderColor: string }> = {
-  PROFESSIONAL: { label: 'Professional', color: '#FF7043', borderColor: '#E64A19' },
-  SOCIAL: { label: 'Social', color: '#FF9999', borderColor: '#FF6666' },
-  SERVICE: { label: 'Service', color: '#9FBB9F', borderColor: '#7A9B7A' },
-  'SERVICE / PHILANTHROPY': { label: 'Service', color: '#9FBB9F', borderColor: '#7A9B7A' },
-  GENERAL_MEETING: { label: 'General Meeting', color: '#424242', borderColor: '#212121' },
-  MANDATORY: { label: 'Mandatory', color: '#FFEBEE', borderColor: '#EF5350' },
-  OTHER_MANDATORY: { label: 'Mandatory', color: '#FFEBEE', borderColor: '#EF5350' },
-  GOOGLE_CALENDAR: { label: 'Google Calendar', color: '#B3E5FC', borderColor: '#0288D1' },
-  PROJECT_MEETING: { label: 'Project Meeting', color: '#FFD54F', borderColor: '#FBC02D' },
-  NEW_MEMBER_WORKSHOP: { label: 'New Member Workshop', color: '#CE93D8', borderColor: '#AF2CC5' },
+  PROFESSIONAL: { label: 'Professional', color: '#FFF7ED', borderColor: '#C2410C' },
+  SOCIAL: { label: 'Social', color: '#FEF3C7', borderColor: '#D97706' },
+  SERVICE: { label: 'Service', color: '#F7FEE7', borderColor: '#4D7C0F' },
+  'SERVICE / PHILANTHROPY': { label: 'Service', color: '#F7FEE7', borderColor: '#4D7C0F' },
+  GENERAL_MEETING: { label: 'General Meeting', color: '#FAF5EE', borderColor: '#78350F' },
+  MANDATORY: { label: 'Mandatory', color: '#FEF2F2', borderColor: '#B91C1C' },
+  OTHER_MANDATORY: { label: 'Mandatory', color: '#FEF2F2', borderColor: '#B91C1C' },
+  GOOGLE_CALENDAR: { label: 'Google Calendar', color: '#FEF9C3', borderColor: '#CA8A04' },
+  PROJECT_MEETING: { label: 'Project Meeting', color: '#FFFBEB', borderColor: '#B45309' },
+  NEW_MEMBER_WORKSHOP: { label: 'New Member Workshop', color: '#FDF4FF', borderColor: '#9333EA' },
 };
 
 const FILTER_CONFIG: Record<string, { label: string; emoji: string; color: string; borderColor: string }> = {
-  MANDATORY: { label: 'Mandatory', emoji: '⚠️', color: '#FFEBEE', borderColor: '#EF5350' },
-  SOCIAL: { label: 'Social', emoji: '🎉', color: '#FF9999', borderColor: '#FF6666' },
-  SERVICE: { label: 'Service', emoji: '🤝', color: '#9FBB9F', borderColor: '#7A9B7A' },
-  PROFESSIONAL: { label: 'Professional', emoji: '💼', color: '#FF7043', borderColor: '#E64A19' },
-  OTHER: { label: 'Other', emoji: '📌', color: '#E0E0E0', borderColor: '#9E9E9E' },
+  MANDATORY: { label: 'Mandatory', emoji: '⚠️', color: '#FEF2F2', borderColor: '#B91C1C' },
+  SOCIAL: { label: 'Social', emoji: '🍁', color: '#FEF3C7', borderColor: '#D97706' },
+  SERVICE: { label: 'Service', emoji: '🍂', color: '#F7FEE7', borderColor: '#4D7C0F' },
+  PROFESSIONAL: { label: 'Professional', emoji: '💼', color: '#FFF7ED', borderColor: '#C2410C' },
+  OTHER: { label: 'Other', emoji: '🌰', color: '#F5EBE1', borderColor: '#A88D79' },
 };
 
 const FILTER_KEYS = Object.keys(FILTER_CONFIG);
@@ -78,11 +78,11 @@ function getEventEmoji(event: { is_mandatory?: boolean | null; event_type?: stri
   if (event.is_mandatory) return '⚠️';
   const norm = (event.event_type || '').toUpperCase().trim();
   if (norm === 'MANDATORY' || norm === 'OTHER_MANDATORY') return '⚠️';
-  if (norm === 'SOCIAL') return '🎉';
-  if (norm === 'SERVICE' || norm === 'SERVICE / PHILANTHROPY' || norm === 'SERVICE/PHILANTHROPY') return '🤝';
+  if (norm === 'SOCIAL') return '🍁';
+  if (norm === 'SERVICE' || norm === 'SERVICE / PHILANTHROPY' || norm === 'SERVICE/PHILANTHROPY') return '🍂';
   if (norm === 'PROFESSIONAL') return '💼';
   if (norm === 'GOOGLE_CALENDAR') return '📅';
-  return '📌';
+  return '🌰';
 }
 
 interface MemberProfile {
@@ -457,13 +457,16 @@ export default function EventList() {
                   style={{ width: "48px", height: "48px" }}
                 />
                 <div>
-                  <p className="eyebrow" style={{ marginBottom: "2px" }}>NOBE Illinois Member Portal</p>
+                  <div className="flex items-center gap-2" style={{ marginBottom: "2px" }}>
+                    <p className="eyebrow" style={{ margin: 0 }}>NOBE Illinois Member Portal</p>
+                    <span className="fall-seasonal-badge">🍂 Fall 2026</span>
+                  </div>
                   <h1 className="page-title" style={{ fontSize: "1.8rem", margin: 0 }}>
                     {member?.name ? `${member.name.split(' ')[0]}'s schedule` : 'Your event schedule'}
                   </h1>
                 </div>
               </div>
-              <p className="page-subtitle" style={{ marginTop: "8px" }}>View events, points, and absence forms</p>
+              <p className="page-subtitle" style={{ marginTop: "8px" }}>View events, points, and absence forms for the Fall semester</p>
             </div>
             <div className="action-row">
               <LogoutButton />

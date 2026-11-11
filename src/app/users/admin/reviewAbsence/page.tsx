@@ -89,7 +89,10 @@ export default async function ReviewAbsence() {
       <main className="app-shell">
         <div className="page-frame page-stack">
         <header>
-          <p className="eyebrow">Administration</p>
+          <div className="flex items-center gap-2" style={{ marginBottom: "8px" }}>
+            <p className="eyebrow" style={{ margin: 0 }}>Administration</p>
+            <span className="fall-seasonal-badge">🍁 Fall 2026</span>
+          </div>
           <h1 className="page-title" style={{ fontSize: "2.7rem" }}>Review absences</h1>
           <p className="page-subtitle">
             Review submitted absence requests, send a response, and update request status.

@@ -229,7 +229,10 @@ function EventDetailsClient() {
           <Link href="/users/member" className="btn-secondary" style={{ fontSize: "0.85rem", padding: "6px 12px", borderRadius: "10px" }}>
             ← Back to Schedule
           </Link>
-          <img src="/nobe_logo_f.svg" alt="NOBE" style={{ width: "36px", height: "36px" }} />
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <span className="fall-seasonal-badge">🍂 Fall 2026</span>
+            <img src="/nobe_logo_f.svg" alt="NOBE" style={{ width: "36px", height: "36px" }} />
+          </div>
         </div>
 
         {/* Event Header Panel */}

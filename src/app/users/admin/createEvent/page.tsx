@@ -766,7 +766,10 @@ function CreateEventContent() {
         <section className="hero-card">
           <div className="page-header">
             <div>
-              <p className="eyebrow">Administration</p>
+              <div className="flex items-center gap-2" style={{ marginBottom: "8px" }}>
+                <p className="eyebrow" style={{ margin: 0 }}>Administration</p>
+                <span className="fall-seasonal-badge">🍁 Fall 2026</span>
+              </div>
               <h1 className="page-title">
                 {eventId ? "Edit event" : isBulkMode ? "Bulk Add Events" : "Create an event"}
               </h1>
